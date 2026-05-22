@@ -1,0 +1,55 @@
+# Built-in Gradle / Android Studio templates
+.gradle
+local.properties
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+release/
+*.apk
+*.ap_
+
+# IntelliJ IDEA Project files
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse Project files
+.classpath
+.project
+.settings/
+
+# VS Code files
+.vscode/
+
+# Package Files
+*.jar
+*.aar
+
+# Keystores / Key files (Secrets)
+*.jks
+*.keystore
+*.pk8
+*.pem
+/signing/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Firebase configuration file containing project keys and app identifiers
+app/google-services.json
+
+# Local Configuration (user-specific properties)
+local.properties
+
+# Crashlytics files
+app/crashlytics-build.properties
+
+# Kotlin compilation caches
+.kotlin/
+
+# Agent configuration and caches
+.agent/
