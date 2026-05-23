@@ -1,22 +1,22 @@
 <div align="center">
 
-  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" alt="Athera Logo" width="120" height="120" />
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" alt="Aethra Logo" width="120" height="120" />
 
-# Athera
+# Aethra
 
 **Nurture Your Mind. Cultivate Your Spirit.**
 
   <p>
-    <a href="https://github.com/gtxPrime/Athera/stargazers">
-      <img src="https://img.shields.io/github/stars/gtxPrime/Athera?style=for-the-badge&color=yellow" alt="Stars" />
+    <a href="https://github.com/gtxPrime/Aethra/stargazers">
+      <img src="https://img.shields.io/github/stars/gtxPrime/Aethra?style=for-the-badge&color=yellow" alt="Stars" />
     </a>
-    <a href="https://github.com/gtxPrime/Athera/network/members">
-      <img src="https://img.shields.io/github/forks/gtxPrime/Athera?style=for-the-badge&color=orange" alt="Forks" />
+    <a href="https://github.com/gtxPrime/Aethra/network/members">
+      <img src="https://img.shields.io/github/forks/gtxPrime/Aethra?style=for-the-badge&color=orange" alt="Forks" />
     </a>
-    <a href="https://github.com/gtxPrime/Athera/issues">
-      <img src="https://img.shields.io/github/issues/gtxPrime/Athera?style=for-the-badge&color=blue" alt="Issues" />
+    <a href="https://github.com/gtxPrime/Aethra/issues">
+      <img src="https://img.shields.io/github/issues/gtxPrime/Aethra?style=for-the-badge&color=blue" alt="Issues" />
     </a>
-    <a href="https://github.com/gtxPrime/Athera/blob/main/LICENSE">
+    <a href="https://github.com/gtxPrime/Aethra/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-brightgreen?style=for-the-badge" alt="License" />
     </a>
     <a href="#">
@@ -25,7 +25,7 @@
   </p>
 
   <h3>
-    <a href="#-about-athera">About</a>
+    <a href="#-about-aethra">About</a>
     <span> | </span>
     <a href="#-features">Features</a>
     <span> | </span>
@@ -42,9 +42,9 @@
 
 ---
 
-## 🌿 About Athera
+## 🌿 About Aethra
 
-**Athera** is a private, gamified journaling and mood-tracking ecosystem designed to transform emotional self-reflection into a rewarding journey. By mapping your emotional landscapes to virtual spirit companions, Athera encourages daily mindfulness, tracks key health variables, and protects your thoughts with state-of-the-art cryptographic security.
+**Aethra** is a private, gamified journaling and mood-tracking ecosystem designed to transform emotional self-reflection into a rewarding journey. By mapping your emotional landscapes to virtual spirit companions, Aethra encourages daily mindfulness, tracks key health variables, and protects your thoughts with state-of-the-art cryptographic security.
 
 Every journal entry you write contributes energy to a companion corresponding to your dominant emotion. As you reflect, your companions hatch, grow, and evolve—turning your psychological resilience into a tangible, beautiful virtual garden.
 
@@ -74,7 +74,7 @@ Visualize the trends behind your emotional well-being:
 
 ## 🥚 Spirit Garden & Pet Evolution
 
-Athera visualizes your emotional states as unique spirit companions. Cultivating entries of a specific emotion channels energy into that mood's companion, triggering level-ups and evolutions.
+Aethra visualizes your emotional states as unique spirit companions. Cultivating entries of a specific emotion channels energy into that mood's companion, triggering level-ups and evolutions.
 
 ### The 6 Mood Archetypes & Companions
 
@@ -108,7 +108,7 @@ graph LR
 
 ## 🔒 Security & Privacy Vault
 
-Your journal is your most private space. Athera implements robust defensive features to protect your data from physical and digital intrusion:
+Your journal is your most private space. Aethra implements robust defensive features to protect your data from physical and digital intrusion:
 
 *   **Biometric Authentication:** Gate the app behind strong device credentials (Fingerprint, Face Unlock, or PIN) via Android's `BiometricPrompt`.
 *   **Decoy PIN Mode:** Configure a secondary decoy PIN. If entered, the app unlocks in **Decoy Mode**—hiding your actual database, displaying a clean, empty state, and protecting you from forced disclosure.
@@ -120,7 +120,7 @@ Your journal is your most private space. Athera implements robust defensive feat
 
 ## 🛠️ Tech Stack
 
-Athera is built on a modern, robust Android architecture:
+Aethra is built on a modern, robust Android architecture:
 
 -   **UI Layer:** [Jetpack Compose](https://developer.android.com/compose) for a declarative, fluid, and responsive user interface following material guidelines.
 -   **Database:** [Room SQLite](https://developer.android.com/training/data-storage/room) for structured local storage of journal entries, database transactions, and pet progress.
@@ -142,13 +142,13 @@ Athera is built on a modern, robust Android architecture:
 ### Setup Steps
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/gtxPrime/Athera.git
-    cd Athera
+    git clone https://github.com/gtxPrime/Aethra.git
+    cd Aethra
     ```
 
 2.  **Configure Firebase:**
     - Create a project on the [Firebase Console](https://console.firebase.google.com/).
-    - Register an Android app with package name `com.gxdevs.athera`.
+    - Register an Android app with package name `com.gxdevs.aethra`.
     - Download `google-services.json`.
     - Place the downloaded file into the `app/` directory:
       ```bash

@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace 'com.gxdevs.athera'
+    namespace 'com.gxdevs.aethra'
     compileSdk 36
 
     defaultConfig {
-        applicationId "com.gxdevs.athera"
+        applicationId "com.gxdevs.aethra"
         minSdk 26
         targetSdk 37
         versionCode 1
