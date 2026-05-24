@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.ui.pets
+package com.gxdevs.aethra.ui.pets
 
 import android.app.Application
 import android.app.NotificationChannel
@@ -23,13 +23,13 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Calendar
 
-// â”€â”€â”€ UI model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- UI model ------------------------------------------------------------------------------------
 
 data class PetUiState(
     val petId: String,
     val name: String,
-    val emotion: String,         // lowercase: "bright", "calm", â€¦
-    val moodId: String,          // capitalized: "Bright" â€” for MoodConstants colour lookup
+    val emotion: String,         // lowercase: "bright", "calm", …
+    val moodId: String,          // capitalized: "Bright" — for MoodConstants colour lookup
     val level: Int,
     val description: String,
     val journalCount: Int,       // effective journals for this pet's level
@@ -48,7 +48,7 @@ data class PetsScreenState(
     val isLoading: Boolean = true
 )
 
-// â”€â”€â”€ ViewModel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- ViewModel -----------------------------------------------------------------------------------
 
 class PetViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -60,7 +60,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val cacheDao      = db.cachedStageImageDao()
     private val gson          = Gson()
 
-    // â”€â”€ Live state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Live state --------------------------
 
     val petsState: StateFlow<PetsScreenState> = combine(
         defDao.getAllDefinitions(),
@@ -69,7 +69,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         cacheDao.getAllCachedImages()
     ) { defs, allStages, progressList, cachedImages ->
 
-        // Fast-path: catalog not seeded yet â€” fall back to MoodConstants dummy set
+        // Fast-path: catalog not seeded yet — fall back to MoodConstants dummy set
         if (defs.isEmpty()) {
             return@combine fallbackToMoodConstants(progressList)
         }
@@ -96,7 +96,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // â”€â”€ Journal-save hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Journal-save hook -------------------
 
     fun onJournalSaved() {
         viewModelScope.launch {
@@ -203,7 +203,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Private helpers ---------------------
 
     private fun buildPetUiState(
         def: PetDefinition,
@@ -289,13 +289,13 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         return Pair((totalJournals - prevMax).coerceAtLeast(0), false)
     }
 
-    /** Fallback when catalog DB is empty â€” mirror old MoodConstants behaviour */
+    /** Fallback when catalog DB is empty — mirror old MoodConstants behaviour */
     private fun fallbackToMoodConstants(progressList: List<PetProgress>): PetsScreenState {
         val progressMap = progressList.associateBy { it.moodId }
         // Only include moods the user has actually journaled about (count >= 1)
         val pets = MoodConstants.ALL_MOODS.mapNotNull { moodId ->
             val count    = progressMap[moodId]?.journalCount ?: 0
-            if (count < 1) return@mapNotNull null   // no journal for this mood â€” hide entirely
+            if (count < 1) return@mapNotNull null   // no journal for this mood — hide entirely
             val stageIdx = MoodConstants.stageFor(count)
             val stageName = if (stageIdx < 0) "Egg"
                             else MoodConstants.stages.getOrNull(stageIdx)?.name ?: "Egg"
@@ -372,7 +372,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             petName.hashCode(),
             NotificationCompat.Builder(context, CHANNEL_COMPANION)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("$petName evolved! âœ¨")
+                .setContentTitle("$petName evolved! ✨")
                 .setContentText("$petName has reached the $stageName stage.")
                 .setAutoCancel(true)
                 .build()

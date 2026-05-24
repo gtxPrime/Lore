@@ -696,7 +696,7 @@ fun SettingsScreenUI(
         )
     }
 
-    // â”€â”€ Delete dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Delete dialog ───────────────────────────────────────────────────
     var deleteTextInput        by remember { mutableStateOf("") }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
@@ -782,7 +782,7 @@ fun SettingsScreenUI(
             title = "PRIVACY & SECURITY",
             icon  = Icons.Outlined.Lock
         ) {
-            // â”€â”€ App Lock toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── App Lock toggle ────────────────────────────────────────────
             val pinMode = !useBiometric || !biometricAvailable
             val lockSub = when {
                 !appLockEnabled   -> "Tap to enable app lock."
@@ -804,7 +804,7 @@ fun SettingsScreenUI(
                 }
             )
 
-            // â”€â”€ Lock method selector (only when biometric is available) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Lock method selector (only when biometric is available) ──────────
             AnimatedVisibility(
                 visible = appLockEnabled && biometricAvailable,
                 enter = expandVertically(tween(220)),
@@ -861,7 +861,7 @@ fun SettingsScreenUI(
                 }
             }
 
-            // â”€â”€ Custom PIN section (visible when PIN mode is active) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Custom PIN section (visible when PIN mode is active) ──────────
             AnimatedVisibility(
                 visible = appLockEnabled && pinMode,
                 enter = expandVertically(tween(250)),
@@ -1068,7 +1068,7 @@ fun SettingsScreenUI(
             }
 
 
-            // â”€â”€ Screenshot Protection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Screenshot Protection ──────────────────────────────────────────
             SettingsSwitchItem(
                 icon     = Icons.Outlined.Shield,
                 title    = "Screenshot Protection",
@@ -1077,7 +1077,7 @@ fun SettingsScreenUI(
                 onCheckedChange = onScreenshotToggle
             )
             
-            // â”€â”€ Blur Journals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Blur Journals ──────────────────────────────────────────────
             SettingsSwitchItem(
                 icon     = Icons.Outlined.VisibilityOff,
                 title    = "Blur Journals on Home",
@@ -1121,7 +1121,7 @@ fun SettingsScreenUI(
                 checked = dailyReminder,
                 onCheckedChange = onDailyReminderToggle
             )
-            // â”€â”€ Reminder time picker (shown only when reminder is on) â”€â”€â”€â”€â”€â”€
+            // ── Reminder time picker (shown only when reminder is on) ──────
             AnimatedVisibility(
                 visible = dailyReminder,
                 enter = expandVertically(tween(220)),
@@ -1147,7 +1147,7 @@ fun SettingsScreenUI(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // â”€â”€ Hour stepper â”€â”€
+                        // ── Hour stepper ──
                         TimeStepperBlock(
                             label = "Hour",
                             value = "%02d".format(if (reminderHour == 0) 12 else if (reminderHour > 12) reminderHour - 12 else reminderHour),
@@ -1162,7 +1162,7 @@ fun SettingsScreenUI(
                         )
                         Text(":", color = textPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp))
-                        // â”€â”€ Minute stepper â”€â”€
+                        // ── Minute stepper ──
                         TimeStepperBlock(
                             label = "Min",
                             value = "%02d".format(reminderMinute),
@@ -1176,7 +1176,7 @@ fun SettingsScreenUI(
                             }
                         )
                         Spacer(Modifier.width(16.dp))
-                        // â”€â”€ AM/PM toggle â”€â”€
+                        // ── AM/PM toggle ──
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             val isAm = reminderHour < 12
                             Box(
@@ -1325,7 +1325,7 @@ fun SettingsScreenUI(
                 onDismissRequest = { showImportDialog = false },
                 title = { Text("Import Data", color = textPrimary, fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("How would you like to import this backup? \n\nâ€¢ Merge: Fill empty slots only (keeps existing data).\nâ€¢ Overwrite: Replace ALL current data.", color = textSecondary)
+                    Text("How would you like to import this backup? \n\n• Merge: Fill empty slots only (keeps existing data).\n• Overwrite: Replace ALL current data.", color = textSecondary)
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -1473,7 +1473,7 @@ fun SettingsSection(
     }
 }
 
-// â”€â”€â”€ Time stepper for notification time picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Time stepper for notification time picker ────────────────────────────────
 @Composable
 private fun TimeStepperBlock(
     label: String,
@@ -1613,7 +1613,7 @@ fun SettingsActionItem(
     }
 }
 
-// â”€â”€â”€ Small tappable PIN action card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Small tappable PIN action card ──────────────────────────────────────────
 @Composable
 fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
@@ -1641,7 +1641,7 @@ fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: (
     }
 }
 
-// â”€â”€â”€ Keypad-style PIN Setup Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Keypad-style PIN Setup Dialog ───────────────────────────────────────────
 @Composable
 fun PinSetupDialog(
     title: String,
@@ -1699,13 +1699,13 @@ fun PinSetupDialog(
                 Spacer(Modifier.height(24.dp))
 
                 // Number pad
-                val rows = listOf(listOf("1","2","3"), listOf("4","5","6"), listOf("7","8","9"), listOf("","0","âŒ«"))
+                val rows = listOf(listOf("1","2","3"), listOf("4","5","6"), listOf("7","8","9"), listOf("","0","⌫"))
                 rows.forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { key ->
                             when (key) {
                                 "" -> Spacer(Modifier.size(64.dp))
-                                "âŒ«" -> Box(
+                                "⌫" -> Box(
                                     modifier = Modifier.size(64.dp).clip(CircleShape)
                                         .background(borderColor).clickable { onBackspace() },
                                     contentAlignment = Alignment.Center

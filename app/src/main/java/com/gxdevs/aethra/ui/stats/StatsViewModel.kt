@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.ui.stats
+package com.gxdevs.aethra.ui.stats
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -114,12 +114,12 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
 
             val hasText = !entry.content.isNullOrBlank()
 
-            // â”€â”€ Media counting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // --- Media counting ---
             // Two storage formats exist:
             //   Object-list (AfterJournalViewModel): [{uri, type:"IMAGE"|"VIDEO"|"FILE", name}]
-            //     â†’ audio appears as FILE in the list AND in audioPath â€” count from list only.
+            //     → audio appears as FILE in the list AND in audioPath — count from list only.
             //   Plain URI-list (TextJournalScreen):  ["content://...", ...]
-            //     â†’ visual media only; audio is in audioPath, legacy video in videoPath.
+            //     → visual media only; audio is in audioPath, legacy video in videoPath.
             var entryVoice = 0
             var entryPhoto = 0
             var entryVideo = 0
@@ -128,8 +128,8 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
             if (!attachmentsRaw.isNullOrBlank()) {
                 try {
                     if (attachmentsRaw.trimStart().startsWith("[{")) {
-                        // â”€â”€ Object-list format â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                        // audioPath is redundant here â€” count only from typed list entries.
+                        // --- Object-list format ---
+                        // audioPath is redundant here — count only from typed list entries.
                         val objectListType = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
                         val list: List<Map<String, Any>> = com.google.gson.Gson().fromJson(
                             attachmentsRaw, objectListType)
@@ -143,7 +143,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                         // videoPath is a separate legacy field not duplicated in this format
                         if (!entry.videoPath.isNullOrBlank() && entry.videoPath != "null") entryVideo++
                     } else {
-                        // â”€â”€ Plain URI-string list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                        // --- Plain URI-string list ---
                         // Use ContentResolver MIME type for accurate image vs video classification.
                         val uris: List<String> = com.google.gson.Gson().fromJson(
                             attachmentsRaw, object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
@@ -153,7 +153,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                             when {
                                 mime?.startsWith("video") == true -> entryVideo++
                                 mime?.startsWith("audio") == true -> entryVoice++
-                                else -> entryPhoto++ // image/* or unknown â†’ treat as photo
+                                else -> entryPhoto++ // image/* or unknown → treat as photo
                             }
                         }
                         // Audio and video stored separately in this format
@@ -161,12 +161,12 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                         if (!entry.videoPath.isNullOrBlank() && entry.videoPath != "null") entryVideo++
                     }
                 } catch (_: Exception) {
-                    // Parse error â€” fall back to legacy fields only
+                    // Parse error — fall back to legacy fields only
                     if (!entry.audioPath.isNullOrBlank() && entry.audioPath != "null") entryVoice++
                     if (!entry.videoPath.isNullOrBlank() && entry.videoPath != "null") entryVideo++
                 }
             } else {
-                // No attachments column â€” count standalone legacy fields
+                // No attachments column — count standalone legacy fields
                 if (!entry.audioPath.isNullOrBlank() && entry.audioPath != "null") entryVoice++
                 if (!entry.videoPath.isNullOrBlank() && entry.videoPath != "null") entryVideo++
             }

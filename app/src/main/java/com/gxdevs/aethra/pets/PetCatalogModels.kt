@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.pets
+package com.gxdevs.aethra.pets
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -7,9 +7,9 @@ import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import androidx.room.TypeConverter
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -----------------------------------------------------------------------------
 // Room Entities
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -----------------------------------------------------------------------------
 
 /**
  * Stores the remote catalog version and the last time we successfully fetched it.
@@ -24,7 +24,7 @@ data class PetCatalogMeta(
 
 /**
  * One row per pet definition (from pets.json).
- * User progress fields (journalCount, lastUpdatedDay) are in [com.gxdevs.aethra.PetProgress] â€” NOT here.
+ * User progress fields (journalCount, lastUpdatedDay) are in [com.gxdevs.aethra.PetProgress] — NOT here.
  * We never overwrite user progress when updating catalog data.
  */
 @Entity(tableName = "pet_definitions")
@@ -32,14 +32,14 @@ data class PetDefinition(
     @PrimaryKey val petId: String,          // e.g. "bright_001"
     val name: String,                       // "Auros"
     val emotion: String,                    // "bright"
-    val level: Int,                         // 1, 2, â€¦
+    val level: Int,                         // 1, 2, …
     val description: String,
     val totalStages: Int
 )
 
 /**
  * One row per stage of each pet definition.
- * Stage images are NOT stored here â€” see [CachedStageImage].
+ * Stage images are NOT stored here — see [CachedStageImage].
  */
 @Entity(
     tableName = "pet_stage_definitions",
@@ -57,7 +57,7 @@ data class PetStageDefinition(
     val stage: Int,             // 1-based (1 = Egg, 6 = Mythical)
     val stageName: String,
     val journalsRequired: Int,
-    val imageUrl: String        // Cloudinary URL â€” image fetched lazily on unlock
+    val imageUrl: String        // Cloudinary URL — image fetched lazily on unlock
 )
 
 /**
@@ -75,9 +75,9 @@ data class CachedStageImage(
     val cachedAtEpoch: Long = System.currentTimeMillis()
 )
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -----------------------------------------------------------------------------
 // Gson-mapped JSON models (not Room entities)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -----------------------------------------------------------------------------
 
 data class PetCatalogJson(
     val version: Int,

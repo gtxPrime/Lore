@@ -22,7 +22,7 @@ import com.gxdevs.aethra.pets.PetStageDefinitionDao
         CustomEmotion::class,
         PetProgress::class,
         Relic::class,
-        // â”€â”€ Pet Catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // --- Pet Catalog ---
         PetCatalogMeta::class,
         PetDefinition::class,
         PetStageDefinition::class,
@@ -38,7 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun petProgressDao(): PetProgressDao
     abstract fun relicDao(): RelicDao
 
-    // â”€â”€ Pet Catalog DAOs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Pet Catalog DAOs ---
     abstract fun petCatalogMetaDao(): PetCatalogMetaDao
     abstract fun petDefinitionDao(): PetDefinitionDao
     abstract fun petStageDefinitionDao(): PetStageDefinitionDao

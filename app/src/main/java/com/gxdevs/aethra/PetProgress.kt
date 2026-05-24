@@ -13,6 +13,6 @@ data class PetProgress(
     @PrimaryKey
     val moodId: String,          // one of MoodConstants.*
     val journalCount: Int = 0,   // total days contributed to this mood's pet
-    val lastUpdatedDay: String = ""  // "YYYY-DDD" â€“ prevents double-counting same day
+    val lastUpdatedDay: String = ""  // "YYYY-DDD" – prevents double-counting same day
 )
 

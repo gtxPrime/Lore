@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.ui.chronicles
+package com.gxdevs.aethra.ui.chronicles
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -174,7 +174,7 @@ fun ChronicleScreen(viewModel: ChronicleViewModel = viewModel()) {
                         CircularProgressIndicator(color = primaryAccent, modifier = Modifier.size(28.dp))
                     }
                 } else if (uiState.surfacedRelics.isEmpty() && uiState.lockedRelics.isEmpty()) {
-                    // No relics yet â€” empty state
+                    // No relics yet — empty state
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -467,7 +467,7 @@ fun RelicSurfacedCard(onClick: () -> Unit) {
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // Outer soft ambient glow â€” requiredSize overflows clip
+                // Outer soft ambient glow — requiredSize overflows clip
                 Box(
                     modifier = Modifier
                         .requiredSize(200.dp)
@@ -714,7 +714,7 @@ fun UnsealedRelicOverlay(relic: Relic?, onClose: () -> Unit) {
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // â”€â”€ BOX OPENING ANIMATION â”€â”€
+            // --- BOX OPENING ANIMATION ---
             Box(
                 modifier = Modifier.size(120.dp),
                 contentAlignment = Alignment.BottomCenter
@@ -797,7 +797,7 @@ fun UnsealedRelicOverlay(relic: Relic?, onClose: () -> Unit) {
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // â”€â”€ REVEALED CONTENT â”€â”€
+            // --- REVEALED CONTENT ---
             Box(
                 modifier = Modifier
                     .graphicsLayer {

@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
  */
 object MoodConstants {
 
-    // â”€â”€ Mood IDs (stable string keys) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Mood IDs (stable string keys) ────────────────────────────────────────
     const val BRIGHT  = "Bright"
     const val CALM    = "Calm"
     const val HEAVY   = "Heavy"
@@ -18,7 +18,7 @@ object MoodConstants {
 
     val ALL_MOODS = listOf(BRIGHT, CALM, HEAVY, TANGLED, DARK, BLANK)
 
-    // â”€â”€ Brand colors per mood â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Brand colors per mood ─────────────────────────────────────────────────
     val colorOf: Map<String, Color> = mapOf(
         BRIGHT  to Color(0xFFF3C042),   // warm golden yellow
         CALM    to Color(0xFF606F49),   // sage green
@@ -48,7 +48,7 @@ object MoodConstants {
         BLANK   to "An empty slate, representing the potential for new beginnings."
     )
 
-    // â”€â”€ Pet growth stages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Pet growth stages ─────────────────────────────────────────────────────
     // journalsNeeded = cumulative journals with this mood required to REACH this stage
     data class PetStage(
         val stageIndex: Int,       // 0 = locked/egg, 1 = cracked egg, â€¦, 5 = full-grown
@@ -77,7 +77,7 @@ object MoodConstants {
         return stage
     }
 
-    /** Progress (0fâ€“1f) within the CURRENT stage toward the next one. */
+    /** Progress (0f–1f) within the CURRENT stage toward the next one. */
     fun progressInStage(journalCount: Int): Float {
         if (journalCount < 1) return 0f
         val currentStageIdx = stageFor(journalCount)
@@ -88,7 +88,7 @@ object MoodConstants {
         return (within.toFloat() / needed).coerceIn(0f, 1f)
     }
 
-    // â”€â”€ Emotion â†’ mood category mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Emotion → mood category mapping ──────────────────────────────────────
     /** Map a raw emotion label to one of the 6 mood buckets. */
     fun emotionToMood(emotionLabel: String): String {
         val name = emotionLabel.lowercase()

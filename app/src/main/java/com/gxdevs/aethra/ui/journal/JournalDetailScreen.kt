@@ -131,7 +131,7 @@ fun JournalDetailScreen(
     var showRelicDialog  by remember { mutableStateOf(false) }
     var showMenu         by remember { mutableStateOf(false) }
 
-    // â”€â”€ Delete confirmation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Delete confirmation ---
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -173,7 +173,7 @@ fun JournalDetailScreen(
         )
     }
 
-    // â”€â”€ Relic confirmation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Relic confirmation ---
     if (showRelicDialog) {
         RelicSealDialog(
             entryTitle = entry?.content?.substringBefore("\n")?.take(40) ?: "This entry",
@@ -213,12 +213,12 @@ fun JournalDetailScreen(
         entry.promptResponses?.toFormatRanges() ?: emptyList()
     }
 
-    val sdf         = SimpleDateFormat("EEEE, MMM dd, yyyy â€¢ h:mm a", LocalLocale.current.platformLocale)
+    val sdf         = SimpleDateFormat("EEEE, MMM dd, yyyy · h:mm a", LocalLocale.current.platformLocale)
     val dateString  = sdf.format(Date(entry.timestamp))
     val tags        = entry.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
     val mainTag     = tags.firstOrNull() ?: "MEMO"
 
-    // â”€â”€ Parse dominant mood from emotions JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Parse dominant mood from emotions JSON ---
     val dominantMood: String? = remember(entry.emotions) {
         if (entry.emotions.isNullOrBlank()) null
         else try {
@@ -233,7 +233,7 @@ fun JournalDetailScreen(
     }
     val moodLabel   = dominantMood?.uppercase() ?: mainTag.uppercase()
 
-    // â”€â”€ Parse attachments â€” handles both JSON formats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Parse attachments — handles both JSON formats ---
     // Format A (AfterJournalViewModel): [{"uri":"...","type":"IMAGE","name":"..."}, ...]
     // Format B (TextJournalScreen edit): ["content://...", "content://..."]
     data class ParsedAttachment(val uri: android.net.Uri, val type: String)
@@ -341,7 +341,7 @@ fun JournalDetailScreen(
                     lineHeight = 38.sp
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                // â”€â”€ Mood chip â€” tappable to update mood â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Mood chip — tappable to update mood ---
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -672,7 +672,7 @@ private fun AudioPlayerCard(uri: android.net.Uri) {
 }
 
 
-// â”€â”€ Open media with device system app â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Open media with device system app ---
 private fun openWithSystem(context: android.content.Context, uri: android.net.Uri) {
     val mimeType = context.contentResolver.getType(uri) ?: "*/*"
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
@@ -683,12 +683,12 @@ private fun openWithSystem(context: android.content.Context, uri: android.net.Ur
 }
 
 
-// â”€â”€ Dynamic Media Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Dynamic Media Grid ---
 // Layout rules (no empty half-spaces):
-//   1 item  â†’ full-width 16:9 only
-//   2 items â†’ hero 16:9 stacked above second item 16:9 (both full-width)
-//   3 items â†’ hero 16:9 + two 1:1 squares side-by-side
-//   4+      â†’ hero 16:9 + one 1:1 thumbnail + "+N MORE" tile (50/50 row)
+//   1 item  → full-width 16:9 only
+//   2 items → hero 16:9 stacked above second item 16:9 (both full-width)
+//   3 items → hero 16:9 + two 1:1 squares side-by-side
+//   4+      → hero 16:9 + one 1:1 thumbnail + "+N MORE" tile (50/50 row)
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun DynamicMediaGrid(
@@ -820,7 +820,7 @@ private fun MediaThumbnail(
     }
 }
 
-// â”€â”€ Relic Seal Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Relic Seal Dialog ---
 @Composable
 fun RelicSealDialog(
     entryTitle: String,
@@ -918,7 +918,7 @@ fun RelicSealDialog(
                 )
                 Spacer(Modifier.height(24.dp))
                 Text(
-                    "This memory will be sealed in the Reliquary. It will resurface after the chosen time â€” a message to your future self.",
+                    "This memory will be sealed in the Reliquary. It will resurface after the chosen time — a message to your future self.",
                     fontSize = 14.sp,
                     color = Color.White.copy(0.7f),
                     lineHeight = 22.sp,

@@ -128,7 +128,7 @@ enum class AudioState { IDLE, RECORDING, PAUSED, RECORDED }
 
 data class FormatRange(val type: FormatType, var start: Int, var end: Int)
 
-/** Serializable snapshot of a FormatRange â€” used to persist rich-text formatting. */
+/** Serializable snapshot of a FormatRange — used to persist rich-text formatting. */
 private data class SavedRange(val type: String, val start: Int, val end: Int)
 
 private fun List<FormatRange>.toFormatJson(): String =
@@ -167,7 +167,7 @@ class RichTextState {
         if (oldText != newText) {
             val lengthDiff = newText.length - oldText.length
 
-            // â”€â”€ Auto-list prefix when user presses Enter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // --- Auto-list prefix when user presses Enter ---
             if (listType != ListType.OFF && lengthDiff == 1 &&
                 newValue.selection.collapsed &&
                 newValue.selection.start > 0 &&
@@ -177,7 +177,7 @@ class RichTextState {
                 val prevLineStart = newText.lastIndexOf('\n', cursorPos - 2).let { if (it < 0) 0 else it + 1 }
                 val prevLine      = newText.substring(prevLineStart, cursorPos - 1)
 
-                val isBarePrefix = prevLine == "â€¢ " || prevLine.matches(Regex("^\\d+\\. $"))
+                val isBarePrefix = prevLine == "• " || prevLine.matches(Regex("^\\d+\\. $"))
                 if (isBarePrefix) {
                     val cleaned    = newText.substring(0, prevLineStart) + newText.substring(cursorPos - 1)
                     textFieldValue = TextFieldValue(cleaned, TextRange(prevLineStart))
@@ -185,7 +185,7 @@ class RichTextState {
                 }
 
                 val prefix = when (listType) {
-                    ListType.BULLET -> "â€¢ "
+                    ListType.BULLET -> "• "
                     ListType.NUMBER -> {
                         val linesBefore = newText.substring(0, cursorPos).lines()
                         val num = linesBefore.count { it.matches(Regex("^\\d+\\. .*")) } + 1
@@ -199,7 +199,7 @@ class RichTextState {
                     adjustRangesForEdit(oldText, newText, oldSelection)
                     shiftRangesFrom(cursorPos, prefix.length)
                     textFieldValue = TextFieldValue(inserted, TextRange(newCursor))
-                    return false  // â† do NOT fall through; value already set
+                    return false  // -> do NOT fall through; value already set
                 }
             }
 
@@ -213,7 +213,7 @@ class RichTextState {
             }
             textFieldValue = newValue   // only set once, here, for normal edits
         } else {
-            // Text unchanged â€” cursor moved / selection changed; sync active-format state
+            // Text unchanged — cursor moved / selection changed; sync active-format state
             val pos = newValue.selection.min
             var b = false; var i = false; var u = false; var s = false
             for (r in formatRanges) {
@@ -237,10 +237,10 @@ class RichTextState {
         val selectedText = text.substring(sel.min, sel.max)
         val lines        = selectedText.split("\n")
         val newLines     = lines.mapIndexed { idx, line ->
-            val stripped = line.removePrefix("â€¢ ").replace(Regex("^\\d+\\. "), "")
+            val stripped = line.removePrefix("• ").replace(Regex("^\\d+\\. "), "")
             when (listType) {
                 ListType.OFF    -> stripped
-                ListType.BULLET -> "â€¢ $stripped"
+                ListType.BULLET -> "• $stripped"
                 ListType.NUMBER -> "${idx + 1}. $stripped"
             }
         }
@@ -263,17 +263,17 @@ class RichTextState {
         while (iter.hasNext()) {
             val r = iter.next()
             when {
-                // Range is entirely after the edit â†’ shift both ends
+                // Range is entirely after the edit → shift both ends
                 r.start >= oldSel.max -> { r.start += diff; r.end += diff }
-                // Cursor exactly AT the start of a range and inserting â†’ shift range right
+                // Cursor exactly AT the start of a range and inserting → shift range right
                 // (new char typed just before range stays outside the range)
                 isInsert && r.start == oldSel.min -> { r.start += diff; r.end += diff }
-                // Cursor exactly AT the end of a range and inserting â†’ don't extend the range
+                // Cursor exactly AT the end of a range and inserting → don't extend the range
                 // (new char typed just after range is controlled by active-flag, not range expansion)
                 isInsert && r.end == oldSel.max -> { /* leave r.end as-is */ }
-                // Range strictly contains the edit â†’ extend/shrink proportionally
+                // Range strictly contains the edit → extend/shrink proportionally
                 r.start < oldSel.min && r.end > oldSel.max -> r.end = (r.end + diff).coerceAtLeast(r.start)
-                // Range fully inside replaced selection â†’ collapse
+                // Range fully inside replaced selection → collapse
                 r.start >= oldSel.min && r.end <= oldSel.max -> r.end = r.start
                 // Partial overlap (tail of range clips into edit region)
                 r.end > oldSel.min && r.end <= oldSel.max -> r.end = oldSel.min
@@ -470,7 +470,7 @@ fun AudioRecordingPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Status dot â€“ pulsing accent when recording, solid when paused
+        // Status dot – pulsing accent when recording, solid when paused
         val dotColor by animateColorAsState(
             if (audioState == AudioState.RECORDING) primaryAccent else accentBackground,
             label = "dot"
@@ -581,7 +581,7 @@ fun TextJournalScreen(
                     } catch (_: Exception) {}
                 }
 
-                // Parse media URIs â€” handles both storage formats:
+                // Parse media URIs — handles both storage formats:
                 // Format A (AfterJournalViewModel): [{"uri":"...","type":"IMAGE","name":"..."}, ...]
                 // Format B (plain URI list):         ["content://...", "content://..."]
                 if (!entry.attachments.isNullOrBlank()) {
@@ -619,7 +619,7 @@ fun TextJournalScreen(
         }
     }
 
-    // â”€â”€ Audio state (one recording at a time) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Audio state (one recording at a time) ---
     var audioState     by rememberSaveable { mutableStateOf(AudioState.IDLE) }
     var durationSec    by rememberSaveable { mutableIntStateOf(0) }
     var recordingFile  by rememberSaveable(saver = FileStateSaver) { mutableStateOf<File?>(null) }
@@ -700,7 +700,7 @@ fun TextJournalScreen(
         }
     }
 
-    // â”€â”€ Media (multi-select, images + videos only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Media (multi-select, images + videos only) ---
     val imagePicker = rememberLauncherForActivityResult(PickMultipleVisualMedia()) { uris ->
         if (uris.isNotEmpty()) {
             uris.forEach { uri ->
@@ -838,7 +838,7 @@ fun TextJournalScreen(
                     .padding(bottom = bottomPad)
                     .imePadding() // push content up when keyboard opens
             ) {
-                // â”€â”€ Top Bar: Close + Save â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Top Bar: Close + Save ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1122,7 +1122,7 @@ fun TextJournalScreen(
                 )
             }
 
-            // â”€â”€ Bottom overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // --- Bottom overlay ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1132,7 +1132,7 @@ fun TextJournalScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                // â”€â”€ Audio recording pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Audio recording pill ---
                 AnimatedVisibility(
                     visible = showAudio,
                     enter = slideInVertically { it } + fadeIn(),
@@ -1160,7 +1160,7 @@ fun TextJournalScreen(
                     }
                 }
 
-                // â”€â”€ Word count and Spirit energy pills â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Word count and Spirit energy pills ---
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1199,7 +1199,7 @@ fun TextJournalScreen(
 
                 Spacer(Modifier.height(10.dp))
 
-                // â”€â”€ Floating toolbar (media + format + mic) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Floating toolbar (media + format + mic) ---
                 val sharedScope = LocalSharedTransitionScope.current
                 val navAnimScope = LocalNavAnimatedVisibilityScope.current
                 

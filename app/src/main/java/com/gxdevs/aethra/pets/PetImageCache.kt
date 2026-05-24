@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.pets
+package com.gxdevs.aethra.pets
 
 import android.content.Context
 import android.util.Log
@@ -31,7 +31,7 @@ class PetImageCache(private val context: Context) {
      * Returns the local [File] for a stage image, downloading it from [imageUrl]
      * if it has not been cached yet. Returns null if the download fails.
      *
-     * Call this ONLY when a stage is newly unlocked â€” never on every render.
+     * Call this ONLY when a stage is newly unlocked — never on every render.
      */
     suspend fun getOrDownload(petId: String, stage: Int, imageUrl: String): File? =
         withContext(Dispatchers.IO) {
@@ -43,13 +43,13 @@ class PetImageCache(private val context: Context) {
                     Log.d(TAG, "Cache hit: $petId stage $stage")
                     return@withContext file
                 }
-                // File was deleted externally â€” re-download
+                // File was deleted externally — re-download
                 Log.w(TAG, "Cache record exists but file missing, re-downloading")
             }
 
             // 2. Download from Cloudinary
             val localFile = File(imageDir, "${petId}_stage${stage}.png")
-            Log.i(TAG, "Downloading $imageUrl â†’ ${localFile.name}")
+            Log.i(TAG, "Downloading $imageUrl → ${localFile.name}")
             val success = downloadToFile(imageUrl, localFile)
 
             if (!success) {
@@ -57,7 +57,7 @@ class PetImageCache(private val context: Context) {
                 return@withContext null
             }
 
-            // 3. Record in DB â€” permanent, never deleted unless user clears all data
+            // 3. Record in DB — permanent, never deleted unless user clears all data
             cacheDao.insert(
                 CachedStageImage(
                     petId = petId,
@@ -95,7 +95,7 @@ class PetImageCache(private val context: Context) {
         Log.i(TAG, "Purged all cached pet stage images")
     }
 
-    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Private helpers ---
 
     private fun downloadToFile(urlString: String, dest: File): Boolean {
         return try {

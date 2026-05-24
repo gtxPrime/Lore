@@ -31,7 +31,7 @@ import com.gxdevs.aethra.MoodConstants
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
-// â”€â”€â”€ App colour palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- App colour palette ------------------------------------------------------
 // ——— App colour palette ——————————————————————————————————————————————————————
 private val appBackground           = Color(0xFFEBE8E0)
 private val mainContainerBackground = Color(0xFFF4F1EA)
@@ -100,7 +100,7 @@ fun PetsScreen(
                 .verticalScroll(scrollState)
                 .padding(bottom = 120.dp)
         ) {
-            // â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // --- Top bar ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -155,7 +155,7 @@ fun PetsScreen(
                     )
                 }
             } else {
-                // â”€â”€ Hero Pager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Hero Pager ---
                 HorizontalPager(
                     state          = pagerState,
                     contentPadding = PaddingValues(horizontal = 100.dp),
@@ -210,7 +210,7 @@ fun PetsScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // â”€â”€ Pet detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Pet detail ---
                 val currentPet      = pets.getOrElse(pagerState.currentPage) { pets.first() }
                 val currentMoodColor = MoodConstants.colorOf[currentPet.moodId] ?: primaryAccent
 
@@ -303,7 +303,7 @@ fun PetsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Rounded.AutoAwesome, null, tint = currentMoodColor, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Fully evolved Â· Mythic", fontSize = 12.sp, color = currentMoodColor, fontWeight = FontWeight.Bold)
+                                Text("Fully evolved · Mythic", fontSize = 12.sp, color = currentMoodColor, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -311,7 +311,7 @@ fun PetsScreen(
 
                 Spacer(modifier = Modifier.height(40.dp))
 
-                // â”€â”€ Pet grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // --- Pet grid ---
                 Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                     if (filteredIndices.isEmpty()) {
                         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
@@ -414,7 +414,7 @@ fun PetsScreen(
     }
 }
 
-// â”€â”€â”€ Pet visual â€” emoji/shape (DEMO_MODE or no image) / image (cached) â”€â”€â”€â”€â”€â”€â”€
+// --- Pet visual — emoji/shape (DEMO_MODE or no image) / image (cached) -------
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
@@ -428,7 +428,7 @@ fun PetStageVisual(pet: PetUiState, moodColor: Color, isCenter: Boolean) {
         return
     }
 
-    // If DEMO_MODE OR no local image cached â†’ show emoji / shape visual
+    // If DEMO_MODE OR no local image cached → show emoji / shape visual
     if (PetViewModel.DEMO_MODE || pet.localImagePath == null) {
         PetEmojiVisual(pet = pet, moodColor = moodColor, size = size)
         return
@@ -448,7 +448,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
 
     when (pet.stageIndex) {
         0 -> {
-            // Egg â€” pulsing
+            // Egg — pulsing
             val inf = rememberInfiniteTransition(label = "egg_pulse")
             val scale by inf.animateFloat(0.95f, 1.05f,
                 infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "scale")
@@ -456,7 +456,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
                 modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
         }
         1 -> {
-            // Cracked â€” slight wobble
+            // Cracked — slight wobble
             val inf = rememberInfiniteTransition(label = "crack_wobble")
             val rot by inf.animateFloat(-3f, 3f,
                 infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "rot")
@@ -467,7 +467,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
             Text(emoji, fontSize = (size.value * 0.55f).sp)
         }
         4 -> {
-            // Juvenile â€” float
+            // Juvenile — float
             val inf = rememberInfiniteTransition(label = "float")
             val offsetY by inf.animateFloat(0f, -8f,
                 infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "y")
@@ -475,7 +475,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
                 modifier = Modifier.graphicsLayer { translationY = offsetY })
         }
         else -> {
-            // Mythic â€” float + glow
+            // Mythic — float + glow
             val inf = rememberInfiniteTransition(label = "mythic")
             val offsetY by inf.animateFloat(0f, -10f,
                 infiniteRepeatable(tween(2000), RepeatMode.Reverse), label = "y")
@@ -498,7 +498,7 @@ fun PetGridIcon(pet: PetUiState, tint: Color) {
         Icon(Icons.Rounded.Lock, null, tint = tint, modifier = Modifier.size(20.dp))
         return
     }
-    // In DEMO_MODE or no image â†’ emoji; else small icon
+    // In DEMO_MODE or no image → emoji; else small icon
     if (PetViewModel.DEMO_MODE || pet.localImagePath == null) {
         Text(emojiFor(pet.emotion, pet.stageIndex), fontSize = 20.sp)
     } else {

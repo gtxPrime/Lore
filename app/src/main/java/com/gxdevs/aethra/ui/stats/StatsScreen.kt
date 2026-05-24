@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.ui.stats
+package com.gxdevs.aethra.ui.stats
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -194,7 +194,7 @@ fun MoodsTabContent(stats: StatsState) {
                     }
                 }
             } else {
-                // Donut Chart (Canvas) â€“ colors from MoodConstants
+                // Donut Chart (Canvas) – colors from MoodConstants
                 Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.foundation.Canvas(modifier = Modifier.size(160.dp)) {
                         val strokeWidth = 40f
@@ -220,7 +220,7 @@ fun MoodsTabContent(stats: StatsState) {
                 
                 Spacer(modifier = Modifier.height(32.dp))
                 
-                // Legend â€“ colors from MoodConstants
+                // Legend – colors from MoodConstants
                 val legends = MoodConstants.ALL_MOODS.map { mood ->
                     Pair(mood, MoodConstants.colorOf[mood] ?: Color.Gray) to (stats.emotionPercents[mood] ?: 0f)
                 }

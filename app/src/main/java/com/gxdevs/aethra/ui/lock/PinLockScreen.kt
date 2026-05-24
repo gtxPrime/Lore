@@ -129,14 +129,14 @@ fun PinLockScreen(
                 listOf("1","2","3"),
                 listOf("4","5","6"),
                 listOf("7","8","9"),
-                listOf("","0","âŒ«")
+                listOf("","0","⌫")
             )
             keys.forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     row.forEach { key ->
                         when (key) {
                             "" -> Spacer(Modifier.size(76.dp))
-                            "âŒ«" -> PinKey(label = key, isSpecial = true, onClick = {
+                            "⌫" -> PinKey(label = key, isSpecial = true, onClick = {
                                 if (input.isNotEmpty()) { input = input.dropLast(1); isError = false }
                             })
                             else -> PinKey(label = key, onClick = { handleDigit(key) })
@@ -170,7 +170,7 @@ private fun PinKey(label: String, isSpecial: Boolean = false, onClick: () -> Uni
             },
         contentAlignment = Alignment.Center
     ) {
-        if (label == "âŒ«") {
+        if (label == "⌫") {
             Icon(Icons.AutoMirrored.Rounded.Backspace, null, tint = subText, modifier = Modifier.size(22.dp))
         } else {
             Text(label, color = if (isSpecial) subText else textCol, fontSize = 22.sp, fontWeight = FontWeight.Medium)
