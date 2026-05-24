@@ -9,14 +9,14 @@ plugins {
 
 android {
     namespace 'com.gxdevs.aethra'
-    compileSdk 36
+    compileSdk 37
 
     defaultConfig {
         applicationId "com.gxdevs.aethra"
         minSdk 26
         targetSdk 37
         versionCode 1
-        versionName "1.0"
+        versionName 'Wisp 1'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -35,6 +35,7 @@ android {
         compose true
     }
     buildToolsVersion '36.1.0'
+    compileSdkMinor 0
 }
 
 kotlin {
@@ -94,4 +95,11 @@ dependencies {
     // Firebase
     implementation platform(libs.firebase.bom)
     implementation libs.firebase.remote.config
+
+    // Google Play In-App Updates
+    implementation libs.play.app.update
+    implementation libs.play.app.update.ktx
+
+    // Google Sign-In
+    implementation libs.play.services.auth
 }
