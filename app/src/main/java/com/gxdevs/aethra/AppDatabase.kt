@@ -1,0 +1,67 @@
+package com.gxdevs.aethra
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import com.gxdevs.aethra.data.CustomEmotion
+import com.gxdevs.aethra.data.UserAttributesDao
+import com.gxdevs.aethra.pets.CachedStageImage
+import com.gxdevs.aethra.pets.CachedStageImageDao
+import com.gxdevs.aethra.pets.PetCatalogMeta
+import com.gxdevs.aethra.pets.PetCatalogMetaDao
+import com.gxdevs.aethra.pets.PetDefinition
+import com.gxdevs.aethra.pets.PetDefinitionDao
+import com.gxdevs.aethra.pets.PetStageDefinition
+import com.gxdevs.aethra.pets.PetStageDefinitionDao
+
+@Database(
+    entities = [
+        JournalEntry::class,
+        MoodType::class,
+        CustomEmotion::class,
+        PetProgress::class,
+        Relic::class,
+        // â”€â”€ Pet Catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        PetCatalogMeta::class,
+        PetDefinition::class,
+        PetStageDefinition::class,
+        CachedStageImage::class
+    ],
+    version = 8,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun journalDao(): JournalDao
+    abstract fun moodDao(): MoodDao
+    abstract fun userAttributesDao(): UserAttributesDao
+    abstract fun petProgressDao(): PetProgressDao
+    abstract fun relicDao(): RelicDao
+
+    // â”€â”€ Pet Catalog DAOs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    abstract fun petCatalogMetaDao(): PetCatalogMetaDao
+    abstract fun petDefinitionDao(): PetDefinitionDao
+    abstract fun petStageDefinitionDao(): PetStageDefinitionDao
+    abstract fun cachedStageImageDao(): CachedStageImageDao
+
+    companion object {
+        @Volatile private var INSTANCE: AppDatabase? = null
+
+        fun getDatabase(context: Context): AppDatabase {
+            return INSTANCE
+                ?: synchronized(this) {
+                    val instance =
+                        Room.databaseBuilder(
+                            context.applicationContext,
+                            AppDatabase::class.java,
+                            "journal_database"
+                        )
+                            .fallbackToDestructiveMigration(true) // For development simplicity
+                            .build()
+                    INSTANCE = instance
+                    instance
+                }
+        }
+    }
+}
+
