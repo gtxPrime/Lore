@@ -1,11 +1,9 @@
-package com.gxdevs.aethra.pets
+﻿package com.gxdevs.aethra.pets
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import androidx.room.TypeConverter
 
 // -----------------------------------------------------------------------------
 // Room Entities
@@ -24,7 +22,7 @@ data class PetCatalogMeta(
 
 /**
  * One row per pet definition (from pets.json).
- * User progress fields (journalCount, lastUpdatedDay) are in [com.gxdevs.aethra.PetProgress] — NOT here.
+ * User progress fields (journalCount, lastUpdatedDay) are in [com.gxdevs.aethra.pets.PetProgress] â€” NOT here.
  * We never overwrite user progress when updating catalog data.
  */
 @Entity(tableName = "pet_definitions")
@@ -32,14 +30,14 @@ data class PetDefinition(
     @PrimaryKey val petId: String,          // e.g. "bright_001"
     val name: String,                       // "Auros"
     val emotion: String,                    // "bright"
-    val level: Int,                         // 1, 2, …
+    val level: Int,                         // 1, 2, â€¦
     val description: String,
     val totalStages: Int
 )
 
 /**
  * One row per stage of each pet definition.
- * Stage images are NOT stored here — see [CachedStageImage].
+ * Stage images are NOT stored here â€” see [CachedStageImage].
  */
 @Entity(
     tableName = "pet_stage_definitions",
@@ -57,7 +55,7 @@ data class PetStageDefinition(
     val stage: Int,             // 1-based (1 = Egg, 6 = Mythical)
     val stageName: String,
     val journalsRequired: Int,
-    val imageUrl: String        // Cloudinary URL — image fetched lazily on unlock
+    val imageUrl: String        // Cloudinary URL â€” image fetched lazily on unlock
 )
 
 /**
@@ -81,7 +79,7 @@ data class CachedStageImage(
 
 data class PetCatalogJson(
     val version: Int,
-    val last_updated: String,
+    val lastUpdated: String,
     val pets: List<PetJson>
 )
 
@@ -91,14 +89,14 @@ data class PetJson(
     val emotion: String,
     val level: Int,
     val description: String,
-    val total_stages: Int,
+    val totalStages: Int,
     val stages: List<PetStageJson>
 )
 
 data class PetStageJson(
     val stage: Int,
-    val stage_name: String,
-    val journals_required: Int,
-    val image_url: String
+    val stageName: String,
+    val journalsRequired: Int,
+    val imageUrl: String
 )
 

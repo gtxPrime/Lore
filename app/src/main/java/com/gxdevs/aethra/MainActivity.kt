@@ -1,5 +1,7 @@
 package com.gxdevs.aethra
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.graphics.Color
 import android.os.Bundle
@@ -24,6 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -73,8 +78,13 @@ val LocalNavAnimatedVisibilityScope = compositionLocalOf<AnimatedVisibilityScope
 
 class MainActivity : FragmentActivity() {
 
+    companion object {
+        var bypassNextLock: Boolean = false
+        var pauseTimestamp: Long? = null
+    }
+
     private lateinit var appUpdateManager: AppUpdateManager
-    private val UPDATE_REQUEST_CODE = 17362
+    private val updateRequestCode = 17362
 
     // Android 13+ notification permission launcher
     private val notificationPermissionLauncher =
@@ -99,9 +109,9 @@ class MainActivity : FragmentActivity() {
 
         // Request POST_NOTIFICATIONS on Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
-                android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
         
@@ -118,28 +128,11 @@ class MainActivity : FragmentActivity() {
         setContent {
             MyApplicationTheme {
                 val settingsRepo = remember { SettingsRepository(this@MainActivity) }
-                val appLockEnabled by settingsRepo.appLockEnabled.collectAsState(initial = false)
-                val hideMedia      by settingsRepo.hideMediaInGallery.collectAsState(initial = false)
-                val decoyPin       by settingsRepo.decoyPin.collectAsState(initial = false)
-                val realPin        by settingsRepo.realPin.collectAsState(initial = null)
-                val decoyPinValue  by settingsRepo.decoyPinValue.collectAsState(initial = null)
-                val appPin         by settingsRepo.appPin.collectAsState(initial = null)
-                val useBiometric   by settingsRepo.useBiometricLock.collectAsState(initial = true)
-                val autoLockDelay  by settingsRepo.autoLockDelay.collectAsState(initial = 0)
+                val securitySettingsState by remember { settingsRepo.securitySettings }.collectAsState(initial = null)
 
-                // Apply screenshot protection globally
-                LaunchedEffect(hideMedia) {
-                    if (hideMedia) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                    else           window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                }
-
-                var isUnlocked    by remember { mutableStateOf(false) }
-                // Guards against firing biometric prompt multiple times during recomposition
-                var authAttempted by remember { mutableStateOf(false) }
-                // Timestamp recorded when app goes to background
-                var pauseTimestamp by remember { mutableStateOf<Long?>(null) }
-                // Biometric availability is a mutable var so it can be refreshed on every resume
-                // (handles the case where the user removes the device lock while the app is running)
+                var isUnlocked    by rememberSaveable { mutableStateOf(false) }
+                var authAttempted by rememberSaveable { mutableStateOf(false) }
+                
                 var biometricAvailable by remember {
                     mutableStateOf(
                         BiometricManager.from(this@MainActivity).canAuthenticate(
@@ -151,33 +144,49 @@ class MainActivity : FragmentActivity() {
 
                 val scope = rememberCoroutineScope()
 
-                // Snapshot refs — always read the latest value inside the lifecycle observer
-                // without causing the DisposableEffect to restart
-                val currentAppLockEnabled by rememberUpdatedState(appLockEnabled)
+                // Reset decoy mode on cold start
+                LaunchedEffect(Unit) {
+                    settingsRepo.setIsDecoyMode(false)
+                }
+
+                // Apply screenshot protection globally
+                LaunchedEffect(securitySettingsState?.hideMedia) {
+                    val hide = securitySettingsState?.hideMedia ?: false
+                    if (hide) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    else           window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                }
+
+                val currentAppLockEnabled by rememberUpdatedState(securitySettingsState?.appLockEnabled ?: false)
                 val currentIsUnlocked     by rememberUpdatedState(isUnlocked)
-                val currentAutoLockDelay  by rememberUpdatedState(autoLockDelay)
+                val currentAutoLockDelay  by rememberUpdatedState(securitySettingsState?.autoLockDelay ?: 0)
 
                 val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner) {
                     val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                         when (event) {
                             androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> {
-                                // Record when the app went to background (only while unlocked)
+                                if (bypassNextLock) {
+                                    return@LifecycleEventObserver
+                                }
                                 if (currentAppLockEnabled && currentIsUnlocked) {
                                     pauseTimestamp = System.currentTimeMillis()
                                 }
                             }
                             androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
-                                // Re-evaluate biometric availability — detects device lock removal
                                 biometricAvailable = BiometricManager.from(this@MainActivity).canAuthenticate(
                                     BiometricManager.Authenticators.BIOMETRIC_STRONG or
                                     BiometricManager.Authenticators.DEVICE_CREDENTIAL
                                 ) == BiometricManager.BIOMETRIC_SUCCESS
 
+                                if (bypassNextLock) {
+                                    bypassNextLock = false
+                                    pauseTimestamp = null
+                                    return@LifecycleEventObserver
+                                }
+
                                 val pt = pauseTimestamp
                                 if (pt != null && currentAppLockEnabled) {
                                     val elapsedMs = System.currentTimeMillis() - pt
-                                    // 0 = Instant: use 200ms grace to avoid locking on screen rotation
                                     val thresholdMs = if (currentAutoLockDelay == 0) 200L
                                                       else currentAutoLockDelay * 1000L
                                     if (elapsedMs >= thresholdMs) {
@@ -196,24 +205,23 @@ class MainActivity : FragmentActivity() {
                 }
 
                 // ── Core lock state machine ───────────────────────────────────────────
-                // Runs whenever lock state, auth state, or biometric availability changes.
-                LaunchedEffect(isUnlocked, appLockEnabled, authAttempted, useBiometric, biometricAvailable) {
-                    // App lock disabled → always unlock
+                LaunchedEffect(isUnlocked, securitySettingsState, authAttempted, biometricAvailable) {
+                    val settings = securitySettingsState ?: return@LaunchedEffect
+                    val appLockEnabled = settings.appLockEnabled
+                    val decoyPin = settings.decoyPin
+                    val useBiometric = settings.useBiometric
+                    val appPin = settings.appPin
+
                     if (!appLockEnabled) {
                         isUnlocked = true
                         authAttempted = false
                         return@LaunchedEffect
                     }
-                    // Already unlocked — nothing to do
                     if (isUnlocked) return@LaunchedEffect
-                    // Auth already in progress — wait for its callback
                     if (authAttempted) return@LaunchedEffect
 
                     when {
-                        // Decoy PIN mode → PIN screen handles auth
                         decoyPin -> { /* shown via showPinLock below */ }
-
-                        // Biometric lock preferred and hardware available
                         biometricAvailable && useBiometric -> {
                             authAttempted = true
                             com.gxdevs.aethra.utils.SecurityManager(this@MainActivity)
@@ -227,178 +235,180 @@ class MainActivity : FragmentActivity() {
                                     onError = { finish() }
                                 )
                         }
-
-                        // PIN-only lock (biometrics unavailable or disabled) with backup PIN set
-                        (!biometricAvailable || !useBiometric) && appPin != null -> {
+                        appPin != null -> {
                             /* shown via showPinLock below */
                         }
-
-                        // Safety fallback: no biometrics AND no backup PIN → do not lock out
                         else -> { isUnlocked = true }
                     }
                 }
 
-                // Show PIN lock for decoy mode OR PIN-only app lock
-                val showPinLock = appLockEnabled && !isUnlocked &&
-                    (decoyPin || ((!biometricAvailable || !useBiometric) && appPin != null))
-                if (showPinLock) {
-                    PinLockScreen(
-                        onUnlockNormal = {
-                            scope.launch { settingsRepo.setIsDecoyMode(false) }
-                            isUnlocked = true
-                        },
-                        onUnlockDecoy  = { scope.launch { settingsRepo.setIsDecoyMode(true) }; isUnlocked = true },
-                        realPin        = if (decoyPin) realPin else appPin,
-                        decoyPinValue  = if (decoyPin) decoyPinValue else null
-                    )
-                } else if (isUnlocked) {
+                val settings = securitySettingsState
+                if (settings != null) {
+                    val appLockEnabled = settings.appLockEnabled
+                    val decoyPin = settings.decoyPin
+                    val useBiometric = settings.useBiometric
+                    val appPin = settings.appPin
+                    val realPin = settings.realPin
+                    val decoyPinValue = settings.decoyPinValue
 
-                    val navController = rememberNavController()
-                    val viewModel: JournalViewModel = viewModel()
-                    val petViewModel: PetViewModel = viewModel()
+                    val showPinLock = appLockEnabled && !isUnlocked &&
+                        (decoyPin || ((!biometricAvailable || !useBiometric) && appPin != null))
 
-                    // Re-apply daily reminder on cold start if enabled
-                    val dailyReminderOn by settingsRepo.dailyReminder.collectAsState(initial = true)
-                    val reminderHour    by settingsRepo.reminderHour.collectAsState(initial = 10)
-                    val reminderMinute  by settingsRepo.reminderMinute.collectAsState(initial = 0)
-                    LaunchedEffect(dailyReminderOn, reminderHour, reminderMinute) {
-                        if (dailyReminderOn) scheduleDailyReminder(this@MainActivity, reminderHour, reminderMinute)
-                        else cancelDailyReminder(this@MainActivity)
-                    }
+                    if (showPinLock) {
+                        PinLockScreen(
+                            onUnlockNormal = {
+                                scope.launch { settingsRepo.setIsDecoyMode(false) }
+                                isUnlocked = true
+                            },
+                            onUnlockDecoy  = { scope.launch { settingsRepo.setIsDecoyMode(true) }; isUnlocked = true },
+                            realPin        = if (decoyPin) realPin else appPin,
+                            decoyPinValue  = if (decoyPin) decoyPinValue else null
+                        )
+                    } else if (isUnlocked) {
 
-                    SharedTransitionLayout {
-                        CompositionLocalProvider(
-                            LocalSharedTransitionScope provides this
-                        ) {
-                            NavHost(
-                                navController = navController,
-                                startDestination = "home",
-                                modifier = Modifier.fillMaxSize(),
-                                enterTransition = { fadeIn(animationSpec = tween(150)) },
-                                exitTransition = { fadeOut(animationSpec = tween(150)) },
-                                popEnterTransition = { fadeIn(animationSpec = tween(150)) },
-                                popExitTransition = { fadeOut(animationSpec = tween(150)) }
+                        val navController = rememberNavController()
+                        val viewModel: JournalViewModel = viewModel()
+                        val petViewModel: PetViewModel = viewModel()
+
+                        // Re-apply daily reminder on cold start if enabled
+                        val dailyReminderOn by settingsRepo.dailyReminder.collectAsState(initial = true)
+                        val reminderHour    by settingsRepo.reminderHour.collectAsState(initial = 10)
+                        val reminderMinute  by settingsRepo.reminderMinute.collectAsState(initial = 0)
+                        LaunchedEffect(dailyReminderOn, reminderHour, reminderMinute) {
+                            if (dailyReminderOn) scheduleDailyReminder(this@MainActivity, reminderHour, reminderMinute)
+                            else cancelDailyReminder(this@MainActivity)
+                        }
+
+                        SharedTransitionLayout {
+                            CompositionLocalProvider(
+                                LocalSharedTransitionScope provides this
                             ) {
-                    composable(
-                        route = "home",
-                        exitTransition = {
-                            if (targetState.destination.route?.startsWith("text_journal") == true) {
-                                fadeOut(tween(350)) + scaleOut(
-                                    targetScale = 0.95f,
-                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
-                                    animationSpec = tween(350)
-                                )
-                            } else {
-                                fadeOut(animationSpec = tween(150))
-                            }
-                        },
-                        popEnterTransition = {
-                            if (initialState.destination.route?.startsWith("text_journal") == true) {
-                                fadeIn(tween(300)) + scaleIn(
-                                    initialScale = 0.95f,
-                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
-                                    animationSpec = tween(300)
-                                )
-                            } else {
-                                fadeIn(animationSpec = tween(150))
-                            }
-                        }
-                    ) {
-                        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-                            com.gxdevs.aethra.ui.home.HomeScreen(
-                                onNavigateToText = { navController.navigate("text_journal") },
-                                onNavigateToSettings = { navController.navigate("settings") },
-                                onNavigateToJournals = { navController.navigate("my_journals") },
-                                onNavigateToStats = { navController.navigate("stats") },
-                                onEntryClick = { id -> navController.navigate("journal_detail/$id") },
-                                onNavigateToProfile = { navController.navigate("profile") }
-                            )
-                        }
-                    }
-                    composable("settings") {
-                        com.gxdevs.aethra.ui.settings.SettingsScreen(
-                        )
-                    }
-                    composable("profile") {
-                        IdentityScreen(
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-
-                    composable(
-                        route = "text_journal?editId={editId}",
-                        enterTransition = {
-                            if (initialState.destination.route == "home") {
-                                slideIntoContainer(
-                                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Up,
-                                    animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                                ) + fadeIn(tween(350)) + scaleIn(
-                                    initialScale = 0.8f,
-                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
-                                    animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                                )
-                            } else {
-                                fadeIn(animationSpec = tween(150))
-                            }
-                        },
-                        popExitTransition = {
-                            if (targetState.destination.route == "home") {
-                                slideOutOfContainer(
-                                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Down,
-                                    animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutLinearInEasing)
-                                ) + fadeOut(tween(300)) + scaleOut(
-                                    targetScale = 0.8f,
-                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
-                                    animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutLinearInEasing)
-                                )
-                            } else {
-                                fadeOut(animationSpec = tween(150))
-                            }
-                        }
-                    ) { backStackEntry ->
-                        val editId = backStackEntry.arguments?.getString("editId")?.toLongOrNull()
-                        // Block pet catalog sync while user is writing
-                        androidx.compose.runtime.DisposableEffect(Unit) {
-                            PetSyncGuard.isJournalingActive = true
-                            onDispose { PetSyncGuard.isJournalingActive = false }
-                        }
-                        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-                            TextJournalScreen(
-                                    editId = editId,
-                                    viewModel = viewModel,
-                                    onBack = { navController.popBackStack() },
-                                    onSave = { text, tags, spiritEnergy, audioPath, mediaUris, timeSpent, formatJson, isRelic ->
-                                        val encodedText = URLEncoder.encode(text, "UTF-8")
-                                        val encodedTags = URLEncoder.encode(tags, "UTF-8")
-                                        val encodedAudio = audioPath?.let { URLEncoder.encode(it, "UTF-8") } ?: "null"
-                                        
-                                        val urisJson = Gson().toJson(mediaUris.map { it.toString() })
-                                        val encodedMedia = URLEncoder.encode(urisJson, "UTF-8")
-                                        val encodedFormat = URLEncoder.encode(formatJson, "UTF-8")
-                                        
-                                        navController.navigate(
-                                                "after_journal/text?content=$encodedText&tags=$encodedTags&audioPath=$encodedAudio&mediaUris=$encodedMedia&timeSpent=$timeSpent&formatRanges=$encodedFormat&isRelic=$isRelic"
+                                NavHost(
+                                    navController = navController,
+                                    startDestination = "home",
+                                    modifier = Modifier.fillMaxSize(),
+                                    enterTransition = { fadeIn(animationSpec = tween(150)) },
+                                    exitTransition = { fadeOut(animationSpec = tween(150)) },
+                                    popEnterTransition = { fadeIn(animationSpec = tween(150)) },
+                                    popExitTransition = { fadeOut(animationSpec = tween(150)) }
+                                ) {
+                                    composable(
+                                        route = "home",
+                                        exitTransition = {
+                                            if (targetState.destination.route?.startsWith("text_journal") == true) {
+                                                fadeOut(tween(350)) + scaleOut(
+                                                    targetScale = 0.95f,
+                                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
+                                                    animationSpec = tween(350)
+                                                )
+                                            } else {
+                                                fadeOut(animationSpec = tween(150))
+                                            }
+                                        },
+                                        popEnterTransition = {
+                                            if (initialState.destination.route?.startsWith("text_journal") == true) {
+                                                fadeIn(tween(300)) + scaleIn(
+                                                    initialScale = 0.95f,
+                                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
+                                                    animationSpec = tween(300)
+                                                )
+                                            } else {
+                                                fadeIn(animationSpec = tween(150))
+                                            }
+                                        }
+                                    ) {
+                                        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
+                                            com.gxdevs.aethra.ui.home.HomeScreen(
+                                                onNavigateToText = { navController.navigate("text_journal") },
+                                                onEntryClick = { id -> navController.navigate("journal_detail/$id") },
+                                                onNavigateToProfile = { navController.navigate("profile") }
+                                            )
+                                        }
+                                    }
+                                    composable("settings") {
+                                        com.gxdevs.aethra.ui.settings.SettingsScreen(
                                         )
                                     }
-                            )
-                        }
-                    }
-                    composable(
-                            "after_journal/{type}?content={content}&tags={tags}&filePath={filePath}&audioPath={audioPath}&mediaUris={mediaUris}&timeSpent={timeSpent}&editMoodId={editMoodId}&formatRanges={formatRanges}&isRelic={isRelic}"
-                    ) { backStackEntry ->
-                        val type = backStackEntry.arguments?.getString("type") ?: "text"
-                        val content = backStackEntry.arguments?.getString("content")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        val tags = backStackEntry.arguments?.getString("tags")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        val filePath = backStackEntry.arguments?.getString("filePath")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        val audioPath = backStackEntry.arguments?.getString("audioPath")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        val mediaUrisJson = backStackEntry.arguments?.getString("mediaUris")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        val timeSpent = backStackEntry.arguments?.getString("timeSpent")?.toLongOrNull() ?: 0L
-                        val editMoodId = backStackEntry.arguments?.getString("editMoodId")?.toLongOrNull()
-                        val formatRangesJson = backStackEntry.arguments?.getString("formatRanges")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        val isRelic = backStackEntry.arguments?.getString("isRelic")?.toBoolean() ?: false
+                                    composable("profile") {
+                                        IdentityScreen(
+                                            onBack = { navController.popBackStack() }
+                                        )
+                                    }
+
+                                    composable(
+                                        route = "text_journal?editId={editId}",
+                                        enterTransition = {
+                                            if (initialState.destination.route == "home") {
+                                                slideIntoContainer(
+                                                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Up,
+                                                    animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                                                ) + fadeIn(tween(350)) + scaleIn(
+                                                    initialScale = 0.8f,
+                                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
+                                                    animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                                                )
+                                            } else {
+                                                fadeIn(animationSpec = tween(150))
+                                            }
+                                        },
+                                        popExitTransition = {
+                                            if (targetState.destination.route == "home") {
+                                                slideOutOfContainer(
+                                                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Down,
+                                                    animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutLinearInEasing)
+                                                ) + fadeOut(tween(300)) + scaleOut(
+                                                    targetScale = 0.8f,
+                                                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.0f),
+                                                    animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutLinearInEasing)
+                                                )
+                                            } else {
+                                                fadeOut(animationSpec = tween(150))
+                                            }
+                                        }
+                                    ) { backStackEntry ->
+                                        val editId = backStackEntry.arguments?.getString("editId")?.toLongOrNull()
+                                        // Block pet catalog sync while user is writing
+                                        androidx.compose.runtime.DisposableEffect(Unit) {
+                                            PetSyncGuard.isJournalingActive = true
+                                            onDispose { PetSyncGuard.isJournalingActive = false }
+                                        }
+                                        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
+                                            TextJournalScreen(
+                                                    editId = editId,
+                                                    viewModel = viewModel,
+                                                    onBack = { navController.popBackStack() },
+                                                    onSave = { text, tags, _, audioPath, mediaUris, timeSpent, formatJson, isRelic ->
+                                                        val encodedText = URLEncoder.encode(text, "UTF-8")
+                                                        val encodedTags = URLEncoder.encode(tags, "UTF-8")
+                                                        val encodedAudio = audioPath?.let { URLEncoder.encode(it, "UTF-8") } ?: "null"
+                                                        
+                                                        val urisJson = Gson().toJson(mediaUris.map { it.toString() })
+                                                        val encodedMedia = URLEncoder.encode(urisJson, "UTF-8")
+                                                        val encodedFormat = URLEncoder.encode(formatJson, "UTF-8")
+                                                        
+                                                        navController.navigate(
+                                                                "after_journal/text?content=$encodedText&tags=$encodedTags&audioPath=$encodedAudio&mediaUris=$encodedMedia&timeSpent=$timeSpent&formatRanges=$encodedFormat&isRelic=$isRelic"
+                                                        )
+                                                    }
+                                            )
+                                        }
+                                    }
+                                    composable(
+                                            "after_journal/{type}?content={content}&tags={tags}&filePath={filePath}&audioPath={audioPath}&mediaUris={mediaUris}&timeSpent={timeSpent}&editMoodId={editMoodId}&formatRanges={formatRanges}&isRelic={isRelic}"
+                                    ) { backStackEntry ->
+                                        val type = backStackEntry.arguments?.getString("type") ?: "text"
+                                        val content = backStackEntry.arguments?.getString("content")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val tags = backStackEntry.arguments?.getString("tags")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val filePath = backStackEntry.arguments?.getString("filePath")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val audioPath = backStackEntry.arguments?.getString("audioPath")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val mediaUrisJson = backStackEntry.arguments?.getString("mediaUris")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val timeSpent = backStackEntry.arguments?.getString("timeSpent")?.toLongOrNull() ?: 0L
+                                        val editMoodId = backStackEntry.arguments?.getString("editMoodId")?.toLongOrNull()
+                                        val formatRangesJson = backStackEntry.arguments?.getString("formatRanges")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val isRelic = backStackEntry.arguments?.getString("isRelic")?.toBoolean() ?: false
  
-                        // Initialize ViewModel with data
-                        val afVM: AfterJournalViewModel = viewModel()
+                                        // Initialize ViewModel with data
+                                        val afVM: AfterJournalViewModel = viewModel()
  
                         androidx.compose.runtime.LaunchedEffect(Unit) {
                             afVM.setEditMoodEntryId(editMoodId)
@@ -418,7 +428,7 @@ class MainActivity : FragmentActivity() {
  
                         AfterJournalRecordScreen(
                                 onSave = {
-                                    val emotionsJson = afVM.selectedEmotions.value
+                                    afVM.selectedEmotions.value
                                         .let { Gson().toJson(it) }
                                     petViewModel.onJournalSaved()
                                     if (editMoodId != null) {
@@ -466,8 +476,15 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
-    }
-    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(androidx.compose.ui.graphics.Color(0xFF0E1108))
+                    )
+                }
+            }
+        }
     }
 
     private fun checkForUpdate() {
@@ -480,7 +497,7 @@ class MainActivity : FragmentActivity() {
                         appUpdateInfo,
                         this,
                         AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE),
-                        UPDATE_REQUEST_CODE
+                        updateRequestCode
                     )
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -499,7 +516,7 @@ class MainActivity : FragmentActivity() {
                             appUpdateInfo,
                             this,
                             AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE),
-                            UPDATE_REQUEST_CODE
+                            updateRequestCode
                         )
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -511,7 +528,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == UPDATE_REQUEST_CODE) {
+        if (requestCode == updateRequestCode) {
             if (resultCode != RESULT_OK) {
                 checkForUpdate()
             }

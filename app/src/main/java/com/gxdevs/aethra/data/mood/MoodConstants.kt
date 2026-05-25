@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra
+package com.gxdevs.aethra.data.mood
 
 import androidx.compose.ui.graphics.Color
 

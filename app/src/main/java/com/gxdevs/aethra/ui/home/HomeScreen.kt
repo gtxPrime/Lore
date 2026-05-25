@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.text.BasicTextField
@@ -23,6 +22,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,23 +40,36 @@ import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.absoluteValue
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalContext
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.gxdevs.aethra.JournalEntry
+import com.gxdevs.aethra.data.journal.JournalEntry
 import com.gxdevs.aethra.ui.theme.MyApplicationTheme
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import com.gxdevs.aethra.MoodConstants
+import com.gxdevs.aethra.data.mood.MoodConstants
 import com.gxdevs.aethra.ui.pets.PetStageVisual
 import com.gxdevs.aethra.ui.pets.PetUiState
 import com.gxdevs.aethra.ui.settings.SettingsScreen
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.bumptech.glide.integration.compose.GlideImage
+import com.gxdevs.aethra.LocalNavAnimatedVisibilityScope
+import com.gxdevs.aethra.LocalSharedTransitionScope
 import com.gxdevs.aethra.R
+import com.gxdevs.aethra.data.SettingsRepository
+import com.gxdevs.aethra.ui.chronicles.ChronicleScreen
+import com.gxdevs.aethra.ui.pets.PetViewModel
+import com.gxdevs.aethra.ui.pets.PetsScreen
+import com.gxdevs.aethra.ui.stats.InsightsTab
+import com.gxdevs.aethra.ui.stats.StatsViewModel
 
 // ===================== BEIGE / EARTH / SAGE THEME =====================
 private val appBackground = Color(0xFFEBE8E0)
@@ -84,7 +97,7 @@ fun HomeContent(
     onNavigateToProfile: () -> Unit
 ) {
     val context = LocalContext.current
-    val settingsRepo = remember { com.gxdevs.aethra.data.SettingsRepository(context) }
+    val settingsRepo = remember { SettingsRepository(context) }
     val blurJournals by settingsRepo.blurJournals.collectAsState(initial = false)
     val betaWelcomeState = settingsRepo.betaWelcomeShown.collectAsState(initial = null)
 
@@ -93,10 +106,8 @@ fun HomeContent(
     val coroutineScope = rememberCoroutineScope()
 
     // Track whether the ViewModel has delivered its first value (avoids flashing during initial load)
-    var userNameLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(userName, betaWelcomeState.value) {
         if (userName != null && betaWelcomeState.value != null) {
-            userNameLoaded = true
             // Only show the dialog on genuine first-run (name is blank) and AFTER beta welcome
             if (userName.isBlank() && !showNameDialog && betaWelcomeState.value == true) {
                 showNameDialog = true
@@ -131,7 +142,7 @@ fun HomeContent(
                     },
                     label = { Text("Your Name", color = textSecondary) },
                     singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -184,25 +195,25 @@ fun HomeContent(
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = true
             ) { page ->
-                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
                 // Remove alpha and scale for a pure liquid bounce slide
-                val slideOffset = pageOffset * 0.1f // Very slight parallax effect
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
+                            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+                            val slideOffset = pageOffset * 0.1f // Very slight parallax effect
                             this.translationX = slideOffset * size.width
                         }
                 ) {
                     when (page) {
                         0 -> {
-                            val statsViewModel: com.gxdevs.aethra.ui.stats.StatsViewModel = viewModel()
+                            val statsViewModel: StatsViewModel = viewModel()
                             val stats by statsViewModel.statsState.collectAsState()
-                            com.gxdevs.aethra.ui.stats.InsightsTab(stats = stats)
+                            InsightsTab(stats = stats)
                         }
-                        1 -> com.gxdevs.aethra.ui.chronicles.ChronicleScreen()
+                        1 -> ChronicleScreen()
                         2 -> {
-                            val petViewModel: com.gxdevs.aethra.ui.pets.PetViewModel = viewModel()
+                            val petViewModel: PetViewModel = viewModel()
                             val petsState by petViewModel.petsState.collectAsState()
                             HomeTabContent(
                                 displayName = displayName,
@@ -217,7 +228,7 @@ fun HomeContent(
                                 onNavigateToProfile = onNavigateToProfile
                             )
                         }
-                        3 -> com.gxdevs.aethra.ui.pets.PetsScreen()
+                        3 -> PetsScreen()
                         4 -> SettingsTabPlaceholder()
                     }
                 }
@@ -231,7 +242,7 @@ fun HomeContent(
                     coroutineScope.launch { 
                         pagerState.animateScrollToPage(
                             it,
-                            animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f)
+                            animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
                         ) 
                     } 
                 },
@@ -248,14 +259,14 @@ fun HomeTabContent(
     onSearchQueryChange: (String) -> Unit,
     onNameLongClick: () -> Unit,
     entries: List<JournalEntry>,
-    pets: List<com.gxdevs.aethra.ui.pets.PetUiState>,
+    pets: List<PetUiState>,
     blurJournals: Boolean = false,
     onEntryClick: (Long) -> Unit = {},
     onViewAllClick: () -> Unit = {},
     onNavigateToProfile: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val settingsRepo = remember { com.gxdevs.aethra.data.SettingsRepository(context) }
+    val context = LocalContext.current
+    val settingsRepo = remember { SettingsRepository(context) }
     val hasLongPressed by settingsRepo.hasLongPressedJournal.collectAsState(initial = true)
     val coroutineScope = rememberCoroutineScope()
 
@@ -371,7 +382,7 @@ fun HomeTabContent(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("✦", fontSize = 28.sp, color = primaryAccent.copy(alpha = 0.4f))
+                                    Text("\u2726", fontSize = 28.sp, color = primaryAccent.copy(alpha = 0.4f))
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Text(
                                         text = "Nothing written today",
@@ -473,14 +484,14 @@ private fun TopAppBarSection(
                     color = textPrimary,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif
+                    fontFamily = FontFamily.Serif
                 )
             }
         }
 
         // Profile button (fade out/in)
         if (contentAlpha > 0f) {
-            val settingsRepo = remember { com.gxdevs.aethra.data.SettingsRepository(context) }
+            val settingsRepo = remember { SettingsRepository(context) }
             val googleLoggedIn by settingsRepo.googleLoggedIn.collectAsState(initial = false)
             val googlePhoto by settingsRepo.googleAccountPhoto.collectAsState(initial = null)
 
@@ -496,7 +507,7 @@ private fun TopAppBarSection(
             ) {
                 val encodedName = try {
                     java.net.URLEncoder.encode(displayName, "UTF-8")
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     "wanderer"
                 }
                 val avatarUrl = if (googleLoggedIn && !googlePhoto.isNullOrBlank()) {
@@ -504,7 +515,7 @@ private fun TopAppBarSection(
                 } else {
                     "https://api.dicebear.com/7.x/notionists/png?seed=$encodedName"
                 }
-                com.bumptech.glide.integration.compose.GlideImage(
+                GlideImage(
                     model = avatarUrl,
                     contentDescription = "Profile",
                     modifier = Modifier.fillMaxSize(),
@@ -516,7 +527,7 @@ private fun TopAppBarSection(
         // Search Bar/Button container
         Box(
             modifier = Modifier
-                .offset(x = searchBarOffset)
+                .offset { IntOffset(x = searchBarOffset.roundToPx(), y = 0) }
                 .size(width = searchBarWidth, height = 48.dp)
                 .align(Alignment.CenterStart)
         ) {
@@ -599,8 +610,7 @@ private fun TopAppBarSection(
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-private fun HeroCard(topPet: com.gxdevs.aethra.ui.pets.PetUiState?) {
-    // Always use the signature green color for the hero card
+private fun HeroCard(topPet: PetUiState?) {
     val heroCardColor = primaryAccent
     val heroBgColor = accentBackground
 
@@ -612,7 +622,7 @@ private fun HeroCard(topPet: com.gxdevs.aethra.ui.pets.PetUiState?) {
                 .padding(horizontal = 24.dp),
             contentAlignment = Alignment.CenterStart
         ) {
-            // Green Card — always green
+            // Green Card - always green
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -650,7 +660,7 @@ private fun HeroCard(topPet: com.gxdevs.aethra.ui.pets.PetUiState?) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(topPet.name, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("${topPet.stageName} • Lv ${topPet.journalCount}", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                        Text("${topPet.stageName} \u2022 Lv ${topPet.journalCount}", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
 
                         Spacer(modifier = Modifier.weight(1f))
 
@@ -680,7 +690,7 @@ private fun HeroCard(topPet: com.gxdevs.aethra.ui.pets.PetUiState?) {
                 }
             }
 
-            // Image circle â€” always uses the neutral accentBackground
+            // Image circle - always uses the neutral accentBackground
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -706,10 +716,6 @@ private fun HeroCard(topPet: com.gxdevs.aethra.ui.pets.PetUiState?) {
     }
 }
 
-/**
- * Shows the 2nd and 3rd ranked pets side-by-side.
- * Caller guarantees list has 1 or 2 items (never 0, never 3+).
- */
 @Composable
 private fun IncubatingSection(pets: List<PetUiState>, onViewAllClick: () -> Unit) {
     if (pets.isEmpty()) return
@@ -723,17 +729,15 @@ private fun IncubatingSection(pets: List<PetUiState>, onViewAllClick: () -> Unit
             Text("VIEW ALL >", color = primaryAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onViewAllClick() })
         }
 
-        // Side-by-side: show 2nd and 3rd ranked pets
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 2nd ranked â€” always present when IncubatingSection is shown
             IncubatingCard(
                 pet = pets[0],
                 modifier = Modifier.weight(1f)
             )
-            // 3rd ranked â€” only if it exists
             if (pets.size >= 2) {
                 IncubatingCard(
                     pet = pets[1],
@@ -765,7 +769,7 @@ private fun IncubatingCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(com.gxdevs.aethra.MoodConstants.bgColorOf[pet.moodId] ?: accentBackground),
+                    .background(MoodConstants.bgColorOf[pet.moodId] ?: accentBackground),
                 contentAlignment = Alignment.Center
             ) {
                 PetStageVisual(pet = pet, moodColor = moodColor, isCenter = false)
@@ -875,8 +879,8 @@ private fun MockTimelineEntry(
             Spacer(modifier = Modifier.height(4.dp))
             Text(time, color = textTertiary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
-            val sharedScope = com.gxdevs.aethra.LocalSharedTransitionScope.current
-            val navAnimScope = com.gxdevs.aethra.LocalNavAnimatedVisibilityScope.current
+            val sharedScope = LocalSharedTransitionScope.current
+            val navAnimScope = LocalNavAnimatedVisibilityScope.current
             
             @OptIn(ExperimentalSharedTransitionApi::class)
             val morphModifier = if (sharedScope != null && navAnimScope != null && entryId != null) {
@@ -912,7 +916,7 @@ private fun MockTimelineEntry(
                         fontSize = 14.sp,
                         lineHeight = 22.sp,
                         maxLines = 3,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = if (blurContent) Modifier.blur(8.dp) else Modifier
                     )
                     if (onClick != null || showLongPressHint) {
@@ -920,7 +924,7 @@ private fun MockTimelineEntry(
                         Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             if (onClick != null) {
                                 Text(
-                                    text = "Tap to read →",
+                                    text = "Tap to read it’",
                                     color = primaryAccent,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -981,8 +985,8 @@ private fun BottomDockedArea(
             )
         }
         // Floating Pill Bottom Nav
-        val sharedScope = com.gxdevs.aethra.LocalSharedTransitionScope.current
-        val navAnimScope = com.gxdevs.aethra.LocalNavAnimatedVisibilityScope.current
+        val sharedScope = LocalSharedTransitionScope.current
+        val navAnimScope = LocalNavAnimatedVisibilityScope.current
         
         val morphModifier = if (sharedScope != null && navAnimScope != null) {
             with(sharedScope) {
@@ -1043,7 +1047,7 @@ private fun BottomDockedArea(
                 contentAlignment = Alignment.Center
             ) {
                 // Premium Glow
-                androidx.compose.foundation.Canvas(
+                Canvas(
                     modifier = Modifier
                         .requiredSize(160.dp) // Bypasses the parent's 60dp constraint to prevent square clipping!
                         .offset(y = 12.dp)
@@ -1142,15 +1146,15 @@ fun BetaWelcomeDialog(onComplete: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
 
     val titles = listOf(
-        "Welcome to Beta v1",
+        "Welcome to Beta v3",
         "The Core Concept",
         "The Reliquary & Echo",
         "Privacy First"
     )
     val bodies = listOf(
-        "This is a test beta version 1. For now, please test the currently available features in depth. Graphics are not finalized yet, so emojis are used instead of real artwork for companions.",
+        "This is a test beta version 3. For now, please test the currently available features in depth. Graphics are not finalized yet, so emojis are used instead of real artwork for companions.",
         "Your journey shapes your companions. Write a journal, and the dominant mood will unlock an egg or add growth points to it.\n\nNote: Only the latest journal of the day counts towards growth. You cannot write multiple journals for each emotion to unlock all eggs at once!",
-        "• Reliquary: Seal a journal entry to be automatically unsealed after a set number of days. A message to your future self.\n\n• The Echo: Occasionally resurfaces entries from exactly a year ago to reflect on your past.",
+        "\u2022 Reliquary: Seal a journal entry to be automatically unsealed after a set number of days. A message to your future self.\n\n\u2022 The Echo: Occasionally resurfaces entries from exactly a year ago to reflect on your past.",
         "Your thoughts are private. In Settings, you can enable App Lock, setup a Decoy PIN (which displays a blank app state), prevent screenshots, and blur journal contents on your home screen."
     )
     val icons = listOf(
@@ -1192,12 +1196,6 @@ fun BetaWelcomeDialog(onComplete: () -> Unit) {
         containerColor = cardBackground
     )
 }
-@Composable
-fun InsightsTabPlaceholder() {
-    Box(modifier = Modifier.fillMaxSize().background(mainContainerBackground), contentAlignment = Alignment.Center) {
-        Text("Insights", color = textSecondary)
-    }
-}
 
 
 @Composable
@@ -1209,18 +1207,13 @@ fun SettingsTabPlaceholder() {
 @Composable
 fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
-    petViewModel: com.gxdevs.aethra.ui.pets.PetViewModel = viewModel(),
     onNavigateToText: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onNavigateToJournals: () -> Unit = {},
-    onNavigateToStats: () -> Unit = {},
     onEntryClick: (Long) -> Unit = {},
     onNavigateToProfile: () -> Unit
 ) {
     val userName by homeViewModel.userName.collectAsState()
     val entries by homeViewModel.filteredEntries.collectAsState()
     val searchQuery by homeViewModel.searchQuery.collectAsState()
-    val petsState by petViewModel.petsState.collectAsState()
 
     HomeContent(
         userName = userName,

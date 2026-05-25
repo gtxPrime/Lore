@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra
+package com.gxdevs.aethra.data.relic
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

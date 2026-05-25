@@ -1,11 +1,17 @@
-package com.gxdevs.aethra
+package com.gxdevs.aethra.data
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.gxdevs.aethra.data.CustomEmotion
-import com.gxdevs.aethra.data.UserAttributesDao
+import com.gxdevs.aethra.data.journal.JournalEntry
+import com.gxdevs.aethra.data.journal.JournalDao
+import com.gxdevs.aethra.data.mood.MoodType
+import com.gxdevs.aethra.data.mood.MoodDao
+import com.gxdevs.aethra.pets.PetProgress
+import com.gxdevs.aethra.pets.PetProgressDao
+import com.gxdevs.aethra.data.relic.Relic
+import com.gxdevs.aethra.data.relic.RelicDao
 import com.gxdevs.aethra.pets.CachedStageImage
 import com.gxdevs.aethra.pets.CachedStageImageDao
 import com.gxdevs.aethra.pets.PetCatalogMeta

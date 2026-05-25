@@ -1,11 +1,11 @@
-﻿package com.gxdevs.aethra.ui.chronicles
+package com.gxdevs.aethra.ui.chronicles
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.gxdevs.aethra.AppDatabase
-import com.gxdevs.aethra.JournalEntry
-import com.gxdevs.aethra.Relic
+import com.gxdevs.aethra.data.AppDatabase
+import com.gxdevs.aethra.data.journal.JournalEntry
+import com.gxdevs.aethra.data.relic.Relic
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,14 +47,19 @@ class ChronicleViewModel(application: Application) : AndroidViewModel(applicatio
     val uiState: StateFlow<ChronicleUiState> = combine(
         _echoEntry,
         relicDao.getSurfacedRelics(nowMs),
-        relicDao.getLockedRelics(nowMs)
-    ) { echo, surfaced, locked ->
-        ChronicleUiState(
-            echoEntry = echo,
-            surfacedRelics = surfaced,
-            lockedRelics = locked,
-            isLoading = false
-        )
+        relicDao.getLockedRelics(nowMs),
+        com.gxdevs.aethra.data.SettingsRepository(application).isDecoyMode
+    ) { echo, surfaced, locked, isDecoy ->
+        if (isDecoy) {
+            ChronicleUiState(isLoading = false)
+        } else {
+            ChronicleUiState(
+                echoEntry = echo,
+                surfacedRelics = surfaced,
+                lockedRelics = locked,
+                isLoading = false
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChronicleUiState())
 
     init {
@@ -66,25 +71,6 @@ class ChronicleViewModel(application: Application) : AndroidViewModel(applicatio
             val (start, end) = echoRange
             _echoEntry.value = journalDao.getEchoEntry(start, end)
         }
-    }
-
-    fun sealEntry(journalEntryId: Long, titleSnapshot: String?, contentSnapshot: String?, moodSnapshot: String?, unsealAfterDays: Int) {
-        viewModelScope.launch {
-            relicDao.insertRelic(
-                Relic(
-                    journalEntryId = journalEntryId,
-                    sealedAtTimestamp = System.currentTimeMillis(),
-                    unsealAfterDays = unsealAfterDays,
-                    titleSnapshot = titleSnapshot,
-                    contentSnapshot = contentSnapshot,
-                    moodSnapshot = moodSnapshot
-                )
-            )
-        }
-    }
-
-    fun markRelicUnsealed(relicId: Long) {
-        viewModelScope.launch { relicDao.markUnsealed(relicId) }
     }
 
     /** Format a relic's unseal date for display, e.g. "APR 10, 2026" */

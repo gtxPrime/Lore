@@ -1,6 +1,7 @@
 package com.gxdevs.aethra.ui.settings
 
 import android.net.Uri
+import com.gxdevs.aethra.MainActivity
 import androidx.biometric.BiometricManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -33,7 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gxdevs.aethra.AppDatabase
+import com.gxdevs.aethra.data.AppDatabase
 import com.gxdevs.aethra.data.SettingsRepository
 import com.gxdevs.aethra.utils.cancelDailyReminder
 import com.gxdevs.aethra.utils.scheduleDailyReminder
@@ -44,7 +45,10 @@ import android.view.WindowManager
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gxdevs.aethra.R
+import com.gxdevs.aethra.ui.pets.PetViewModel
 
 private val mainContainerBackground = Color(0xFFF4F1EA)
 private val borderColor = Color(0xFFE0DCD1)
@@ -64,9 +68,9 @@ fun SettingsScreen(
     val context      = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
     val db           = remember { AppDatabase.getDatabase(context) }
-    val petViewModel: com.gxdevs.aethra.ui.pets.PetViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val petViewModel: PetViewModel = viewModel()
 
-    var showProgressDialog by remember { mutableStateOf(false) }
+    val showProgressDialog = remember { mutableStateOf(false) }
     var progressMessage by remember { mutableStateOf("") }
     var showBackupPinBanner by remember { mutableStateOf(false) }
     var triggerPinSetup by remember { mutableStateOf(false) }
@@ -114,7 +118,7 @@ fun SettingsScreen(
     ) { uri ->
         uri?.let {
             scope.launch {
-                showProgressDialog = true
+                showProgressDialog.value = true
                 progressMessage = "Exporting data... Please wait."
                 val result = com.gxdevs.aethra.utils.BackupManager.exportData(
                     context = context,
@@ -123,7 +127,7 @@ fun SettingsScreen(
                     encryptBackup = encryptMedia,
                     backupPin = backupEncryptionKey ?: appPin
                 )
-                showProgressDialog = false
+                showProgressDialog.value = false
                 if (result.isSuccess) {
                     val missing = result.getOrNull() ?: 0
                     if (missing > 0) {
@@ -144,7 +148,7 @@ fun SettingsScreen(
     ) { uri ->
         uri?.let {
             scope.launch {
-                showProgressDialog = true
+                showProgressDialog.value = true
                 progressMessage = "Importing data... Please wait."
                 val result = com.gxdevs.aethra.utils.BackupManager.importData(
                     context = context,
@@ -156,10 +160,10 @@ fun SettingsScreen(
                 if (result.isSuccess) {
                     progressMessage = "Syncing resources... Please wait."
                     petViewModel.recalculateAndDownloadResources(context)
-                    showProgressDialog = false
+                    showProgressDialog.value = false
                     android.widget.Toast.makeText(context, "Data imported successfully", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
-                    showProgressDialog = false
+                    showProgressDialog.value = false
                     val exception = result.exceptionOrNull()
                     if (exception is com.gxdevs.aethra.utils.BackupEncryptedException) {
                         pendingImportUri = it
@@ -172,7 +176,7 @@ fun SettingsScreen(
         }
     }
 
-    if (showProgressDialog) {
+    if (showProgressDialog.value) {
         AlertDialog(
             onDismissRequest = { /* Cannot dismiss */ },
             title = { Text("Processing", color = textPrimary, fontWeight = FontWeight.Bold) },
@@ -310,10 +314,12 @@ fun SettingsScreen(
         }},
         onExportData = { includeMedia ->
             exportIncludeMedia = includeMedia
+            MainActivity.bypassNextLock = true
             exportLauncher.launch("aethra_backup.aeth")
         },
         onImportData = { mergeMode ->
             importMergeMode = mergeMode
+            MainActivity.bypassNextLock = true
             importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
         },
         onBlurJournalsToggle = { enabled ->
@@ -327,12 +333,12 @@ fun SettingsScreen(
                         showSetBackupKeyDialog = true
                     } else {
                         settingsRepo.setEncryptMedia(true)
-                        showProgressDialog = true
+                        showProgressDialog.value = true
                         progressMessage = "Encrypting existing media... This may take a while."
                         com.gxdevs.aethra.utils.MediaEncryptionManager.migrateExistingEntries(context) { cur, tot ->
                             progressMessage = if (tot > 0) "Encrypting media... ($cur / $tot)" else "Encrypting media..."
                         }
-                        showProgressDialog = false
+                        showProgressDialog.value = false
                         android.widget.Toast.makeText(context, "All media is now encrypted. You can safely delete originals from your gallery.", android.widget.Toast.LENGTH_LONG).show()
                     }
                 } else {
@@ -404,7 +410,7 @@ fun SettingsScreen(
                         val uri = pendingImportUri
                         if (uri != null) {
                             scope.launch {
-                                showProgressDialog = true
+                                showProgressDialog.value = true
                                 progressMessage = "Importing data... Please wait."
                                 val result = com.gxdevs.aethra.utils.BackupManager.importData(
                                     context = context,
@@ -417,13 +423,13 @@ fun SettingsScreen(
                                 if (result.isSuccess) {
                                     progressMessage = "Syncing resources... Please wait."
                                     petViewModel.recalculateAndDownloadResources(context)
-                                    showProgressDialog = false
+                                    showProgressDialog.value = false
                                     showBackupPinPromptDialog = false
                                     pendingImportUri = null
                                     backupPinInput = ""
                                     android.widget.Toast.makeText(context, "Data imported successfully", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
-                                    showProgressDialog = false
+                                    showProgressDialog.value = false
                                     val exception = result.exceptionOrNull()
                                     if (exception is com.gxdevs.aethra.utils.BackupEncryptedException) {
                                         backupPinError = true
@@ -480,7 +486,7 @@ fun SettingsScreen(
                                 .padding(12.dp)
                         ) {
                             Text(
-                                "⚠️ WARNING: Losing this key will lead to permanent loss of your backup data! Keep it safe. It is NOT changeable by any means.",
+                                "\u26A0\uFE0F WARNING: Losing this key will lead to permanent loss of your backup data! Keep it safe. It is NOT changeable by any means.",
                                 color = dangerText,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -531,12 +537,12 @@ fun SettingsScreen(
                                 setKeyInput = ""
                                 
                                 // Run migration
-                                showProgressDialog = true
+                                showProgressDialog.value = true
                                 progressMessage = "Encrypting existing media... This may take a while."
                                 com.gxdevs.aethra.utils.MediaEncryptionManager.migrateExistingEntries(context) { cur, tot ->
                                     progressMessage = if (tot > 0) "Encrypting media... ($cur / $tot)" else "Encrypting media..."
                                 }
-                                showProgressDialog = false
+                                showProgressDialog.value = false
                                 android.widget.Toast.makeText(context, "All media is now encrypted. You can safely delete originals from your gallery.", android.widget.Toast.LENGTH_LONG).show()
                             }
                         } else {
@@ -604,35 +610,35 @@ fun SettingsScreenUI(
     onAutoLockDelayChange: (Int) -> Unit                  = {}
 ) {
     var saveFrequency by remember(autoSaveFrequency) { mutableFloatStateOf(autoSaveFrequency) }
-    var lockDelay     by remember(autoLockDelay)     { mutableStateOf(autoLockDelay) }
+    var lockDelay     by remember(autoLockDelay)     { mutableIntStateOf(autoLockDelay) }
     LocalContext.current
 
     var pinStage  by remember { mutableStateOf(PinStage.NONE) }
     var pinInput      by remember { mutableStateOf("") }
-    var pinError      by remember { mutableStateOf(false) }
+    val pinError      = remember { mutableStateOf(false) }
     var pinBuffer     by remember { mutableStateOf("") } // stores first-entry for confirm steps
 
     LaunchedEffect(triggerPinSetup) {
         if (triggerPinSetup) {
             pinStage = PinStage.SETUP_NEW
             pinInput = ""
-            pinError = false
+            pinError.value = false
             onPinSetupStarted()
         }
     }
 
-    fun resetPin() { pinStage = PinStage.NONE; pinInput = ""; pinError = false; pinBuffer = "" }
+    fun resetPin() { pinStage = PinStage.NONE; pinInput = ""; pinError.value = false; pinBuffer = "" }
 
     fun handlePinDigit(d: String) {
         if (pinInput.length >= 4) return
-        pinError = false
+        pinError.value = false
         pinInput += d
         if (pinInput.length < 4) return
         when (pinStage) {
             PinStage.SETUP_NEW -> { pinBuffer = pinInput; pinInput = ""; pinStage = PinStage.SETUP_CONFIRM }
             PinStage.SETUP_CONFIRM -> {
                 if (pinInput == pinBuffer) { onAppPinSave(pinInput); resetPin() }
-                else { pinError = true; pinInput = "" }
+                else { pinError.value = true; pinInput = "" }
             }
             PinStage.VERIFY -> {
                 if (pinInput == appPin) {
@@ -641,15 +647,15 @@ fun SettingsScreenUI(
                     val wasChangeReal = pinBuffer == "REAL"
                     pinBuffer = ""; pinInput = ""
                     pinStage = when { wasSetupDecoy -> PinStage.CHANGE_DECOY; wasChangeReal -> PinStage.CHANGE_REAL; else -> PinStage.NONE }
-                } else { pinError = true; pinInput = "" }
+                } else { pinError.value = true; pinInput = "" }
             }
             PinStage.CHANGE_REAL -> { pinBuffer = pinInput; pinInput = ""; pinStage = PinStage.CHANGE_REAL_CONFIRM }
             PinStage.CHANGE_REAL_CONFIRM -> {
                 if (pinInput == pinBuffer) { onChangeRealPin(pinInput); resetPin() }
-                else { pinError = true; pinInput = "" }
+                else { pinError.value = true; pinInput = "" }
             }
             PinStage.CHANGE_DECOY -> {
-                if (pinInput == appPin) { pinError = true; pinInput = "" } // decoy can't equal real
+                if (pinInput == appPin) { pinError.value = true; pinInput = "" } // decoy can't equal real
                 else { 
                     onChangeDecoyPin(pinInput)
                     onDecoyPinToggle(true, null, null)
@@ -657,7 +663,7 @@ fun SettingsScreenUI(
                 }
             }
             PinStage.SETUP_DECOY -> {
-                if (pinInput == appPin) { pinError = true; pinInput = "" }
+                if (pinInput == appPin) { pinError.value = true; pinInput = "" }
                 else { onChangeDecoyPin(pinInput); onDecoyPinToggle(true, null, null); resetPin() }
             }
             PinStage.NONE -> {}
@@ -689,22 +695,22 @@ fun SettingsScreenUI(
             title     = pinDialogTitle,
             subtitle  = pinDialogSubtitle,
             input     = pinInput,
-            isError   = pinError,
+            isError   = pinError.value,
             onDigit   = { handlePinDigit(it) },
-            onBackspace = { if (pinInput.isNotEmpty()) pinInput = pinInput.dropLast(1); pinError = false },
+            onBackspace = { if (pinInput.isNotEmpty()) pinInput = pinInput.dropLast(1); pinError.value = false },
             onDismiss = { resetPin() }
         )
     }
 
-    // ── Delete dialog ───────────────────────────────────────────────────
-    var deleteTextInput        by remember { mutableStateOf("") }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    // ── Delete dialog ──────────────────────────────────────────────────
+    val deleteTextInput = remember { mutableStateOf("") }
+    val showDeleteConfirmDialog = remember { mutableStateOf(false) }
 
-    if (showDeleteConfirmDialog) {
+    if (showDeleteConfirmDialog.value) {
         AlertDialog(
             onDismissRequest = { 
-                showDeleteConfirmDialog = false 
-                deleteTextInput = ""
+                showDeleteConfirmDialog.value = false 
+                deleteTextInput.value = ""
             },
             title = { Text("Confirm Deletion", color = dangerText, fontWeight = FontWeight.Bold) },
             text = {
@@ -712,8 +718,8 @@ fun SettingsScreenUI(
                     Text("This action cannot be undone. To proceed, please type 'DELETE' below:", color = textPrimary, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = deleteTextInput,
-                        onValueChange = { deleteTextInput = it },
+                        value = deleteTextInput.value,
+                        onValueChange = { deleteTextInput.value = it },
                         singleLine = true,
                         placeholder = { Text("DELETE", color = textSecondary) },
                         colors = TextFieldDefaults.colors(
@@ -731,18 +737,18 @@ fun SettingsScreenUI(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (deleteTextInput == "DELETE") {
+                        if (deleteTextInput.value == "DELETE") {
                             onDeleteAll()
-                            showDeleteConfirmDialog = false
-                            deleteTextInput = ""
+                            showDeleteConfirmDialog.value = false
+                            deleteTextInput.value = ""
                         }
                     }
                 ) { Text("Delete", color = dangerText, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { 
-                    showDeleteConfirmDialog = false 
-                    deleteTextInput = ""
+                    showDeleteConfirmDialog.value = false 
+                    deleteTextInput.value = ""
                 }) { Text("Cancel", color = textSecondary) }
             },
             containerColor = dangerCard
@@ -764,7 +770,7 @@ fun SettingsScreenUI(
             color = textPrimary,
             fontSize = 36.sp,
             fontWeight = FontWeight.ExtraBold,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+            fontFamily = FontFamily.Serif,
             letterSpacing = (-1).sp
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -797,7 +803,7 @@ fun SettingsScreenUI(
                 checked  = appLockEnabled,
                 onCheckedChange = { enabled ->
                     if (enabled && pinMode && appPin == null) {
-                        pinStage = PinStage.SETUP_NEW; pinInput = ""; pinError = false
+                        pinStage = PinStage.SETUP_NEW; pinInput = ""
                     } else {
                         onAppLockToggle(enabled)
                     }
@@ -892,10 +898,10 @@ fun SettingsScreenUI(
                         onClick  = {
                             if (appPin != null) {
                                 // Verify first, then change
-                                pinBuffer = "REAL"; pinInput = ""; pinError = false
+                                pinBuffer = "REAL"; pinInput = ""; pinError.value = false
                                 pinStage = PinStage.VERIFY
                             } else {
-                                pinStage = PinStage.SETUP_NEW; pinInput = ""; pinError = false
+                                pinStage = PinStage.SETUP_NEW; pinInput = ""; pinError.value = false
                             }
                         }
                     )
@@ -917,7 +923,7 @@ fun SettingsScreenUI(
                                 if (it) {
                                     if (appPin != null) {
                                         // verify before setup
-                                        pinBuffer = "DECOY"; pinInput = ""; pinError = false
+                                        pinBuffer = "DECOY"; pinInput = ""; pinError.value = false
                                         pinStage = PinStage.VERIFY
                                     } else {
                                         pinStage = PinStage.SETUP_DECOY
@@ -946,7 +952,7 @@ fun SettingsScreenUI(
                             title    = "Decoy PIN",
                             subtitle = "Tap to change the decoy PIN",
                             onClick  = {
-                                pinBuffer = "DECOY"; pinInput = ""; pinError = false
+                                pinBuffer = "DECOY"; pinInput = ""; pinError.value = false
                                 pinStage = PinStage.VERIFY
                             }
                         )
@@ -974,10 +980,10 @@ fun SettingsScreenUI(
                         )
                         .clickable {
                             if (appPin != null) {
-                                pinBuffer = "REAL"; pinInput = ""; pinError = false
+                                pinBuffer = "REAL"; pinInput = ""; pinError.value = false
                                 pinStage = PinStage.VERIFY
                             } else {
-                                pinStage = PinStage.SETUP_NEW; pinInput = ""; pinError = false
+                                pinStage = PinStage.SETUP_NEW; pinInput = ""; pinError.value = false
                             }
                         }
                         .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1077,7 +1083,7 @@ fun SettingsScreenUI(
                 onCheckedChange = onScreenshotToggle
             )
             
-            // ── Blur Journals ──────────────────────────────────────────────
+            // ── Blur Journals ───────────────────────────────────────────────
             SettingsSwitchItem(
                 icon     = Icons.Outlined.VisibilityOff,
                 title    = "Blur Journals on Home",
@@ -1086,7 +1092,7 @@ fun SettingsScreenUI(
                 onCheckedChange = onBlurJournalsToggle
             )
 
-            // ── Encrypt Media ────────────────────────────────────────────────
+            // ── Encrypt Media ──────────────────────────────────────────────────
             SettingsSwitchItem(
                 icon     = Icons.Outlined.EnhancedEncryption,
                 title    = "Encrypt Media",
@@ -1325,7 +1331,7 @@ fun SettingsScreenUI(
                 onDismissRequest = { showImportDialog = false },
                 title = { Text("Import Data", color = textPrimary, fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("How would you like to import this backup? \n\n• Merge: Fill empty slots only (keeps existing data).\n• Overwrite: Replace ALL current data.", color = textSecondary)
+                    Text("How would you like to import this backup? \n\n\u2022 Merge: Fill empty slots only (keeps existing data).\n\u2022 Overwrite: Replace ALL current data.", color = textSecondary)
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -1410,7 +1416,7 @@ fun SettingsScreenUI(
                     .clip(RoundedCornerShape(16.dp))
                     .border(1.dp, dangerCard, RoundedCornerShape(16.dp))
                     .clickable { 
-                        showDeleteConfirmDialog = true
+                        showDeleteConfirmDialog.value = true
                     }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1613,7 +1619,7 @@ fun SettingsActionItem(
     }
 }
 
-// ─── Small tappable PIN action card ──────────────────────────────────────────
+// ─── Small tappable PIN action card ───────────────────────────────────────────
 @Composable
 fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
@@ -1641,7 +1647,7 @@ fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: (
     }
 }
 
-// ─── Keypad-style PIN Setup Dialog ───────────────────────────────────────────
+// ─── Keypad-style PIN Setup Dialog ──────────────────────────────────────────────
 @Composable
 fun PinSetupDialog(
     title: String,
@@ -1699,13 +1705,13 @@ fun PinSetupDialog(
                 Spacer(Modifier.height(24.dp))
 
                 // Number pad
-                val rows = listOf(listOf("1","2","3"), listOf("4","5","6"), listOf("7","8","9"), listOf("","0","⌫"))
+                val rows = listOf(listOf("1","2","3"), listOf("4","5","6"), listOf("7","8","9"), listOf("","0","\u232B"))
                 rows.forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { key ->
                             when (key) {
                                 "" -> Spacer(Modifier.size(64.dp))
-                                "⌫" -> Box(
+                                "\u232B" -> Box(
                                     modifier = Modifier.size(64.dp).clip(CircleShape)
                                         .background(borderColor).clickable { onBackspace() },
                                     contentAlignment = Alignment.Center

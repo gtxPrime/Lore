@@ -1,4 +1,4 @@
-package com.gxdevs.aethra
+package com.gxdevs.aethra.data.journal
 
 import androidx.room.Dao
 import androidx.room.Delete

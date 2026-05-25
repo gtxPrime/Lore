@@ -1,10 +1,7 @@
 package com.gxdevs.aethra.ui.profile
 
-import android.app.Activity
+import com.gxdevs.aethra.MainActivity
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -21,7 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -31,9 +28,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
 import com.gxdevs.aethra.data.SettingsRepository
 import com.gxdevs.aethra.ui.JournalViewModel
 import com.gxdevs.aethra.ui.pets.PetViewModel
@@ -51,7 +45,6 @@ private val textPrimary = Color(0xFF2E332A)
 private val textSecondary = Color(0xFF828779)
 private val primaryAccent = Color(0xFF606F49)
 private val accentBackground = Color(0xFFD9DFCD)
-private val darkAccent = Color(0xFF4A5638)
 private val cardDarkBackground = Color(0xFF2E332A)
 
 @OptIn(ExperimentalGlideComposeApi::class)
@@ -65,57 +58,29 @@ fun IdentityScreen(
     val coroutineScope = rememberCoroutineScope()
     val settingsRepo = remember { SettingsRepository(context) }
 
-    val googleLoggedIn by settingsRepo.googleLoggedIn.collectAsState(initial = false)
+    val isDecoy by settingsRepo.isDecoyMode.collectAsState(initial = false)
+
+    val googleLoggedInRaw by settingsRepo.googleLoggedIn.collectAsState(initial = false)
+    val googleLoggedIn = googleLoggedInRaw && !isDecoy
     val googleName by settingsRepo.googleAccountName.collectAsState(initial = null)
-    val googleEmail by settingsRepo.googleAccountEmail.collectAsState(initial = null)
     val googlePhoto by settingsRepo.googleAccountPhoto.collectAsState(initial = null)
 
-    val gdriveBackupEnabled by settingsRepo.gdriveBackupEnabled.collectAsState(initial = false)
     val gdriveIncludeMedia by settingsRepo.gdriveIncludeMedia.collectAsState(initial = true)
     val gdriveLastSynced by settingsRepo.gdriveLastSynced.collectAsState(initial = "NEVER")
     val subscriptionPlan by settingsRepo.subscriptionPlan.collectAsState(initial = "MYSTIC (PRO)")
 
     // Dynamic stats
-    val entries by journalViewModel.allEntries.collectAsState(initial = emptyList())
-    val streakCount by journalViewModel.streakDays.collectAsState(initial = 0)
+    val entriesRaw by journalViewModel.allEntries.collectAsState(initial = emptyList())
+    val entries = if (isDecoy) emptyList() else entriesRaw
+
+    val streakCountRaw by journalViewModel.streakDays.collectAsState(initial = 0)
+    val streakCount = if (isDecoy) 0 else streakCountRaw
+
     val petsState by petViewModel.petsState.collectAsState()
-    val spiritsCount = petsState.pets.filter { it.journalCount > 0 }.size
+    val spiritsCount = if (isDecoy) 0 else petsState.pets.filter { it.journalCount > 0 }.size
 
-    // Google Sign-In setup
-    val googleSignInClient = remember {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestProfile()
-            .build()
-        GoogleSignIn.getClient(context, gso)
-    }
-
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(ApiException::class.java)
-                if (account != null) {
-                    val name = account.displayName ?: "Explorer"
-                    val email = account.email ?: ""
-                    val photoUrl = account.photoUrl?.toString() ?: ""
-
-                    coroutineScope.launch {
-                        settingsRepo.setGoogleLoggedIn(true)
-                        settingsRepo.setGoogleAccountName(name)
-                        settingsRepo.setGoogleAccountEmail(email)
-                        settingsRepo.setGoogleAccountPhoto(photoUrl)
-                        Toast.makeText(context, "Welcome back, $name", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: ApiException) {
-                e.printStackTrace()
-                Toast.makeText(context, "Sign-In Failed (Code: ${e.statusCode})", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
+    // Modern Credential Manager setup
+    val credentialManager = remember { androidx.credentials.CredentialManager.create(context) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "glow")
     val glowAlpha by infiniteTransition.animateFloat(
@@ -258,7 +223,44 @@ fun IdentityScreen(
                         // "Continue with Google" Button
                         Button(
                             onClick = {
-                                googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                                MainActivity.bypassNextLock = true
+                                coroutineScope.launch {
+                                    try {
+                                        val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
+                                            .setFilterByAuthorizedAccounts(false)
+                                            .setServerClientId("484195588417-uo81a7p1r86ldf0fktu8tir8flaqncbe.apps.googleusercontent.com")
+                                            .setAutoSelectEnabled(true)
+                                            .build()
+
+                                        val request = androidx.credentials.GetCredentialRequest.Builder()
+                                            .addCredentialOption(googleIdOption)
+                                            .build()
+
+                                        val result = credentialManager.getCredential(context, request)
+                                        val credential = result.credential
+
+                                        if (credential is androidx.credentials.CustomCredential &&
+                                            credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                        ) {
+                                            val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
+                                            val name = googleIdTokenCredential.displayName ?: "Explorer"
+                                            val email = googleIdTokenCredential.id
+                                            val photoUrl = googleIdTokenCredential.profilePictureUri?.toString() ?: ""
+
+                                            settingsRepo.setGoogleLoggedIn(true)
+                                            settingsRepo.setGoogleAccountName(name)
+                                            settingsRepo.setGoogleAccountEmail(email)
+                                            settingsRepo.setGoogleAccountPhoto(photoUrl)
+                                            Toast.makeText(context, "Welcome back, $name", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: androidx.credentials.exceptions.GetCredentialException) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "Sign-In Failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "An error occurred during Sign-In", Toast.LENGTH_LONG).show()
+                                    }
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -384,19 +386,19 @@ fun IdentityScreen(
                                     model = googlePhoto,
                                     contentDescription = "Profile Avatar",
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    contentScale = ContentScale.Crop
                                 )
                             } else {
                                 val encodedName = try {
                                     java.net.URLEncoder.encode(googleName ?: "wanderer", "UTF-8")
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     "wanderer"
                                 }
                                 GlideImage(
                                     model = "https://api.dicebear.com/7.x/notionists/png?seed=$encodedName",
                                     contentDescription = "Notion Profile Avatar",
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    contentScale = ContentScale.Crop
                                 )
                             }
                         }
@@ -871,7 +873,9 @@ fun IdentityScreen(
                     onClick = {
                         coroutineScope.launch {
                             settingsRepo.clearGoogleAuth()
-                            googleSignInClient.signOut()
+                            try {
+                                credentialManager.clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
+                            } catch (_: Exception) {}
                             Toast.makeText(context, "Sanctuary sealed", Toast.LENGTH_SHORT).show()
                         }
                     },

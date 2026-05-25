@@ -1,10 +1,10 @@
-package com.gxdevs.aethra.pets
+﻿package com.gxdevs.aethra.pets
 
 import android.content.Context
 import android.util.Log
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.gson.Gson
-import com.gxdevs.aethra.AppDatabase
+import com.gxdevs.aethra.data.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -16,17 +16,17 @@ import java.net.URL
  *
  * Fetch rules:
  *   1. At most once every 24 hours.
- *   2. NEVER mid-journal or cold-start — WorkManager worker enforces this.
+ *   2. NEVER mid-journal or cold-start â€” WorkManager worker enforces this.
  *   3. Update only if remote version > local version.
- *   4. NEVER overwrite user [com.gxdevs.aethra.PetProgress] rows.
+ *   4. NEVER overwrite user [com.gxdevs.aethra.pets.PetProgress] rows.
  *   5. Stage images NOT downloaded here; see [PetImageCache].
  *   6. URL sourced exclusively from Firebase Remote Config (key: "pets_json_url").
  *      If RC is unavailable or the key is blank, sync is silently skipped until
  *      the next 24-hour window when RC may be reachable again.
  */
-class PetCatalogRepository(private val context: Context) {
+class PetCatalogRepository(context: Context) {
 
-    private val TAG = "PetCatalogRepo"
+    private val tag = "PetCatalogRepo"
     private val gson = Gson()
 
     private val db = AppDatabase.getDatabase(context)
@@ -34,8 +34,8 @@ class PetCatalogRepository(private val context: Context) {
     private val defDao = db.petDefinitionDao()
     private val stageDao = db.petStageDefinitionDao()
 
-    private val RC_KEY = "pets_json_url"
-    private val FETCH_COOLDOWN_MS = 24 * 60 * 60 * 1000L
+    private val rcKEY = "pets_json_url"
+    private val fetchCooldownMs = 24 * 60 * 60 * 1000L
 
     // --- Public API ---
 
@@ -43,29 +43,29 @@ class PetCatalogRepository(private val context: Context) {
         val meta = metaDao.getMeta() ?: PetCatalogMeta()
         val elapsed = System.currentTimeMillis() - meta.lastFetchedEpoch
 
-        if (elapsed < FETCH_COOLDOWN_MS) {
-            Log.d(TAG, "Skipping sync — only ${elapsed / 3600000}h since last fetch")
+        if (elapsed < fetchCooldownMs) {
+            Log.d(tag, "Skipping sync â€” only ${elapsed / 3600000}h since last fetch")
             return@withContext SyncResult.Skipped
         }
 
         // Resolve URL exclusively from Firebase Remote Config
         val url = resolveUrl()
         if (url == null) {
-            Log.w(TAG, "pets_json_url not set in Remote Config — skipping sync")
+            Log.w(tag, "pets_json_url not set in Remote Config â€” skipping sync")
             return@withContext SyncResult.NoConfig
         }
 
         val json = try {
             fetchJson(url)
         } catch (e: IOException) {
-            Log.w(TAG, "No internet or host unreachable: ${e.message}")
+            Log.w(tag, "No internet or host unreachable: ${e.message}")
             return@withContext SyncResult.NoInternet
         }
 
         val catalog = try {
             gson.fromJson(json, PetCatalogJson::class.java)
         } catch (e: Exception) {
-            Log.e(TAG, "Parse error", e)
+            Log.e(tag, "Parse error", e)
             return@withContext SyncResult.ParseError(e.message ?: "unknown")
         }
 
@@ -74,7 +74,7 @@ class PetCatalogRepository(private val context: Context) {
             return@withContext SyncResult.AlreadyCurrent(catalog.version)
         }
 
-        Log.i(TAG, "Updating catalog v${meta.catalogVersion} → v${catalog.version}")
+        Log.i(tag, "Updating catalog v${meta.catalogVersion} â†’ v${catalog.version}")
         mergeCatalog(catalog)
         metaDao.upsert(
             PetCatalogMeta(
@@ -89,7 +89,7 @@ class PetCatalogRepository(private val context: Context) {
     /** Seed the demo catalog on first launch if the DB is empty. */
     suspend fun seedDemoCatalogIfEmpty() = withContext(Dispatchers.IO) {
         if (defDao.getAllDefinitionsSuspend().isNotEmpty()) return@withContext
-        Log.i(TAG, "Seeding demo catalog")
+        Log.i(tag, "Seeding demo catalog")
         val catalog = gson.fromJson(DEMO_CATALOG_JSON, PetCatalogJson::class.java)
         mergeCatalog(catalog)
         // lastFetchedEpoch = 0 so a real remote fetch triggers after 24 h
@@ -101,19 +101,19 @@ class PetCatalogRepository(private val context: Context) {
     /**
      * Returns the pets JSON URL from Firebase Remote Config, or null if:
      *  - The RC key "pets_json_url" is blank / not yet published
-     *  - RC itself throws (e.g. google-services.json missing in a dev build) —
+     *  - RC itself throws (e.g. google-services.json missing in a dev build) â€”
      *    returns null.
      *
-     * Returning null causes [syncIfDue] to emit [SyncResult.NoConfig] — so the
+     * Returning null causes [syncIfDue] to emit [SyncResult.NoConfig] â€” so the
      * WorkManager worker skips quietly and retries next 24-hour window.
      */
     private fun resolveUrl(): String? {
         return try {
             val rc = FirebaseRemoteConfig.getInstance()
-            val url = rc.getString(RC_KEY)
+            val url = rc.getString(rcKEY)
             url.ifBlank { null }
         } catch (e: Exception) {
-            Log.w(TAG, "Firebase Remote Config unavailable", e)
+            Log.w(tag, "Firebase Remote Config unavailable", e)
             null
         }
     }
@@ -135,20 +135,20 @@ class PetCatalogRepository(private val context: Context) {
 
     /**
      * Merges remote catalog into Room.
-     * NEVER touches [com.gxdevs.aethra.PetProgress] or [CachedStageImage].
+     * NEVER touches [com.gxdevs.aethra.pets.PetProgress] or [CachedStageImage].
      */
     private suspend fun mergeCatalog(catalog: PetCatalogJson) {
         val defs = catalog.pets.map { p ->
             PetDefinition(
                 petId = p.id, name = p.name, emotion = p.emotion,
-                level = p.level, description = p.description, totalStages = p.total_stages
+                level = p.level, description = p.description, totalStages = p.totalStages
             )
         }
         val allStages = catalog.pets.flatMap { p ->
             p.stages.map { s ->
                 PetStageDefinition(
-                    petId = p.id, stage = s.stage, stageName = s.stage_name,
-                    journalsRequired = s.journals_required, imageUrl = s.image_url
+                    petId = p.id, stage = s.stage, stageName = s.stageName,
+                    journalsRequired = s.journalsRequired, imageUrl = s.imageUrl
                 )
             }
         }
@@ -164,13 +164,13 @@ class PetCatalogRepository(private val context: Context) {
     }
 
     sealed class SyncResult {
-        /** 24-hour cooldown not yet elapsed — nothing to do. */
+        /** 24-hour cooldown not yet elapsed â€” nothing to do. */
         object Skipped : SyncResult()
-        /** Remote Config key is blank or RC is unreachable — retry next window. */
+        /** Remote Config key is blank or RC is unreachable â€” retry next window. */
         object NoConfig : SyncResult()
-        /** Device has no internet connection — WorkManager will retry. */
+        /** Device has no internet connection â€” WorkManager will retry. */
         object NoInternet : SyncResult()
-        /** Remote catalog version matches local — timestamp refreshed, no data change. */
+        /** Remote catalog version matches local â€” timestamp refreshed, no data change. */
         data class AlreadyCurrent(val version: Int) : SyncResult()
         /** Catalog successfully updated from remote. */
         data class Updated(val newVersion: Int, val petsAdded: Int) : SyncResult()
@@ -179,7 +179,7 @@ class PetCatalogRepository(private val context: Context) {
     }
 
     companion object {
-        // Full demo catalog matching the spec format — used for first-launch seeding
+        // Full demo catalog matching the spec format â€” used for first-launch seeding
         val DEMO_CATALOG_JSON = """
 {"version":4,"last_updated":"2026-05-17","pets":[
 {"id":"bright_001","name":"Auros","emotion":"bright","level":1,

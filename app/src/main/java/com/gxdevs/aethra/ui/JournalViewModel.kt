@@ -1,13 +1,13 @@
-package com.gxdevs.aethra.ui
+﻿package com.gxdevs.aethra.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.gxdevs.aethra.AppDatabase
-import com.gxdevs.aethra.JournalEntry
-import com.gxdevs.aethra.JournalRepository
+import com.gxdevs.aethra.data.AppDatabase
+import com.gxdevs.aethra.data.journal.JournalEntry
+import com.gxdevs.aethra.data.journal.JournalRepository
 import com.gxdevs.aethra.utils.MediaEncryptionManager
 import java.io.File
 import java.time.Instant
@@ -80,45 +80,6 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         return streak
     }
 
-    fun addVideoEntry(videoUri: String) {
-        viewModelScope.launch {
-            val entry =
-                    JournalEntry(
-                            timestamp = System.currentTimeMillis(),
-                            videoPath = videoUri,
-                            isEncrypted =
-                                    true // Assuming videos are sensitive/private by default in this
-                            // app context
-                            )
-            repository.insertEntry(entry)
-        }
-    }
-
-    fun addAudioEntry(audioPath: String) {
-        viewModelScope.launch {
-            val entry =
-                    JournalEntry(
-                            timestamp = System.currentTimeMillis(),
-                            audioPath = audioPath,
-                            isEncrypted = true
-                    )
-            repository.insertEntry(entry)
-        }
-    }
-
-    fun addTextEntry(content: String, tags: String?) {
-        viewModelScope.launch {
-            val entry =
-                    JournalEntry(
-                            timestamp = System.currentTimeMillis(),
-                            content = content,
-                            tags = tags,
-                            isEncrypted = true
-                    )
-            repository.insertEntry(entry)
-        }
-    }
-
     fun deleteEntry(entryId: Long) {
         viewModelScope.launch {
             // Find the entry to delete from the current state
@@ -128,7 +89,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             if (entry != null) {
                 repository.deleteEntry(entry)
 
-                // File cleanup — plain files
+                // File cleanup â€” plain files
                 if (entry.videoPath != null) {
                     try {
                         val file = File(entry.videoPath.toUri().path ?: entry.videoPath)
@@ -146,7 +107,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                     } catch (e: Exception) { e.printStackTrace() }
                 }
 
-                // Encrypted attachment cleanup — parse JSON, delete any .enc files
+                // Encrypted attachment cleanup parse JSON, delete any .enc files
                 if (!entry.attachments.isNullOrBlank()) {
                     try {
                         val gson = Gson()
@@ -175,12 +136,6 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun updateEntry(entry: JournalEntry) {
-        viewModelScope.launch {
-            repository.insertEntry(entry)
-        }
-    }
-
     /**
      * Updates an entry and diffs the old vs new attachment lists:
      * - Deletes any orphaned .enc files from encrypted_media/ that were removed
@@ -188,10 +143,10 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
      */
     fun updateEntryWithMediaDiff(oldEntry: JournalEntry, newEntry: JournalEntry) {
         viewModelScope.launch {
-            val context = getApplication<android.app.Application>()
+            val context = getApplication<Application>()
             var finalEntry = newEntry
 
-            // ── 1. Diff attachments: delete removed .enc files ─────────────────
+            //Diff attachments: delete removed .enc files
             val oldUris = parseAttachmentUris(oldEntry.attachments)
             val newUriSet = parseAttachmentUris(newEntry.attachments).toSet()
 
@@ -201,14 +156,14 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
 
-            // ── 2. Delete removed audioPath if it was encrypted ─────────────────
+            // Delete removed audioPath if it was encrypted
             if (oldEntry.audioPath != null && oldEntry.audioPath != newEntry.audioPath) {
                 if (MediaEncryptionManager.isEncrypted(oldEntry.audioPath)) {
                     MediaEncryptionManager.deleteEncrypted(oldEntry.audioPath)
                 }
             }
 
-            // ── 3. Re-encrypt newly added plain URIs if entry is encrypted ──────
+            // Re-encrypt newly added plain URIs if entry is encrypted
             if (newEntry.isEncrypted && !newEntry.attachments.isNullOrBlank()) {
                 try {
                     val encJson = MediaEncryptionManager.encryptAttachmentsJson(context, newEntry.attachments)
@@ -216,11 +171,11 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 } catch (e: Exception) { e.printStackTrace() }
             }
 
-            // ── 4. Re-encrypt new audio if needed ───────────────────────────────
+            // Re-encrypt new audio if needed
             if (newEntry.isEncrypted &&
                 !newEntry.audioPath.isNullOrBlank() &&
                 !MediaEncryptionManager.isEncrypted(newEntry.audioPath)) {
-                val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.audioPath!!)
+                val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.audioPath)
                 if (enc != null) finalEntry = finalEntry.copy(audioPath = enc)
             }
 
@@ -241,7 +196,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 val listType = object : TypeToken<List<String>>() {}.type
                 Gson().fromJson(attachments, listType)
             }
-        } catch (e: Exception) { emptyList() }
+        } catch (_: Exception) { emptyList() }
     }
 
 
@@ -261,7 +216,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
 
             // 2. Insert into relics table
             db.relicDao().insertRelic(
-                com.gxdevs.aethra.Relic(
+                com.gxdevs.aethra.data.relic.Relic(
                     journalEntryId = entryId,
                     sealedAtTimestamp = System.currentTimeMillis(),
                     unsealAfterDays = unsealAfterDays,

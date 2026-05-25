@@ -1,67 +1,27 @@
-package com.gxdevs.aethra.ui.journal
+﻿package com.gxdevs.aethra.ui.journal
 
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
-import com.gxdevs.aethra.AppDatabase
-import com.gxdevs.aethra.JournalEntry
-import com.gxdevs.aethra.data.CustomEmotion
+import com.gxdevs.aethra.data.AppDatabase
+import com.gxdevs.aethra.data.journal.JournalEntry
 import com.gxdevs.aethra.utils.MediaEncryptionManager
 import kotlin.collections.map
 import kotlin.collections.toMutableList
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.core.net.toUri
 
 class AfterJournalViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val journalDao = database.journalDao()
-    private val userAttributesDao = database.userAttributesDao()
     private val gson = Gson()
-
-    // --- State ---
-    private val _userEmotions =
-            userAttributesDao
-                    .getAllCustomEmotions()
-                    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI Validations / Selections
     val selectedEmotions = MutableStateFlow<List<Emotion>>(emptyList())
     val attachedFiles = MutableStateFlow<List<AttachedFile>>(emptyList())
-
-    // Combined Emotions: Defaults + Custom
-    val allEmotions: StateFlow<List<Emotion>> =
-            _userEmotions
-                    .combine(selectedEmotions) { custom, selected ->
-                        val defaults =
-                                listOf(
-                                        Emotion("anxious", "Anxious"),
-                                        Emotion("content", "Content"),
-                                        Emotion("energetic", "Energetic"),
-                                        Emotion("stressed", "Stressed"),
-                                        Emotion("grateful", "Grateful"),
-                                        Emotion("tired", "Tired")
-                                )
-                        // Convert custom entity to UI model
-                        val customMapped = custom.map { Emotion(it.id, it.label) }
-
-                        // Merge: If we have separate logic or just append
-                        val combined = defaults + customMapped
-
-                        // Restore values from selection state if needed, or simpler: just expose
-                        // available emotions
-                        // and let UI manage selection state separately or sync it here.
-                        // For simplicity, we return available emotions. The 'selectedEmotions' flow
-                        // tracks what user picked.
-                        combined
-                    }
-                    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Pending Data from Recording ---
     private var pendingType: String = "text"
@@ -124,25 +84,6 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun addCustomEmotion(label: String) {
-        viewModelScope.launch {
-            val id = label.lowercase().replace(" ", "_")
-            userAttributesDao.insertCustomEmotion(CustomEmotion(id, label))
-        }
-    }
-
-
-    fun updateEmotionValue(id: String, value: Int) {
-        val current = selectedEmotions.value.toMutableList()
-        val index = current.indexOfFirst { it.id == id }
-        if (index != -1) {
-            current[index] = current[index].copy(value = value)
-            selectedEmotions.value = current
-        } else {
-            // Need to fetch label from somewhere if adding for first time via slider?
-            // In UI, we select first, then slide. So it should be in the list.
-        }
-    }
 
     fun toggleEmotion(emotion: Emotion) {
         val current = selectedEmotions.value.toMutableList()
@@ -150,11 +91,6 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
         if (existingIndex != -1) {
             current.removeAt(existingIndex)
         } else {
-            // Default NULL value (0 or special logic)? User said: "default to null"
-            // My Emotion data class has value: Int. I will update it to Int? soon or handle 0 as
-            // null.
-            // For now assume 0 is default/unset if that fits, or change Emotion data class.
-            // Let's rely on the Emotion class having nullable value
             current.add(emotion)
         }
         selectedEmotions.value = current
@@ -166,14 +102,7 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
         attachedFiles.value = current
     }
 
-    fun removeFile(file: AttachedFile) {
-        val current = attachedFiles.value.toMutableList()
-        current.remove(file)
-        attachedFiles.value = current
-    }
-
-    /** Saves a brand-new entry, or — if editMoodEntryId is set — only patches the emotions of that entry. */
-    fun saveEntry(journalData: Map<String, Any?>, isRelic: Boolean = false, unlockDate: Long? = null, encryptMedia: Boolean = false) {
+    fun saveEntry(isRelic: Boolean = false, unlockDate: Long? = null, encryptMedia: Boolean = false) {
         viewModelScope.launch {
             val emotionsJson = gson.toJson(selectedEmotions.value)
 
@@ -234,11 +163,11 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
                 var encEntry = newEntry.copy(id = entryId, isEncrypted = true)
 
                 if (!finalAudioPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalAudioPath)) {
-                    val enc = MediaEncryptionManager.encryptAndCopyUri(app, finalAudioPath!!)
+                    val enc = MediaEncryptionManager.encryptAndCopyUri(app, finalAudioPath)
                     if (enc != null) encEntry = encEntry.copy(audioPath = enc)
                 }
                 if (!finalVideoPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalVideoPath)) {
-                    val enc = MediaEncryptionManager.encryptAndCopyUri(app, finalVideoPath!!)
+                    val enc = MediaEncryptionManager.encryptAndCopyUri(app, finalVideoPath)
                     if (enc != null) encEntry = encEntry.copy(videoPath = enc)
                 }
                 if (!filesJson.isNullOrBlank()) {
@@ -251,7 +180,7 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
             if (isRelic && unlockDate != null) {
                 val unsealAfterDays = ((unlockDate - System.currentTimeMillis()) / 86400000L).toInt().coerceAtLeast(1)
                 database.relicDao().insertRelic(
-                    com.gxdevs.aethra.Relic(
+                    com.gxdevs.aethra.data.relic.Relic(
                         journalEntryId = entryId,
                         sealedAtTimestamp = System.currentTimeMillis(),
                         unsealAfterDays = unsealAfterDays,

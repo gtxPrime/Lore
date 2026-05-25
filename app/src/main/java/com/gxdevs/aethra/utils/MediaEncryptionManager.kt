@@ -1,12 +1,10 @@
 package com.gxdevs.aethra.utils
 
 import android.content.Context
-import android.net.Uri
 import androidx.core.net.toUri
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.gxdevs.aethra.AppDatabase
-import com.gxdevs.aethra.JournalEntry
+import com.gxdevs.aethra.data.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -31,6 +29,28 @@ object MediaEncryptionManager {
     fun isEncrypted(path: String?): Boolean =
         path != null && (path.contains(ENC_DIR) && path.endsWith(ENC_EXT))
 
+    /** Sniffs the decrypted stream of an encrypted file to check if it's a video. */
+    fun isVideoEncrypted(context: Context, encPath: String): Boolean {
+        try {
+            val file = File(encPath)
+            if (!file.exists()) return false
+            val stream = openDecryptedStream(context, encPath) ?: return false
+            stream.use { input ->
+                val header = ByteArray(12)
+                val read = input.read(header)
+                if (read < 8) return false
+                // Check for MP4 signature: 'ftyp' at bytes 4..7 (hex: 66 74 79 70)
+                val isMp4 = header[4].toInt() == 0x66 && header[5].toInt() == 0x74 && 
+                            header[6].toInt() == 0x79 && header[7].toInt() == 0x70
+                // Check for EBML (mkv/webm) signature: 1A 45 DF A3 at bytes 0..3
+                val isWebm = header[0].toInt() == 0x1A && header[1].toInt() == 0x45 && 
+                             (header[2].toInt() and 0xFF) == 0xDF && (header[3].toInt() and 0xFF) == 0xA3
+                return isMp4 || isWebm
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
     /**
      * Reads a URI (content:// or file://), copies the data into the encrypted_media
      * directory and encrypts it with SecurityManager. Returns the absolute path of
@@ -42,10 +62,10 @@ object MediaEncryptionManager {
                 val uri = uriStr.toUri()
                 val dest = File(encDir(context), "enc_${System.currentTimeMillis()}_${uriStr.hashCode()}$ENC_EXT")
 
-                val inputStream = when {
-                    uri.scheme == "content" -> context.contentResolver.openInputStream(uri)
-                    uri.scheme == "file"    -> File(uri.path ?: uriStr).inputStream()
-                    else                   -> {
+                val inputStream = when (uri.scheme) {
+                    "content" -> context.contentResolver.openInputStream(uri)
+                    "file" -> File(uri.path ?: uriStr).inputStream()
+                    else -> {
                         // Plain absolute path (no scheme)
                         val f = File(uriStr)
                         if (f.exists()) f.inputStream() else null
@@ -64,12 +84,13 @@ object MediaEncryptionManager {
      * Decrypts an encrypted file to a temporary file in cacheDir/dec_tmp/.
      * The caller must delete the returned temp file when done.
      */
-    suspend fun decryptToTemp(context: Context, encPath: String): File? =
+    suspend fun decryptToTemp(context: Context, encPath: String, extension: String? = null): File? =
         withContext(Dispatchers.IO) {
             try {
                 val encFile = File(encPath)
                 if (!encFile.exists()) return@withContext null
-                SecurityManager(context).decryptToTemp(encFile, inferExtFromName(encPath))
+                val ext = extension ?: inferExtFromName()
+                SecurityManager(context).decryptToTemp(encFile, ext)
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
@@ -153,7 +174,7 @@ object MediaEncryptionManager {
     ): String? {
         return try {
             val trimmed = raw.trim()
-            if (trimmed == "[]" || trimmed == "[]") return null // Nothing to migrate
+            if (trimmed == "[]") return null // Nothing to migrate
 
             if (trimmed.startsWith("[{")) {
                 // Format A: [{uri, type, name}]
@@ -176,13 +197,26 @@ object MediaEncryptionManager {
                 val listType = object : TypeToken<List<String>>() {}.type
                 val uris: List<String> = gson.fromJson(raw, listType)
                 var changed = false
-                val newUris = uris.map { uriStr ->
-                    if (!isEncrypted(uriStr)) {
+                val objectList = uris.map { uriStr ->
+                    val isAlreadyEnc = isEncrypted(uriStr)
+                    val encPath = if (!isAlreadyEnc) {
                         val enc = encryptAndCopyUri(context, uriStr)
                         if (enc != null) { changed = true; enc } else uriStr
                     } else uriStr
+
+                    val typeStr = if (!isAlreadyEnc) {
+                        val mimeType = try { context.contentResolver.getType(uriStr.toUri()) } catch (_: Exception) { null }
+                        when {
+                            mimeType?.startsWith("video") == true || uriStr.endsWith(".mp4", ignoreCase = true) -> "VIDEO"
+                            mimeType?.startsWith("audio") == true -> "FILE"
+                            else -> "IMAGE"
+                        }
+                    } else {
+                        "IMAGE"
+                    }
+                    mapOf("uri" to encPath, "type" to typeStr, "name" to "Attached Media")
                 }
-                if (changed) gson.toJson(newUris) else null
+                if (changed) gson.toJson(objectList) else null
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -191,7 +225,7 @@ object MediaEncryptionManager {
     }
 
     /**
-     * Encrypts all media in the given [attachments] JSON string and returns updated JSON.
+     * Encrypts all media in the given attachments JSON string and returns updated JSON.
      * Used when saving a new journal entry with Encrypt Media enabled.
      */
     suspend fun encryptAttachmentsJson(context: Context, raw: String): String {
@@ -199,23 +233,8 @@ object MediaEncryptionManager {
         return migrateAttachmentsJson(context, gson, raw) ?: raw
     }
 
-    private fun getExtension(context: Context, uri: Uri): String {
-        if (uri.scheme == "content") {
-            val mimeType = context.contentResolver.getType(uri)
-            return when {
-                mimeType?.startsWith("image/") == true -> mimeType.substringAfter("/")
-                mimeType?.startsWith("video/") == true -> mimeType.substringAfter("/")
-                mimeType?.startsWith("audio/") == true -> mimeType.substringAfter("/")
-                else -> "bin"
-            }
-        }
-        val path = uri.path ?: ""
-        val lastDot = path.lastIndexOf('.')
-        return if (lastDot != -1) path.substring(lastDot + 1) else "bin"
-    }
-
     /** Guess the real extension from the encrypted file name pattern enc_<ts>_<hash>.enc */
-    private fun inferExtFromName(encPath: String): String {
+    private fun inferExtFromName(): String {
         // We don't store original extension in the filename, so return empty for now.
         // Glide/MediaPlayer can handle this via content-type sniffing.
         return ""

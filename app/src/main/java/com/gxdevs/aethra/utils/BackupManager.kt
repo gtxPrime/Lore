@@ -4,8 +4,8 @@ import android.content.Context
 import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.gxdevs.aethra.AppDatabase
-import com.gxdevs.aethra.JournalEntry
+import com.gxdevs.aethra.data.AppDatabase
+import com.gxdevs.aethra.data.journal.JournalEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -16,7 +16,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import androidx.core.net.toUri
 
-class BackupEncryptedException(val needsPin: Boolean) : Exception("Backup is encrypted")
+class BackupEncryptedException : Exception("Backup is encrypted")
 
 object BackupManager {
 
@@ -214,7 +214,7 @@ object BackupManager {
 
     /**
      * Infers the real file extension for a media entry going into the backup ZIP.
-     * For encrypted files, derives from the filename prefix (enc_audio_ → m4a) or
+     * For encrypted files, derives from the filename prefix (enc_audio_ -> m4a) or
      * falls back to MIME type / path extension for plain URIs.
      */
     private fun inferExportExtension(context: Context, sourceUriStr: String, sourceUri: Uri, isEncFile: Boolean): String {
@@ -223,7 +223,7 @@ object BackupManager {
             return when {
                 fileName.startsWith("enc_audio_") -> "m4a"
                 fileName.startsWith("enc_video_") -> "mp4"
-                // Generic enc_<ts>_<hash>.enc → try to infer from MIME type if available
+                // Generic enc_<ts>_<hash>.enc -> try to infer from MIME type if available
                 else -> "jpg" // images are the most common attachment type; safe default
             }
         }
@@ -292,9 +292,9 @@ object BackupManager {
                     decryptedBytes = decryptBackupBytes(rawBytes, null)
                 }
 
-                // If still null, decryption failed — need PIN
+                // If still null, decryption failed - need PIN
                 if (decryptedBytes == null) {
-                    return@withContext Result.failure(BackupEncryptedException(needsPin = true))
+                    return@withContext Result.failure(BackupEncryptedException())
                 }
             }
 
@@ -368,7 +368,7 @@ object BackupManager {
                         }
                     }
 
-                    // If any media was extracted from the ZIP, it's now plain — reset flag
+                    // If any media was extracted from the ZIP, it's now plain - reset flag
                     val hadMedia = !newEntry.audioPath.isNullOrBlank() ||
                                    !newEntry.videoPath.isNullOrBlank() ||
                                    !newEntry.attachments.isNullOrBlank()
@@ -379,15 +379,21 @@ object BackupManager {
                     // Re-encrypt media if the setting is on
                     if (reEncryptMedia) {
                         if (!newEntry.audioPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(newEntry.audioPath)) {
-                            val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.audioPath!!)
+                            val enc = MediaEncryptionManager.encryptAndCopyUri(context,
+                                newEntry.audioPath
+                            )
                             if (enc != null) newEntry = newEntry.copy(audioPath = enc, isEncrypted = true)
                         }
                         if (!newEntry.videoPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(newEntry.videoPath)) {
-                            val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.videoPath!!)
+                            val enc = MediaEncryptionManager.encryptAndCopyUri(context,
+                                newEntry.videoPath
+                            )
                             if (enc != null) newEntry = newEntry.copy(videoPath = enc, isEncrypted = true)
                         }
                         if (!newEntry.attachments.isNullOrBlank()) {
-                            val encJson = MediaEncryptionManager.encryptAttachmentsJson(context, newEntry.attachments!!)
+                            val encJson = MediaEncryptionManager.encryptAttachmentsJson(context,
+                                newEntry.attachments
+                            )
                             newEntry = newEntry.copy(attachments = encJson, isEncrypted = true)
                         }
                     }

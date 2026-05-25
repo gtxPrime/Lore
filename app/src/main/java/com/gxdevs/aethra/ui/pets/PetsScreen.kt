@@ -27,12 +27,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
-import com.gxdevs.aethra.MoodConstants
+import com.gxdevs.aethra.data.mood.MoodConstants
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
 // --- App colour palette ------------------------------------------------------
-// ——— App colour palette ——————————————————————————————————————————————————————
+// ─── App colour palette ──────────────────────────────────────────────────────
 private val appBackground           = Color(0xFFEBE8E0)
 private val mainContainerBackground = Color(0xFFF4F1EA)
 private val borderColor             = Color(0xFFE0DCD1)
@@ -43,22 +43,22 @@ private val primaryAccent           = Color(0xFF606F49)
 private val accentBackground        = Color(0xFFD9DFCD)
 private val tabSelectedColor        = primaryAccent
 
-// ——— Emoji per emotion per stage (fallback / DEMO_MODE) —————————————————————
+// ─── Emoji per emotion per stage (fallback / DEMO_MODE) ──────────────────────
 private val petEmojis: Map<String, List<String>> = mapOf(
-    "bright"  to listOf("🥚", "💛", "🐣", "🐥", "⭐", "☀️"),
-    "calm"    to listOf("🥚", "💚", "🐣", "🌿", "🍃", "🌳"),
-    "heavy"   to listOf("🥚", "💚", "🐣", "🐛", "🦫", "🦉"),
-    "tangled" to listOf("🥚", "🧡", "🐣", "🐛", "🦋", "🌀"),
-    "dark"    to listOf("🥚", "🖤", "🐣", "🦇", "🌑", "🌌"),
-    "blank"   to listOf("🥚", "🤍", "🐣", "🌫️", "💨", "⚡")
+    "bright"  to listOf("\uD83E\uDD5A", "\uD83D\uDC9B", "\uD83D\uDC23", "\uD83D\uDC25", "\u2B50", "\u2600\uFE0F"),
+    "calm"    to listOf("\uD83E\uDD5A", "\uD83D\uDC9A", "\uD83D\uDC23", "\uD83C\uDF3F", "\uD83C\uDF43", "\uD83C\uDF33"),
+    "heavy"   to listOf("\uD83E\uDD5A", "\uD83D\uDC99", "\uD83D\uDC23", "\uD83D\uDC1B", "\uD83E\uDDAB", "\uD83E\uDD89"),
+    "tangled" to listOf("\uD83E\uDD5A", "\uD83E\uDDE1", "\uD83D\uDC23", "\uD83D\uDC1B", "\uD83E\uDD8B", "\uD83C\uDF00"),
+    "dark"    to listOf("\uD83E\uDD5A", "\uD83D\uDDA4", "\uD83D\uDC23", "\uD83E\uDD87", "\uD83C\uDF11", "\uD83C\uDF0C"),
+    "blank"   to listOf("\uD83E\uDD5A", "\uD83E\uDD0D", "\uD83D\uDC23", "\uD83C\uDF2B\uFE0F", "\uD83D\uDCA8", "\u26A1")
 )
 
 private fun emojiFor(emotion: String, stageIndex: Int): String {
-    val list = petEmojis[emotion.lowercase()] ?: listOf("🥚", "🐣", "🐤", "🐦", "🦅", "🌟")
+    val list = petEmojis[emotion.lowercase()] ?: listOf("\uD83E\uDD5A", "\uD83D\uDC23", "\uD83D\uDC24", "\uD83D\uDC26", "\uD83E\uDD85", "\uD83C\uDF1F")
     return list.getOrElse(stageIndex.coerceAtLeast(0)) { list.last() }
 }
 
-// ——— Screen ———————————————————————————————————————————————————————————————————
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -162,18 +162,28 @@ fun PetsScreen(
                     modifier       = Modifier.fillMaxWidth().height(260.dp)
                 ) { page ->
                     val pet         = pets.getOrNull(page) ?: return@HorizontalPager
-                    val pageOffset  = ((pagerState.currentPage - page) +
-                        pagerState.currentPageOffsetFraction).absoluteValue
-                    val scale       = 1f - (0.3f * pageOffset.coerceIn(0f, 1f))
-                    val alpha       = 1f - (0.5f * pageOffset.coerceIn(0f, 1f))
-                    val isCenter    = pageOffset < 0.5f
+                    val isCenter by remember(page) {
+                        derivedStateOf {
+                            val pageOffset  = ((pagerState.currentPage - page) +
+                                pagerState.currentPageOffsetFraction).absoluteValue
+                            pageOffset < 0.5f
+                        }
+                    }
                     val moodColor   = MoodConstants.colorOf[pet.moodId] ?: primaryAccent
                     val moodBgColor = MoodConstants.bgColorOf[pet.moodId] ?: accentBackground
 
                     Box(
                         modifier         = Modifier
                             .fillMaxSize()
-                            .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha },
+                            .graphicsLayer {
+                                val pageOffset  = ((pagerState.currentPage - page) +
+                                    pagerState.currentPageOffsetFraction).absoluteValue
+                                val scale       = 1f - (0.3f * pageOffset.coerceIn(0f, 1f))
+                                val alpha       = 1f - (0.5f * pageOffset.coerceIn(0f, 1f))
+                                scaleX = scale
+                                scaleY = scale
+                                this.alpha = alpha
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
@@ -303,7 +313,7 @@ fun PetsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Rounded.AutoAwesome, null, tint = currentMoodColor, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Fully evolved · Mythic", fontSize = 12.sp, color = currentMoodColor, fontWeight = FontWeight.Bold)
+                                Text("Fully evolved \u00B7 Mythic", fontSize = 12.sp, color = currentMoodColor, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -337,7 +347,7 @@ fun PetsScreen(
                                             animationSpec = tween(300),
                                             label = "pet_bg"
                                         )
-                                        val bw by androidx.compose.animation.core.animateDpAsState(
+                                        val bw by animateDpAsState(
                                             targetValue = if (isSelected) 1.5.dp else 0.dp,
                                             animationSpec = tween(300),
                                             label = "pet_border"
@@ -414,7 +424,7 @@ fun PetsScreen(
     }
 }
 
-// --- Pet visual — emoji/shape (DEMO_MODE or no image) / image (cached) -------
+// --- Pet visual - emoji/shape (DEMO_MODE or no image) / image (cached) -------
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
@@ -428,14 +438,14 @@ fun PetStageVisual(pet: PetUiState, moodColor: Color, isCenter: Boolean) {
         return
     }
 
-    // If DEMO_MODE OR no local image cached → show emoji / shape visual
+    // If DEMO_MODE OR no local image cached -> show emoji / shape visual
     if (PetViewModel.DEMO_MODE || pet.localImagePath == null) {
         PetEmojiVisual(pet = pet, moodColor = moodColor, size = size)
         return
     }
 
     // Real image (cached locally)
-    com.bumptech.glide.integration.compose.GlideImage(
+    GlideImage(
         model       = java.io.File(pet.localImagePath),
         contentDescription = pet.name,
         modifier    = Modifier.size(size)
@@ -448,7 +458,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
 
     when (pet.stageIndex) {
         0 -> {
-            // Egg — pulsing
+            // Egg - pulsing
             val inf = rememberInfiniteTransition(label = "egg_pulse")
             val scale by inf.animateFloat(0.95f, 1.05f,
                 infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "scale")
@@ -456,7 +466,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
                 modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
         }
         1 -> {
-            // Cracked — slight wobble
+            // Cracked - slight wobble
             val inf = rememberInfiniteTransition(label = "crack_wobble")
             val rot by inf.animateFloat(-3f, 3f,
                 infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "rot")
@@ -467,7 +477,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
             Text(emoji, fontSize = (size.value * 0.55f).sp)
         }
         4 -> {
-            // Juvenile — float
+            // Juvenile - float
             val inf = rememberInfiniteTransition(label = "float")
             val offsetY by inf.animateFloat(0f, -8f,
                 infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "y")
@@ -475,7 +485,7 @@ fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.
                 modifier = Modifier.graphicsLayer { translationY = offsetY })
         }
         else -> {
-            // Mythic — float + glow
+            // Mythic - float + glow
             val inf = rememberInfiniteTransition(label = "mythic")
             val offsetY by inf.animateFloat(0f, -10f,
                 infiniteRepeatable(tween(2000), RepeatMode.Reverse), label = "y")
@@ -498,7 +508,7 @@ fun PetGridIcon(pet: PetUiState, tint: Color) {
         Icon(Icons.Rounded.Lock, null, tint = tint, modifier = Modifier.size(20.dp))
         return
     }
-    // In DEMO_MODE or no image → emoji; else small icon
+    // In DEMO_MODE or no image -> emoji; else small icon
     if (PetViewModel.DEMO_MODE || pet.localImagePath == null) {
         Text(emojiFor(pet.emotion, pet.stageIndex), fontSize = 20.sp)
     } else {

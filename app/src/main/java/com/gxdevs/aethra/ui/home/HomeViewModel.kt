@@ -1,11 +1,11 @@
-package com.gxdevs.aethra.ui.home
+﻿package com.gxdevs.aethra.ui.home
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.gxdevs.aethra.AppDatabase
-import com.gxdevs.aethra.JournalEntry
-import com.gxdevs.aethra.JournalRepository
+import com.gxdevs.aethra.data.AppDatabase
+import com.gxdevs.aethra.data.journal.JournalEntry
+import com.gxdevs.aethra.data.journal.JournalRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import androidx.core.content.edit
@@ -47,9 +47,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 "Wanderer"
             } else if (googleLoggedIn && !googleName.isNullOrBlank()) {
                 googleName
-            } else if (localName.isNotBlank()) {
-                localName
-            } else {
+            } else localName.ifBlank {
                 "User"
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "User")

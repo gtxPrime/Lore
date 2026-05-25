@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.ui.lock
+package com.gxdevs.aethra.ui.lock
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
-import androidx.compose.material.icons.rounded.Backspace
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -101,7 +100,13 @@ fun PinLockScreen(
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.offset(x = (shakeAnim * 8 * if ((System.currentTimeMillis() / 100).toInt() % 2 == 0) 1 else -1).dp)
+                modifier = Modifier.offset {
+                    val currentShakeX = shakeAnim * 8 * if ((System.currentTimeMillis() / 100).toInt() % 2 == 0) 1 else -1
+                    androidx.compose.ui.unit.IntOffset(
+                        x = currentShakeX.dp.roundToPx(),
+                        y = 0
+                    )
+                }
             ) {
                 repeat(4) { idx ->
                     val filled = idx < input.length

@@ -13,9 +13,35 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+data class SecuritySettings(
+    val appLockEnabled: Boolean,
+    val hideMedia: Boolean,
+    val decoyPin: Boolean,
+    val realPin: String?,
+    val decoyPinValue: String?,
+    val appPin: String?,
+    val useBiometric: Boolean,
+    val autoLockDelay: Int
+)
+
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 class SettingsRepository(private val context: Context) {
+
+    val securitySettings: Flow<SecuritySettings> = context.dataStore.data
+        .map { prefs ->
+            SecuritySettings(
+                appLockEnabled = prefs[KEY_APP_LOCK_ENABLED] ?: false,
+                hideMedia = prefs[KEY_HIDE_MEDIA_IN_GALLERY] ?: false,
+                decoyPin = prefs[KEY_DECOY_PIN] ?: false,
+                realPin = prefs[KEY_REAL_PIN],
+                decoyPinValue = prefs[KEY_DECOY_PIN_VALUE],
+                appPin = prefs[KEY_APP_PIN],
+                useBiometric = prefs[KEY_USE_BIOMETRIC] ?: true,
+                autoLockDelay = prefs[KEY_AUTO_LOCK_DELAY] ?: 0
+            )
+        }
+
 
     companion object {
         val KEY_APP_LOCK_ENABLED        = booleanPreferencesKey("app_lock_enabled")
@@ -31,7 +57,6 @@ class SettingsRepository(private val context: Context) {
         val KEY_REAL_PIN                = stringPreferencesKey("real_pin")
         val KEY_DECOY_PIN_VALUE         = stringPreferencesKey("decoy_pin_value")
         val KEY_IS_DECOY_MODE           = booleanPreferencesKey("is_decoy_mode")
-        // App PIN (separate from biometric lock â€” PIN-based lock)
         val KEY_APP_PIN                 = stringPreferencesKey("app_pin")
         // Draft journal
         val KEY_DRAFT_TITLE             = stringPreferencesKey("draft_title")
@@ -53,7 +78,6 @@ class SettingsRepository(private val context: Context) {
         val KEY_GOOGLE_ACCOUNT_NAME     = stringPreferencesKey("google_account_name")
         val KEY_GOOGLE_ACCOUNT_EMAIL    = stringPreferencesKey("google_account_email")
         val KEY_GOOGLE_ACCOUNT_PHOTO    = stringPreferencesKey("google_account_photo")
-        val KEY_GDRIVE_BACKUP_ENABLED   = booleanPreferencesKey("gdrive_backup_enabled")
         val KEY_GDRIVE_INCLUDE_MEDIA    = booleanPreferencesKey("gdrive_include_media")
         val KEY_GDRIVE_LAST_SYNCED      = stringPreferencesKey("gdrive_last_synced")
         val KEY_SUBSCRIPTION_PLAN       = stringPreferencesKey("subscription_plan")
@@ -93,12 +117,6 @@ class SettingsRepository(private val context: Context) {
 
     val autoSaveFrequency: Flow<Float> = context.dataStore.data
         .map { it[KEY_AUTO_SAVE_FREQUENCY] ?: 15f }
-
-    val realPin: Flow<String?> = context.dataStore.data
-        .map { it[KEY_REAL_PIN] }
-
-    val decoyPinValue: Flow<String?> = context.dataStore.data
-        .map { it[KEY_DECOY_PIN_VALUE] }
 
     val isDecoyMode: Flow<Boolean> = context.dataStore.data
         .map { it[KEY_IS_DECOY_MODE] ?: false }
@@ -142,14 +160,8 @@ class SettingsRepository(private val context: Context) {
     val googleAccountName: Flow<String?> = context.dataStore.data
         .map { it[KEY_GOOGLE_ACCOUNT_NAME] }
 
-    val googleAccountEmail: Flow<String?> = context.dataStore.data
-        .map { it[KEY_GOOGLE_ACCOUNT_EMAIL] }
-
     val googleAccountPhoto: Flow<String?> = context.dataStore.data
         .map { it[KEY_GOOGLE_ACCOUNT_PHOTO] }
-
-    val gdriveBackupEnabled: Flow<Boolean> = context.dataStore.data
-        .map { it[KEY_GDRIVE_BACKUP_ENABLED] ?: false }
 
     val gdriveIncludeMedia: Flow<Boolean> = context.dataStore.data
         .map { it[KEY_GDRIVE_INCLUDE_MEDIA] ?: true }
@@ -275,7 +287,7 @@ class SettingsRepository(private val context: Context) {
                 val map = org.json.JSONObject(currentJson)
                 map.put(dayKey, entryId)
                 prefs[KEY_DAILY_SELECTED_JOURNALS] = map.toString()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 val map = org.json.JSONObject()
                 map.put(dayKey, entryId)
                 prefs[KEY_DAILY_SELECTED_JOURNALS] = map.toString()
@@ -307,10 +319,6 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             if (photoUrl == null) prefs.remove(KEY_GOOGLE_ACCOUNT_PHOTO) else prefs[KEY_GOOGLE_ACCOUNT_PHOTO] = photoUrl
         }
-    }
-
-    suspend fun setGdriveBackupEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_GDRIVE_BACKUP_ENABLED] = enabled }
     }
 
     suspend fun setGdriveIncludeMedia(include: Boolean) {

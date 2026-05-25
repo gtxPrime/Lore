@@ -1,4 +1,4 @@
-package com.gxdevs.aethra.ui.chronicles
+﻿package com.gxdevs.aethra.ui.chronicles
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -30,7 +30,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.gxdevs.aethra.Relic
+import com.gxdevs.aethra.data.relic.Relic
 import com.gxdevs.aethra.ui.theme.MyApplicationTheme
 
 private val mainContainerBackground = Color(0xFFF4F1EA)
@@ -174,7 +174,7 @@ fun ChronicleScreen(viewModel: ChronicleViewModel = viewModel()) {
                         CircularProgressIndicator(color = primaryAccent, modifier = Modifier.size(28.dp))
                     }
                 } else if (uiState.surfacedRelics.isEmpty() && uiState.lockedRelics.isEmpty()) {
-                    // No relics yet — empty state
+                    // No relics yet, empty state
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -337,7 +337,7 @@ fun EchoWaitingCard(onUnveil: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun EchoUnveiledCard(entry: com.gxdevs.aethra.JournalEntry?, onClose: () -> Unit) {
+fun EchoUnveiledCard(entry: com.gxdevs.aethra.data.journal.JournalEntry?, onClose: () -> Unit) {
     val dateSdf = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.US)
     val dateStr = entry?.let { dateSdf.format(java.util.Date(it.timestamp)).uppercase() } ?: "A YEAR AGO"
     val content = entry?.content?.take(280)?.let {
@@ -351,13 +351,13 @@ fun EchoUnveiledCard(entry: com.gxdevs.aethra.JournalEntry?, onClose: () -> Unit
             val ems = com.google.gson.Gson().fromJson(emotionsJson, Array<com.gxdevs.aethra.ui.journal.Emotion>::class.java)
             val counts = mutableMapOf<String, Int>()
             ems.forEach { em ->
-                val mood = com.gxdevs.aethra.MoodConstants.emotionToMood(em.label)
+                val mood = com.gxdevs.aethra.data.mood.MoodConstants.emotionToMood(em.label)
                 counts[mood] = (counts[mood] ?: 0) + 1
             }
             counts.maxByOrNull { it.value }?.key
         } catch (_: Exception) { null }
     }
-    val moodColor = moodStr?.let { com.gxdevs.aethra.MoodConstants.moodColor(it) } ?: yellowAccent
+    val moodColor = moodStr?.let { com.gxdevs.aethra.data.mood.MoodConstants.moodColor(it) } ?: yellowAccent
 
     Box(
         modifier = Modifier
@@ -467,7 +467,7 @@ fun RelicSurfacedCard(onClick: () -> Unit) {
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // Outer soft ambient glow — requiredSize overflows clip
+                // Outer soft ambient glow, requiredSize overflows clip
                 Box(
                     modifier = Modifier
                         .requiredSize(200.dp)

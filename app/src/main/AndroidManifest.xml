@@ -7,7 +7,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"
+        tools:ignore="ExactAlarmPolicy" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
@@ -23,7 +24,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.MyApplication">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -36,6 +36,24 @@
         <receiver
             android:name=".utils.DailyReminderReceiver"
             android:exported="false" />
+
+        <!-- Media viewer activity for rich full screen viewing -->
+        <activity
+            android:name=".ui.journal.MediaViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- Secure file sharing provider -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.gxdevs.aethra.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

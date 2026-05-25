@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra
+package com.gxdevs.aethra.data.mood
 
 import androidx.room.Dao
 import androidx.room.Insert

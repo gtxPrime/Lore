@@ -1,32 +1,46 @@
 package com.gxdevs.aethra.utils
 
 import android.content.Context
-import androidx.activity.ComponentActivity
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.security.crypto.EncryptedFile
-import androidx.security.crypto.MasterKey
 import java.io.File
 import java.io.InputStream
-import java.io.OutputStream
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.CipherInputStream
+import javax.crypto.CipherOutputStream
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 class SecurityManager(private val context: Context) {
 
-    private val masterKey: MasterKey by lazy {
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
+    companion object {
+        private const val KEY_ALIAS = "aethra_master_key"
+        private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        private const val TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val GCM_TAG_LENGTH = 128
     }
 
-    fun getEncryptedFile(file: File): EncryptedFile {
-        return EncryptedFile.Builder(
-            context,
-            file,
-            masterKey,
-            EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-        ).build()
+    private fun getOrCreateSecretKey(): SecretKey {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        keyStore.getKey(KEY_ALIAS, null)?.let { return it as SecretKey }
+
+        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        val spec = KeyGenParameterSpec.Builder(
+            KEY_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build()
+        keyGenerator.init(spec)
+        return keyGenerator.generateKey()
     }
 
     /**
@@ -48,7 +62,6 @@ class SecurityManager(private val context: Context) {
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 onError(errString.toString())
             }
-            // onAuthenticationFailed = biometric scanned but not recognised → no action
         }
         val prompt = BiometricPrompt(activity, executor, callback)
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -62,32 +75,7 @@ class SecurityManager(private val context: Context) {
         prompt.authenticate(promptInfo)
     }
 
-    fun canAuthenticate(): Int = BiometricManager.from(context).canAuthenticate(
-        BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.DEVICE_CREDENTIAL
-    )
-
     // ─── Encryption helpers ───────────────────────────────────────────────────
-
-    /**
-     * Encrypt raw bytes and write them to [dest] using Android Keystore-backed AES-256-GCM.
-     */
-    fun encryptData(data: ByteArray, dest: File) {
-        dest.parentFile?.mkdirs()
-        getEncryptedFile(dest).openFileOutput().use { out -> out.write(data) }
-    }
-
-    /**
-     * Copy and encrypt [source] → [dest].
-     * [dest] must not already exist (EncryptedFile requires a fresh file).
-     */
-    fun encryptFile(source: File, dest: File) {
-        dest.parentFile?.mkdirs()
-        if (dest.exists()) dest.delete()
-        getEncryptedFile(dest).openFileOutput().use { out ->
-            source.inputStream().use { it.copyTo(out) }
-        }
-    }
 
     /**
      * Encrypt bytes from [inputStream] and write to [dest].
@@ -96,7 +84,23 @@ class SecurityManager(private val context: Context) {
     fun encryptStream(inputStream: InputStream, dest: File) {
         dest.parentFile?.mkdirs()
         if (dest.exists()) dest.delete()
-        getEncryptedFile(dest).openFileOutput().use { out -> inputStream.copyTo(out) }
+
+        val secretKey = getOrCreateSecretKey()
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+
+        val iv = cipher.iv
+
+        dest.outputStream().use { fos ->
+            // 1. Write the length of IV (1 byte)
+            fos.write(iv.size)
+            // 2. Write the IV itself
+            fos.write(iv)
+            // 3. Encrypt data and write cipher text
+            CipherOutputStream(fos, cipher).use { cos ->
+                inputStream.copyTo(cos)
+            }
+        }
     }
 
     /**
@@ -104,13 +108,17 @@ class SecurityManager(private val context: Context) {
      */
     fun decryptFile(encryptedFile: File, dest: File) {
         dest.parentFile?.mkdirs()
-        getEncryptedFile(encryptedFile).openFileInput().use { input ->
-            dest.outputStream().use { output -> input.copyTo(output) }
+        if (dest.exists()) dest.delete()
+
+        openDecryptedStream(encryptedFile).use { input ->
+            dest.outputStream().use { output ->
+                input.copyTo(output)
+            }
         }
     }
 
     /**
-     * Decrypt [encryptedFile] to a unique temp file inside [context.cacheDir]/dec_tmp/.
+     * Decrypt encryptedFile to a unique temp file inside context.cacheDir/dec_tmp/.
      * The caller is responsible for deleting the returned file when done.
      */
     fun decryptToTemp(encryptedFile: File, extension: String = ""): File {
@@ -122,16 +130,26 @@ class SecurityManager(private val context: Context) {
     }
 
     /**
-     * Read all decrypted bytes from an encrypted file.
-     */
-    fun decryptData(encryptedFile: File): ByteArray {
-        return getEncryptedFile(encryptedFile).openFileInput().use { it.readBytes() }
-    }
-
-    /**
      * Open an [InputStream] over the decrypted content of [encryptedFile].
      * Caller must close the stream.
      */
-    fun openDecryptedStream(encryptedFile: File): InputStream =
-        getEncryptedFile(encryptedFile).openFileInput()
+    fun openDecryptedStream(encryptedFile: File): InputStream {
+        val fis = encryptedFile.inputStream()
+        try {
+            val ivSize = fis.read()
+            if (ivSize <= 0) throw IllegalArgumentException("Invalid encrypted file: no IV")
+            val iv = ByteArray(ivSize)
+            fis.read(iv)
+
+            val secretKey = getOrCreateSecretKey()
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            val spec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec)
+
+            return CipherInputStream(fis, cipher)
+        } catch (e: Exception) {
+            fis.close()
+            throw e
+        }
+    }
 }

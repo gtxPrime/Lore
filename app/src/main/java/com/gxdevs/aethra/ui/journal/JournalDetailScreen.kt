@@ -1,11 +1,6 @@
 package com.gxdevs.aethra.ui.journal
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,14 +12,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.ui.platform.LocalConfiguration
 import com.gxdevs.aethra.LocalNavAnimatedVisibilityScope
 import com.gxdevs.aethra.LocalSharedTransitionScope
+import com.gxdevs.aethra.MainActivity
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,14 +41,16 @@ import com.gxdevs.aethra.utils.MediaEncryptionManager
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.max
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.core.net.toUri
+import com.gxdevs.aethra.data.SettingsRepository
+import com.gxdevs.aethra.data.mood.MoodConstants
+import com.gxdevs.aethra.ui.JournalViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
+import java.net.URLDecoder
 
 private val mainContainerBackground = Color(0xFFF4F1EA)
 private val cardBackground          = Color(0xFFEAE7DF)
@@ -70,8 +65,8 @@ private val destructiveRed          = Color(0xFFC75D4E)
 private data class DetailSavedRange(val type: String, val start: Int, val end: Int)
 
 private fun String.toFormatRanges(): List<FormatRange> = try {
-    val listType = object : com.google.gson.reflect.TypeToken<List<DetailSavedRange>>() {}.type
-    val saved: List<DetailSavedRange> = com.google.gson.Gson().fromJson(this, listType)
+    val listType = object : TypeToken<List<DetailSavedRange>>() {}.type
+    val saved: List<DetailSavedRange> = Gson().fromJson(this, listType)
     saved.mapNotNull { r ->
         val type = when (r.type) {
             "BOLD"          -> FormatType.BOLD
@@ -112,7 +107,7 @@ private fun buildAnnotatedStringForPart(
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun JournalDetailScreen(
-    viewModel: com.gxdevs.aethra.ui.JournalViewModel? = null,
+    viewModel: JournalViewModel? = null,
     entryId: Long = 0L,
     onBack: () -> Unit = {},
     onEdit: (Long) -> Unit = {},
@@ -120,21 +115,22 @@ fun JournalDetailScreen(
     onEditMood: (Long) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
-    val density = LocalDensity.current
+    LocalDensity.current
+    val context = LocalContext.current
 
     // Load dynamic entry
     val allEntries by viewModel?.allEntries?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList()) }
     val entry = allEntries.find { it.id == entryId }
 
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showRelicDialog  by remember { mutableStateOf(false) }
+    val showDeleteDialog = remember { mutableStateOf(false) }
+    val showRelicDialog  = remember { mutableStateOf(false) }
     var showMenu         by remember { mutableStateOf(false) }
 
     // --- Delete confirmation ---
-    if (showDeleteDialog) {
+    if (showDeleteDialog.value) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
+            onDismissRequest = { showDeleteDialog.value = false },
             containerColor = cardBackground,
             title = {
                 Text(
@@ -157,7 +153,7 @@ fun JournalDetailScreen(
                 TextButton(
                     onClick = {
                         viewModel?.deleteEntry(entryId)
-                        showDeleteDialog = false
+                        showDeleteDialog.value = false
                         onDeleted()
                         onBack()
                     }
@@ -166,7 +162,7 @@ fun JournalDetailScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
+                TextButton(onClick = { showDeleteDialog.value = false }) {
                     Text("Cancel", color = textSecondary)
                 }
             }
@@ -174,14 +170,14 @@ fun JournalDetailScreen(
     }
 
     // --- Relic confirmation ---
-    if (showRelicDialog) {
+    if (showRelicDialog.value) {
         RelicSealDialog(
             entryTitle = entry?.content?.substringBefore("\n")?.take(40) ?: "This entry",
             onConfirm = { days ->
                 viewModel?.sealAsRelic(entryId, days)
-                showRelicDialog = false
+                showRelicDialog.value = false
             },
-            onDismiss = { showRelicDialog = false }
+            onDismiss = { showRelicDialog.value = false }
         )
     }
 
@@ -198,7 +194,7 @@ fun JournalDetailScreen(
 
     // Parse Data
     val decodedContent = if (entry.content?.contains("+") == true) {
-        runCatching { java.net.URLDecoder.decode(entry.content ?: "", "UTF-8") }.getOrDefault(entry.content ?: "")
+        runCatching { URLDecoder.decode(entry.content, "UTF-8") }.getOrDefault(entry.content)
     } else { entry.content ?: "" }
     val lines         = decodedContent.split("\n")
     val title         = if (lines.isNotEmpty()) lines.first() else "Untitled"
@@ -213,7 +209,7 @@ fun JournalDetailScreen(
         entry.promptResponses?.toFormatRanges() ?: emptyList()
     }
 
-    val sdf         = SimpleDateFormat("EEEE, MMM dd, yyyy · h:mm a", LocalLocale.current.platformLocale)
+    val sdf         = SimpleDateFormat("EEEE, MMM dd, yyyy Â· h:mm a", LocalLocale.current.platformLocale)
     val dateString  = sdf.format(Date(entry.timestamp))
     val tags        = entry.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
     val mainTag     = tags.firstOrNull() ?: "MEMO"
@@ -225,7 +221,7 @@ fun JournalDetailScreen(
             val ems = Gson().fromJson(entry.emotions, Array<Emotion>::class.java)
             val counts = mutableMapOf<String, Int>()
             ems.forEach { em ->
-                val cat = com.gxdevs.aethra.MoodConstants.emotionToMood(em.label)
+                val cat = MoodConstants.emotionToMood(em.label)
                 counts[cat] = (counts[cat] ?: 0) + 1
             }
             counts.maxByOrNull { it.value }?.key
@@ -233,16 +229,16 @@ fun JournalDetailScreen(
     }
     val moodLabel   = dominantMood?.uppercase() ?: mainTag.uppercase()
 
-    // --- Parse attachments — handles both JSON formats ---
+    // --- Parse attachments handles both JSON formats ---
     // Format A (AfterJournalViewModel): [{"uri":"...","type":"IMAGE","name":"..."}, ...]
     // Format B (TextJournalScreen edit): ["content://...", "content://..."]
     data class ParsedAttachment(val uri: android.net.Uri, val type: String)
     val parsedAttachments = remember(entry.attachments) {
         if (!entry.attachments.isNullOrBlank()) {
             try {
-                val raw = entry.attachments!!
+                val raw = entry.attachments
                 val jsonString = if (!raw.contains("{") && !raw.contains("[")) {
-                    runCatching { java.net.URLDecoder.decode(raw, "UTF-8") }.getOrDefault(raw)
+                    runCatching { URLDecoder.decode(raw, "UTF-8") }.getOrDefault(raw)
                 } else raw
 
                 val objectListType = object : TypeToken<List<Map<String, Any>>>() {}.type
@@ -260,16 +256,52 @@ fun JournalDetailScreen(
                 } else {
                     val typeToken = object : TypeToken<List<String>>() {}.type
                     val uriStrings: List<String> = Gson().fromJson(jsonString, typeToken)
-                    uriStrings.mapNotNull { runCatching { ParsedAttachment(it.toUri(), "IMAGE") }.getOrNull() }
+                    uriStrings.mapNotNull { uriStr ->
+                        val uri = uriStr.toUri()
+                        val path = uri.path ?: uriStr
+                        val fileType = if (MediaEncryptionManager.isEncrypted(path)) {
+                            "UNKNOWN"
+                        } else {
+                            val mimeType = try { context.contentResolver.getType(uri) } catch (_: Exception) { null }
+                            if (mimeType?.startsWith("video") == true || uriStr.endsWith(".mp4", ignoreCase = true)) "VIDEO" else "IMAGE"
+                        }
+                        runCatching { ParsedAttachment(uri, fileType) }.getOrNull()
+                    }
                 }
             } catch (_: Exception) { emptyList() }
         } else emptyList()
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
+
+
+    val mediaTypes = remember(parsedAttachments) {
+        parsedAttachments.associate { it.uri to it.type }
+    }
+
     val isVideo: (android.net.Uri) -> Boolean = { uri ->
-        val mimeType = context.contentResolver.getType(uri)
-        mimeType?.startsWith("video") == true || uri.toString().endsWith(".mp4", ignoreCase = true)
+        val type = mediaTypes[uri]
+        val uriStr = uri.toString()
+        val path = uri.path ?: uriStr
+        if (MediaEncryptionManager.isEncrypted(path)) {
+            when (type) {
+                "VIDEO" -> {
+                    true
+                }
+                "FILE" -> {
+                    false
+                }
+                else -> {
+                    MediaEncryptionManager.isVideoEncrypted(context, path)
+                }
+            }
+        } else {
+            if (type != null) {
+                type == "VIDEO"
+            } else {
+                val mimeType = try { context.contentResolver.getType(uri) } catch (_: Exception) { null }
+                mimeType?.startsWith("video") == true || uriStr.endsWith(".mp4", ignoreCase = true)
+            }
+        }
     }
 
     // Visual media = IMAGE + VIDEO only (FILE = audio, shown in audio pill instead)
@@ -341,7 +373,7 @@ fun JournalDetailScreen(
                     lineHeight = 38.sp
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                // --- Mood chip — tappable to update mood ---
+                // --- Mood chip â€” tappable to update mood ---
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -463,21 +495,25 @@ fun JournalDetailScreen(
                 Icon(Icons.Rounded.ArrowBackIosNew, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
             }
 
-            val scrollPx = scrollState.value.toFloat()
-            val fadeStart = 100f
-            val fadeEnd = 300f
-            val alpha = ((scrollPx - fadeStart) / (fadeEnd - fadeStart)).coerceIn(0f, 1f)
-
             Text(
                 text = dateString,
-                color = Color.White.copy(alpha = alpha),
+                color = Color.White,
                 fontSize = 14.sp,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp)
+                    .graphicsLayer {
+                        val scrollPx = scrollState.value.toFloat()
+                        val fadeStart = 100f
+                        val fadeEnd = 300f
+                        val calculatedAlpha = ((scrollPx - fadeStart) / (fadeEnd - fadeStart)).coerceIn(0f, 1f)
+                        this.alpha = calculatedAlpha
+                    },
+                textAlign = TextAlign.Center
             )
 
             // Menu button
@@ -511,7 +547,7 @@ fun JournalDetailScreen(
                                 Text("Seal as Relic", color = textPrimary, fontSize = 14.sp)
                             }
                         },
-                        onClick = { showMenu = false; showRelicDialog = true }
+                        onClick = { showMenu = false; showRelicDialog.value = true }
                     )
                     HorizontalDivider(color = borderColor, thickness = 1.dp, modifier = Modifier.padding(horizontal = 8.dp))
                     DropdownMenuItem(
@@ -522,7 +558,7 @@ fun JournalDetailScreen(
                                 Text("Delete Entry", color = destructiveRed, fontSize = 14.sp)
                             }
                         },
-                        onClick = { showMenu = false; showDeleteDialog = true }
+                        onClick = { showMenu = false; showDeleteDialog.value = true }
                     )
                 }
             }
@@ -531,7 +567,7 @@ fun JournalDetailScreen(
 }
 
 
-// ─── Audio Player Card ──────────────────────────────────────────────────────
+// â”€â”€â”€ Audio Player Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @Composable
 private fun AudioPlayerCard(uri: android.net.Uri) {
     val context = LocalContext.current
@@ -542,7 +578,7 @@ private fun AudioPlayerCard(uri: android.net.Uri) {
     // For encrypted files, decrypt to a temp file first
     var tempDecryptedFile by remember { mutableStateOf<File?>(null) }
     var decryptError by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    rememberCoroutineScope()
 
     LaunchedEffect(uriString) {
         if (isEncFile) {
@@ -602,12 +638,8 @@ private fun AudioPlayerCard(uri: android.net.Uri) {
     fun formatMs(ms: Long): String {
         val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60)
     }
-    val infiniteTransition = rememberInfiniteTransition(label = "wave")
-    val wavePhase by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "wp"
-    )
-    val staticHeights = remember { listOf(0.3f, 0.7f, 0.5f, 0.9f, 0.4f, 0.8f, 0.35f, 0.6f, 0.5f, 0.85f, 0.4f, 0.7f) }
+    rememberInfiniteTransition(label = "wave")
+    remember { listOf(0.3f, 0.7f, 0.5f, 0.9f, 0.4f, 0.8f, 0.35f, 0.6f, 0.5f, 0.85f, 0.4f, 0.7f) }
 
     Row(
         modifier = Modifier
@@ -671,24 +703,12 @@ private fun AudioPlayerCard(uri: android.net.Uri) {
     }
 }
 
-
-// --- Open media with device system app ---
-private fun openWithSystem(context: android.content.Context, uri: android.net.Uri) {
-    val mimeType = context.contentResolver.getType(uri) ?: "*/*"
-    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, mimeType)
-        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    runCatching { context.startActivity(intent) }
-}
-
-
 // --- Dynamic Media Grid ---
 // Layout rules (no empty half-spaces):
-//   1 item  → full-width 16:9 only
-//   2 items → hero 16:9 stacked above second item 16:9 (both full-width)
-//   3 items → hero 16:9 + two 1:1 squares side-by-side
-//   4+      → hero 16:9 + one 1:1 thumbnail + "+N MORE" tile (50/50 row)
+//   1 item  at full-width 16:9 only
+//   2 items at hero 16:9 stacked above second item 16:9 (both full-width)
+//   3 items at hero 16:9 + two 1:1 squares side-by-side
+//   4+      at hero 16:9 + one 1:1 thumbnail + "+N MORE" tile (50/50 row)
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun DynamicMediaGrid(
@@ -699,7 +719,18 @@ private fun DynamicMediaGrid(
     val firstMedia     = uris.first()
     val remainingMedia = uris.drop(1)
     val context = LocalContext.current
-    fun open(uri: android.net.Uri) = openWithSystem(context, uri)
+    val settingsRepo = remember { SettingsRepository(context) }
+    val encryptMediaState = settingsRepo.encryptMedia.collectAsState(initial = false)
+
+    fun open(uri: android.net.Uri) {
+        val intent = android.content.Intent(context, MediaViewerActivity::class.java).apply {
+            putExtra("media_uri", uri.toString())
+            putExtra("is_video", isVideo(uri))
+            putExtra("encryption_enabled", encryptMediaState.value)
+        }
+        MainActivity.bypassNextLock = true
+        context.startActivity(intent)
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Hero always full-width 16:9
@@ -777,13 +808,14 @@ private fun MediaThumbnail(
     }
 
     // For encrypted files, decrypt to a temp file so Glide can load it
-    var displayModel: Any by remember(uriString) { mutableStateOf<Any>(if (uri.scheme == null) File(uri.path ?: uriString) else uri) }
+    var displayModel: Any by remember(uriString) { mutableStateOf(if (uri.scheme == null) File(uri.path ?: uriString) else uri) }
     var tempFile by remember { mutableStateOf<File?>(null) }
 
     LaunchedEffect(uriString) {
         if (encPath != null) {
             val dec = withContext(Dispatchers.IO) {
-                MediaEncryptionManager.decryptToTemp(context, encPath)
+                val extHint = if (isVideo(uri)) "mp4" else "jpg"
+                MediaEncryptionManager.decryptToTemp(context, encPath, extHint)
             }
             if (dec != null) {
                 tempFile = dec
@@ -827,7 +859,7 @@ fun RelicSealDialog(
     onConfirm: (days: Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var lockDays by remember { mutableStateOf(365) }
+    var lockDays by remember { mutableIntStateOf(365) }
     val infiniteTransition = rememberInfiniteTransition(label = "relic_glow")
     val glowAlpha by infiniteTransition.animateFloat(
         initialValue = 0.3f, targetValue = 0.8f,
@@ -914,15 +946,15 @@ fun RelicSealDialog(
                     fontSize = 13.sp,
                     color = yellowAccent.copy(0.8f),
                     fontStyle = FontStyle.Italic,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(24.dp))
                 Text(
-                    "This memory will be sealed in the Reliquary. It will resurface after the chosen time — a message to your future self.",
+                    "This memory will be sealed in the Reliquary. It will resurface after the chosen time â€” a message to your future self.",
                     fontSize = 14.sp,
                     color = Color.White.copy(0.7f),
                     lineHeight = 22.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
 
                 Spacer(Modifier.height(32.dp))

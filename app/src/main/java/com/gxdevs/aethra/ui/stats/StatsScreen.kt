@@ -19,20 +19,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gxdevs.aethra.MoodConstants
+import com.gxdevs.aethra.data.mood.MoodConstants
 import com.gxdevs.aethra.ui.navigation.NavScreen
 import com.gxdevs.aethra.ui.navigation.SharedBottomNavBar
 import com.gxdevs.aethra.ui.pets.PetUiState
 import com.gxdevs.aethra.ui.pets.PetViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-import java.util.Locale
 import kotlin.math.absoluteValue
 import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLocale
 
 // ===================== BEIGE / EARTH / SAGE THEME =====================
 private val appBackground = Color(0xFFEBE8E0)
@@ -127,14 +127,13 @@ fun InsightsTab(stats: StatsState, pets: List<PetUiState> = emptyList()) {
             state = pagerState,
             modifier = Modifier.weight(1f)
         ) { page ->
-            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-            val alpha = 1f - (0.5f * pageOffset.coerceIn(0f, 1f))
-            val scale = 1f - (0.1f * pageOffset.coerceIn(0f, 1f))
-            
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
+                        val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+                        val alpha = 1f - (0.5f * pageOffset.coerceIn(0f, 1f))
+                        val scale = 1f - (0.1f * pageOffset.coerceIn(0f, 1f))
                         this.alpha = alpha
                         this.scaleX = scale
                         this.scaleY = scale
@@ -194,7 +193,7 @@ fun MoodsTabContent(stats: StatsState) {
                     }
                 }
             } else {
-                // Donut Chart (Canvas) – colors from MoodConstants
+                // Donut Chart (Canvas) colors from MoodConstants
                 Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.foundation.Canvas(modifier = Modifier.size(160.dp)) {
                         val strokeWidth = 40f
@@ -220,7 +219,7 @@ fun MoodsTabContent(stats: StatsState) {
                 
                 Spacer(modifier = Modifier.height(32.dp))
                 
-                // Legend – colors from MoodConstants
+                // Legend colors from MoodConstants
                 val legends = MoodConstants.ALL_MOODS.map { mood ->
                     Pair(mood, MoodConstants.colorOf[mood] ?: Color.Gray) to (stats.emotionPercents[mood] ?: 0f)
                 }
@@ -319,7 +318,7 @@ fun JourneyTabContent(stats: StatsState) {
                     Column {
                         Icon(Icons.Rounded.EditNote, null, tint = textSecondary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(String.format("%,d", stats.wordsWoven), color = textPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+                        Text(String.format(LocalLocale.current.platformLocale,"%,d", stats.wordsWoven), color = textPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
                         Text("WORDS WOVEN", color = textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     }
                 }
@@ -432,7 +431,8 @@ fun JourneyTabContent(stats: StatsState) {
                         trackColor = borderColor
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("${if (total > 1) (item.second.toFloat() / total * 100).toInt() else item.second}", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    val pct = (item.second.toFloat() / total * 100).toInt()
+                    Text("$pct%", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(44.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
             }
             
@@ -546,9 +546,9 @@ fun CompanionsTabContent(pets: List<PetUiState> = emptyList()) {
                     lockedTierPets.forEach { pet ->
                         val color = MoodConstants.colorOf[pet.moodId] ?: primaryAccent
                         Box(
-                            modifier = Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                            modifier = Modifier.size(36.dp).clip(CircleShape)
                                 .background(color.copy(alpha = 0.15f))
-                                .border(1.dp, color.copy(0.3f), androidx.compose.foundation.shape.CircleShape),
+                                .border(1.dp, color.copy(0.3f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Rounded.Lock, null, tint = color.copy(0.4f), modifier = Modifier.size(14.dp))

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Expose the cacheDir/shared_media/ folder for temporary shared files -->
+    <cache-path name="shared_media" path="shared_media/" />
+    <!-- Expose the filesDir/encrypted_media/ folder if needed -->
+    <files-path name="encrypted_media" path="encrypted_media/" />
+</paths>

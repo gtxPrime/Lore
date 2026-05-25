@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra
+package com.gxdevs.aethra.pets
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow

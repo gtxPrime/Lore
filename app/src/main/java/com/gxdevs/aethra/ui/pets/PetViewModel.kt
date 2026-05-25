@@ -8,9 +8,9 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
-import com.gxdevs.aethra.AppDatabase
-import com.gxdevs.aethra.MoodConstants
-import com.gxdevs.aethra.PetProgress
+import com.gxdevs.aethra.data.AppDatabase
+import com.gxdevs.aethra.data.mood.MoodConstants
+import com.gxdevs.aethra.pets.PetProgress
 import com.gxdevs.aethra.pets.PetDefinition
 import com.gxdevs.aethra.pets.PetStageDefinition
 import com.gxdevs.aethra.ui.journal.Emotion
@@ -28,8 +28,8 @@ import java.util.Calendar
 data class PetUiState(
     val petId: String,
     val name: String,
-    val emotion: String,         // lowercase: "bright", "calm", …
-    val moodId: String,          // capitalized: "Bright" — for MoodConstants colour lookup
+    val emotion: String,         // lowercase: "bright", "calm", \u2026
+    val moodId: String,          // capitalized: "Bright" - for MoodConstants colour lookup
     val level: Int,
     val description: String,
     val journalCount: Int,       // effective journals for this pet's level
@@ -66,10 +66,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         defDao.getAllDefinitions(),
         stageDao.getAllStages(),
         petProgressDao.getAllPetProgress(),
-        cacheDao.getAllCachedImages()
-    ) { defs, allStages, progressList, cachedImages ->
+        cacheDao.getAllCachedImages(),
+        com.gxdevs.aethra.data.SettingsRepository(application).isDecoyMode
+    ) { defs, allStages, progressList, cachedImages, isDecoy ->
 
-        // Fast-path: catalog not seeded yet — fall back to MoodConstants dummy set
+        if (isDecoy) {
+            return@combine PetsScreenState(pets = emptyList(), isLoading = false)
+        }
+
+        // Fast-path: catalog not seeded yet - fall back to MoodConstants dummy set
         if (defs.isEmpty()) {
             return@combine fallbackToMoodConstants(progressList)
         }
@@ -134,7 +139,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (_: Exception) {}
 
-        val entriesByDay = mutableMapOf<String, MutableList<com.gxdevs.aethra.JournalEntry>>()
+        val entriesByDay = mutableMapOf<String, MutableList<com.gxdevs.aethra.data.journal.JournalEntry>>()
         entries.forEach { entry ->
             calendar.timeInMillis = entry.timestamp
             val dayKey = "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.DAY_OF_YEAR)}"
@@ -289,13 +294,13 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         return Pair((totalJournals - prevMax).coerceAtLeast(0), false)
     }
 
-    /** Fallback when catalog DB is empty — mirror old MoodConstants behaviour */
+    /** Fallback when catalog DB is empty - mirror old MoodConstants behaviour */
     private fun fallbackToMoodConstants(progressList: List<PetProgress>): PetsScreenState {
         val progressMap = progressList.associateBy { it.moodId }
         // Only include moods the user has actually journaled about (count >= 1)
         val pets = MoodConstants.ALL_MOODS.mapNotNull { moodId ->
             val count    = progressMap[moodId]?.journalCount ?: 0
-            if (count < 1) return@mapNotNull null   // no journal for this mood — hide entirely
+            if (count < 1) return@mapNotNull null   // no journal for this mood - hide entirely
             val stageIdx = MoodConstants.stageFor(count)
             val stageName = if (stageIdx < 0) "Egg"
                             else MoodConstants.stages.getOrNull(stageIdx)?.name ?: "Egg"
@@ -372,7 +377,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             petName.hashCode(),
             NotificationCompat.Builder(context, CHANNEL_COMPANION)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("$petName evolved! ✨")
+                .setContentTitle("$petName evolved! \u2728")
                 .setContentText("$petName has reached the $stageName stage.")
                 .setAutoCancel(true)
                 .build()

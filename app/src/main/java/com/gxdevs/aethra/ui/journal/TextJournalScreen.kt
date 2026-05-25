@@ -1,7 +1,12 @@
 package com.gxdevs.aethra.ui.journal
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
+import android.media.MediaRecorder
+import com.gxdevs.aethra.MainActivity
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,7 +27,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import com.gxdevs.aethra.LocalSharedTransitionScope
 import com.gxdevs.aethra.LocalNavAnimatedVisibilityScope
 import androidx.compose.foundation.background
@@ -64,6 +68,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -90,17 +97,18 @@ import com.gxdevs.aethra.data.SettingsRepository
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlinx.coroutines.delay as kDelay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.ui.text.TextLayoutResult
+import com.google.common.reflect.TypeToken
+import com.google.gson.Gson
+import androidx.core.net.toUri
+import kotlin.math.abs
 
 private val mainContainerBackground = Color(0xFFF4F1EA)
 private val cardBackground          = Color(0xFFEAE7DF)
@@ -132,11 +140,11 @@ data class FormatRange(val type: FormatType, var start: Int, var end: Int)
 private data class SavedRange(val type: String, val start: Int, val end: Int)
 
 private fun List<FormatRange>.toFormatJson(): String =
-    com.google.gson.Gson().toJson(map { SavedRange(it.type.name, it.start, it.end) })
+    Gson().toJson(map { SavedRange(it.type.name, it.start, it.end) })
 
 private fun String.toFormatRanges(): List<FormatRange> = try {
-    val listType = object : com.google.gson.reflect.TypeToken<List<SavedRange>>() {}.type
-    val saved: List<SavedRange> = com.google.gson.Gson().fromJson(this, listType)
+    val listType = object : TypeToken<List<SavedRange>>() {}.type
+    val saved: List<SavedRange> = Gson().fromJson(this, listType)
     saved.mapNotNull { r ->
         val type = when (r.type) {
             "BOLD"          -> FormatType.BOLD
@@ -191,7 +199,6 @@ class RichTextState {
                         val num = linesBefore.count { it.matches(Regex("^\\d+\\. .*")) } + 1
                         "$num. "
                     }
-                    ListType.OFF -> ""
                 }
                 if (prefix.isNotEmpty()) {
                     val inserted  = newText.substring(0, cursorPos) + prefix + newText.substring(cursorPos)
@@ -399,10 +406,10 @@ val FileStateSaver = Saver<MutableState<File?>, String>(
 
 val SelectedMediaStateSaver = Saver<MutableState<List<Uri>>, List<String>>(
     save = { state -> state.value.map { it.toString() } },
-    restore = { restored -> mutableStateOf(restored.map { Uri.parse(it) }) }
+    restore = { restored -> mutableStateOf(restored.map { it.toUri() }) }
 )
 
-private fun isUriValidAndExists(context: android.content.Context, uri: Uri): Boolean {
+private fun isUriValidAndExists(context: Context, uri: Uri): Boolean {
     return try {
         if (uri.scheme == "file") {
             val path = uri.path
@@ -414,7 +421,7 @@ private fun isUriValidAndExists(context: android.content.Context, uri: Uri): Boo
         } else {
             context.contentResolver.openInputStream(uri)?.use { true } ?: false
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         false
     }
 }
@@ -558,10 +565,45 @@ fun TextJournalScreen(
     var currentPrompt by rememberSaveable { mutableStateOf<String?>(null) }
     var activeList    by rememberSaveable { mutableStateOf(ListType.OFF) }
 
+    val editorScrollState = rememberScrollState()
+    var textFieldTop by remember { mutableFloatStateOf(0f) }
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    
+    // Typing tracking for pills auto-hide
+    var isTyping by remember { mutableStateOf(false) }
+    LaunchedEffect(richTextState.textFieldValue.text, title) {
+        if (richTextState.textFieldValue.text.isNotEmpty() || title.isNotEmpty()) {
+            isTyping = true
+            kotlinx.coroutines.delay(1000)
+            isTyping = false
+        }
+    }
+
+    LaunchedEffect(richTextState.textFieldValue.selection, textLayoutResult, textFieldTop, viewportHeight) {
+        val layout = textLayoutResult ?: return@LaunchedEffect
+        if (viewportHeight <= 0) return@LaunchedEffect
+        val selection = richTextState.textFieldValue.selection
+        val text = richTextState.textFieldValue.text
+        if (selection.collapsed) {
+            val cursorIndex = selection.start
+            if (cursorIndex in 0..text.length) {
+                val cursorRect = try { layout.getCursorRect(cursorIndex) } catch (_: Exception) { null }
+                if (cursorRect != null) {
+                    val cursorY = textFieldTop + cursorRect.top
+                    val targetScroll = (cursorY - viewportHeight * 0.35f).coerceAtLeast(0f).toInt()
+                    if (abs(editorScrollState.value - targetScroll) > 10) {
+                        editorScrollState.animateScrollTo(targetScroll)
+                    }
+                }
+            }
+        }
+    }
+
     // Edit Initialization
     var initialized by rememberSaveable { mutableStateOf(false) }
     val allEntries by viewModel?.allEntries?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
-    var selectedMedia by rememberSaveable(saver = SelectedMediaStateSaver) { mutableStateOf(listOf<Uri>()) }
+    var selectedMedia by rememberSaveable(saver = SelectedMediaStateSaver) { mutableStateOf(listOf()) }
     
     LaunchedEffect(editId, allEntries) {
         if (editId != null && !initialized && allEntries.isNotEmpty()) {
@@ -588,9 +630,9 @@ fun TextJournalScreen(
                     try {
                         val raw = entry.attachments
                         // Try object-list format first
-                        val objectListType = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
+                        val objectListType = object : TypeToken<List<Map<String, Any>>>() {}.type
                         val asMaps: List<Map<String, Any>>? = kotlin.runCatching {
-                            com.google.gson.Gson().fromJson<List<Map<String, Any>>>(raw, objectListType)
+                            Gson().fromJson<List<Map<String, Any>>>(raw, objectListType)
                                 .also { list ->
                                     if (list.isEmpty() || list.any { !it.containsKey("uri") })
                                         throw IllegalArgumentException("not object format")
@@ -603,13 +645,13 @@ fun TextJournalScreen(
                                 val uriStr  = map["uri"] as? String ?: return@mapNotNull null
                                 val type    = (map["type"] as? String) ?: "IMAGE"
                                 if (type == "FILE") return@mapNotNull null // skip audio
-                                kotlin.runCatching { Uri.parse(uriStr) }.getOrNull()
+                                kotlin.runCatching { uriStr.toUri() }.getOrNull()
                             }
                         } else {
                             // Fallback: plain string list
-                            val typeToken = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
-                            val uriStrings: List<String> = com.google.gson.Gson().fromJson(raw, typeToken)
-                            uriStrings.mapNotNull { kotlin.runCatching { Uri.parse(it) }.getOrNull() }
+                            val typeToken = object : TypeToken<List<String>>() {}.type
+                            val uriStrings: List<String> = Gson().fromJson(raw, typeToken)
+                            uriStrings.mapNotNull { kotlin.runCatching { it.toUri() }.getOrNull() }
                         }
                     } catch (e: Exception) { e.printStackTrace() }
                 }
@@ -622,9 +664,9 @@ fun TextJournalScreen(
     // --- Audio state (one recording at a time) ---
     var audioState     by rememberSaveable { mutableStateOf(AudioState.IDLE) }
     var durationSec    by rememberSaveable { mutableIntStateOf(0) }
-    var recordingFile  by rememberSaveable(saver = FileStateSaver) { mutableStateOf<File?>(null) }
-    val mediaRecorder  = remember { mutableStateOf<android.media.MediaRecorder?>(null) }
-    val mediaPlayer    = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var recordingFile  by rememberSaveable(saver = FileStateSaver) { mutableStateOf(null) }
+    val mediaRecorder  = remember { mutableStateOf<MediaRecorder?>(null) }
+    val mediaPlayer    = remember { mutableStateOf<MediaPlayer?>(null) }
 
     // Timer: only ticks while actively recording
     val isActivelyRecording = audioState == AudioState.RECORDING
@@ -652,10 +694,10 @@ fun TextJournalScreen(
         recordingFile = file
         durationSec = 0
         @Suppress("DEPRECATION")
-        val rec = android.media.MediaRecorder().apply {
-            setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
-            setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+        val rec = MediaRecorder().apply {
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             setOutputFile(file.absolutePath)
             prepare()
             start()
@@ -685,7 +727,7 @@ fun TextJournalScreen(
         if (!file.exists()) return
         try {
             mediaPlayer.value?.runCatching { stop(); release() }
-            val player = android.media.MediaPlayer().apply {
+            val player = MediaPlayer().apply {
                 setDataSource(file.absolutePath)
                 setOnPreparedListener {
                     it.start()
@@ -707,7 +749,7 @@ fun TextJournalScreen(
                 try {
                     context.contentResolver.takePersistableUriPermission(
                         uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
                 } catch (e: Exception) { e.printStackTrace() }
             }
@@ -726,15 +768,15 @@ fun TextJournalScreen(
     val textContent  = richTextState.textFieldValue.text
     val wordCount    = if (textContent.isBlank()) 0 else textContent.trim().split(Regex("\\s+")).count { it.isNotBlank() }
     val spiritEnergy = wordCount / 3
-    val bottomPad = if (hasMedia) 200.dp else 148.dp
+    if (hasMedia) 200.dp else 148.dp
 
     // ─── Settings & Draft ─────────────────────────────────────────
     val settingsRepo      = remember { SettingsRepository(context) }
     val autoSaveFrequency by settingsRepo.autoSaveFrequency.collectAsState(initial = 15f)
     val draftTitle        by settingsRepo.draftTitle.collectAsState(initial = null)
     val draftContent      by settingsRepo.draftContent.collectAsState(initial = null)
-    val draftTimestamp    by settingsRepo.draftTimestamp.collectAsState(initial = 0L)
     val draftAttachments  by settingsRepo.draftAttachments.collectAsState(initial = null)
+    val encryptMedia      by settingsRepo.encryptMedia.collectAsState(initial = false)
     val coroutineScope    = rememberCoroutineScope()
 
     // Draft snackbar state
@@ -795,7 +837,7 @@ fun TextJournalScreen(
             val c = richTextState.textFieldValue.text
             val combined = "$t\n$c"
             val totalTime = timeSpentWritingSec + currentSessionTime
-            val mediaJson = com.google.gson.Gson().toJson(selectedMedia.map { it.toString() })
+            val mediaJson = Gson().toJson(selectedMedia.map { it.toString() })
             if ((t.isNotBlank() || c.isNotBlank()) && combined != lastSavedContent) {
                 lastSavedContent = combined
                 settingsRepo.saveDraft(t, c, totalTime, mediaJson)
@@ -822,22 +864,27 @@ fun TextJournalScreen(
         containerColor = mainContainerBackground,
         contentWindowInsets = WindowInsets(0)
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-
-
-            Column(
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
-                    .padding(bottom = bottomPad)
-                    .imePadding() // push content up when keyboard opens
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .onSizeChanged { size ->
+                        viewportHeight = size.height
+                    }
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(editorScrollState)
+                        .padding(horizontal = 24.dp)
+                        .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
+                        .padding(bottom = 24.dp)
+                ) {
                 // --- Top Bar: Close + Save ---
                 Row(
                     modifier = Modifier
@@ -908,7 +955,7 @@ fun TextJournalScreen(
                                             // Build new attachments JSON preserving [{uri,type,name}] format
                                             // for existing encrypted entries; plain list for unencrypted
                                             val newAttachmentsJson: String = run {
-                                                val gson = com.google.gson.Gson()
+                                                val gson = Gson()
                                                 val selectedUriStrings = selectedMedia.map { it.toString() }
                                                 if (entry.isEncrypted) {
                                                     // Preserve object format so type metadata survives
@@ -929,8 +976,10 @@ fun TextJournalScreen(
                                                     selectedUriStrings.forEach { uriStr ->
                                                         if (uriStr !in existingUris) {
                                                             val mimeType = try {
-                                                                context.contentResolver.getType(android.net.Uri.parse(uriStr)) ?: ""
-                                                            } catch (_: Exception) { "" }
+                                                                context.contentResolver.getType(uriStr.toUri()) ?: ""
+                                                            } catch (_: Exception) {
+                                                                ""
+                                                            }
                                                             val typeStr = when {
                                                                 mimeType.startsWith("video") -> "VIDEO"
                                                                 mimeType.startsWith("audio") -> "FILE"
@@ -1097,6 +1146,7 @@ fun TextJournalScreen(
                         val shouldTurnOffList = richTextState.onValueChange(newVal, activeList)
                         if (shouldTurnOffList) activeList = ListType.OFF
                     },
+                    onTextLayout = { textLayoutResult = it },
                     visualTransformation = RichTextVisualTransformation(richTextState),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     textStyle = TextStyle(
@@ -1104,7 +1154,12 @@ fun TextJournalScreen(
                         fontSize = 18.sp,
                         lineHeight = 28.sp
                     ),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp)
+                        .onGloballyPositioned { coordinates ->
+                            textFieldTop = coordinates.positionInParent().y
+                        },
                     cursorBrush = SolidColor(primaryAccent),
                     decorationBox = { innerTextField ->
                         if (richTextState.textFieldValue.text.isEmpty()) {
@@ -1121,14 +1176,14 @@ fun TextJournalScreen(
                     }
                 )
             }
+            }
 
             // --- Bottom overlay ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding() // nav-bar inset when keyboard is hidden
-                    .imePadding(),           // pushes toolbar above keyboard when open
+                    .navigationBarsPadding()
+                    .imePadding(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
@@ -1161,39 +1216,45 @@ fun TextJournalScreen(
                 }
 
                 // --- Word count and Spirit energy pills ---
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                AnimatedVisibility(
+                    visible = !isTyping,
+                    enter = fadeIn(animationSpec = tween(durationMillis = 500, delayMillis = 500)),
+                    exit = fadeOut(animationSpec = tween(durationMillis = 150))
                 ) {
-                    // Word count pill
                     Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(cardBackground.copy(alpha = 0.92f))
-                            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("$wordCount WORDS", color = textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    }
+                        // Word count pill
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(cardBackground.copy(alpha = 0.92f))
+                                .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("$wordCount WORDS", color = textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        }
 
-                    // Spirit energy pill
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(cardBackground.copy(alpha = 0.92f))
-                            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Bolt,
-                            contentDescription = "Spirit Energy",
-                            tint = Color(0xFFF3C042),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("$spiritEnergy SP", color = textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        // Spirit energy pill
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(cardBackground.copy(alpha = 0.92f))
+                                .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Bolt,
+                                contentDescription = "Spirit Energy",
+                                tint = Color(0xFFF3C042),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("$spiritEnergy SP", color = textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        }
                     }
                 }
 
@@ -1249,13 +1310,13 @@ fun TextJournalScreen(
                                         val mediaList = try {
                                             val raw = draftAttachments
                                             if (!raw.isNullOrBlank()) {
-                                                val typeToken = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
-                                                val uriStrings: List<String> = com.google.gson.Gson().fromJson(raw, typeToken)
-                                                uriStrings.mapNotNull { Uri.parse(it) }
+                                                val typeToken = object : TypeToken<List<String>>() {}.type
+                                                val uriStrings: List<String> = Gson().fromJson(raw, typeToken)
+                                                uriStrings.map { it.toUri() }
                                             } else {
                                                 emptyList()
                                             }
-                                        } catch (e: Exception) {
+                                        } catch (_: Exception) {
                                             emptyList()
                                         }
                                         
@@ -1320,15 +1381,19 @@ fun TextJournalScreen(
                                     .size(64.dp)
                                     .clickable {
                                         try {
-                                            val validMimeType = if (mimeType.isNotEmpty()) mimeType else if (isVideo) "video/*" else "image/*"
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                                setDataAndType(uri, validMimeType)
-                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            val intent = Intent(
+                                                context,
+                                                MediaViewerActivity::class.java
+                                            ).apply {
+                                                putExtra("media_uri", uri.toString())
+                                                putExtra("is_video", isVideo)
+                                                putExtra("encryption_enabled", encryptMedia)
                                             }
+                                            MainActivity.bypassNextLock = true
                                             context.startActivity(intent)
                                         } catch (e: Exception) {
                                             e.printStackTrace()
-                                            Toast.makeText(context, "No app found to open this media", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Failed to open media viewer", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 ) {
@@ -1420,6 +1485,7 @@ fun TextJournalScreen(
                             modifier = Modifier.padding(start = 4.dp)
                         ) {
                             IconButton(onClick = {
+                                MainActivity.bypassNextLock = true
                                 imagePicker.launch(
                                     PickVisualMediaRequest(PickVisualMedia.ImageAndVideo)
                                 )
@@ -1437,6 +1503,7 @@ fun TextJournalScreen(
                                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                                             startRecording()
                                         } else {
+                                            MainActivity.bypassNextLock = true
                                             recordAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
                                         }
                                     },

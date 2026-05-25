@@ -14,12 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -34,8 +32,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.ChevronLeft
@@ -44,9 +40,9 @@ import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.foundation.shape.CircleShape
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 import java.text.SimpleDateFormat
+import androidx.compose.ui.platform.LocalLocale
 
 private val appBackground = Color(0xFFEBE8E0)
 private val mainContainerBackground = Color(0xFFF4F1EA)
@@ -372,7 +368,7 @@ fun RelicUnlockSettingsDialog(
                                         Icon(Icons.Rounded.KeyboardArrowUp, null, tint = textPrimary)
                                     }
                                     Text(
-                                        text = String.format("%02d", displayHour),
+                                        text = String.format(LocalLocale.current.platformLocale,"%02d", displayHour),
                                         fontSize = 28.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = textPrimary
@@ -414,7 +410,7 @@ fun RelicUnlockSettingsDialog(
                                         Icon(Icons.Rounded.KeyboardArrowUp, null, tint = textPrimary)
                                     }
                                     Text(
-                                        text = String.format("%02d", minuteVal),
+                                        text = String.format(LocalLocale.current.platformLocale,"%02d", minuteVal),
                                         fontSize = 28.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = textPrimary
@@ -614,7 +610,7 @@ fun AfterJournalRecordScreen(
                     onConfirm = { unlockTime ->
                         selectedMoodForRelic?.let { mood ->
                             viewModel.toggleEmotion(Emotion(mood.lowercase(), mood))
-                            viewModel.saveEntry(emptyMap(), isRelic = true, unlockDate = unlockTime, encryptMedia = encryptMedia)
+                            viewModel.saveEntry(isRelic = true, unlockDate = unlockTime, encryptMedia = encryptMedia)
                             onSave()
                         }
                         showDateTimePicker = false
@@ -636,7 +632,7 @@ fun AfterJournalRecordScreen(
                         showDateTimePicker = true
                     } else {
                         viewModel.toggleEmotion(Emotion(mood.lowercase(), mood))
-                        viewModel.saveEntry(emptyMap(), encryptMedia = encryptMedia)
+                        viewModel.saveEntry(encryptMedia = encryptMedia)
                         onSave()
                     }
                 }
