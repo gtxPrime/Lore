@@ -94,6 +94,7 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.gxdevs.aethra.ui.theme.MyApplicationTheme
 import com.gxdevs.aethra.data.SettingsRepository
+import com.gxdevs.aethra.utils.MediaEncryptionManager
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -604,6 +605,7 @@ fun TextJournalScreen(
     var initialized by rememberSaveable { mutableStateOf(false) }
     val allEntries by viewModel?.allEntries?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
     var selectedMedia by rememberSaveable(saver = SelectedMediaStateSaver) { mutableStateOf(listOf()) }
+    var encryptingUris by remember { mutableStateOf(setOf<Uri>()) }
     
     LaunchedEffect(editId, allEntries) {
         if (editId != null && !initialized && allEntries.isNotEmpty()) {
@@ -742,20 +744,7 @@ fun TextJournalScreen(
         }
     }
 
-    // --- Media (multi-select, images + videos only) ---
-    val imagePicker = rememberLauncherForActivityResult(PickMultipleVisualMedia()) { uris ->
-        if (uris.isNotEmpty()) {
-            uris.forEach { uri ->
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (e: Exception) { e.printStackTrace() }
-            }
-            selectedMedia = (selectedMedia + uris).distinct()
-        }
-    }
+    // imagePicker declared below after encryptMedia & coroutineScope are in scope
     val currentTime = remember { SimpleDateFormat("MMM dd, yyyy | h:mm a", Locale.getDefault()).format(Date()) }
 
     val recordAudioPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -777,7 +766,51 @@ fun TextJournalScreen(
     val draftContent      by settingsRepo.draftContent.collectAsState(initial = null)
     val draftAttachments  by settingsRepo.draftAttachments.collectAsState(initial = null)
     val encryptMedia      by settingsRepo.encryptMedia.collectAsState(initial = false)
+    val hasShownMediaRemovalWarning by settingsRepo.hasShownMediaRemovalWarning.collectAsState(initial = false)
+    var showMediaRemovalWarningDialog by remember { mutableStateOf(false) }
+    var pendingMediaToRemove by remember { mutableStateOf<Uri?>(null) }
     val coroutineScope    = rememberCoroutineScope()
+
+    // --- Media picker (declared here so encryptMedia & coroutineScope are in scope) ---
+    val imagePicker = rememberLauncherForActivityResult(PickMultipleVisualMedia()) { uris ->
+        if (uris.isNotEmpty()) {
+            if (encryptMedia) {
+                // Add originals immediately so thumbnails load from original files
+                selectedMedia = (selectedMedia + uris).distinct()
+                encryptingUris = encryptingUris + uris
+
+                coroutineScope.launch {
+                    for (uri in uris) {
+                        val encPath = try {
+                            com.gxdevs.aethra.utils.MediaEncryptionManager.encryptAndCopyUri(context, uri.toString())
+                        } catch (e: Exception) { null }
+                        if (encPath != null) {
+                            // Replace original URI with the encrypted one in selectedMedia
+                            selectedMedia = selectedMedia.map { if (it == uri) encPath.toUri() else it }
+                        } else {
+                            // Fallback: keep original URI and try to persist permission
+                            try {
+                                context.contentResolver.takePersistableUriPermission(
+                                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            } catch (e: Exception) { e.printStackTrace() }
+                        }
+                        encryptingUris = encryptingUris - uri
+                    }
+                }
+            } else {
+                uris.forEach { uri ->
+                    try {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (e: Exception) { e.printStackTrace() }
+                }
+                selectedMedia = (selectedMedia + uris).distinct()
+            }
+        }
+    }
 
     // Draft snackbar state
     var showDraftSnackbar    by remember { mutableStateOf(false) }
@@ -923,6 +956,10 @@ fun TextJournalScreen(
                                     .background(relicSaveBg)
                                     .border(1.dp, if (canSave) primaryAccent else borderColor, RoundedCornerShape(22.dp))
                                     .clickable(enabled = canSave, onClick = {
+                                        if (encryptingUris.isNotEmpty()) {
+                                            Toast.makeText(context, "Encrypting media, please wait...", Toast.LENGTH_SHORT).show()
+                                            return@clickable
+                                        }
                                         val totalTime = timeSpentWritingSec + currentSessionTime
                                         val contentStr = title + "\n" + textContent
                                         val formatJson = richTextState.formatRanges.toFormatJson()
@@ -943,6 +980,10 @@ fun TextJournalScreen(
                                 .background(saveBg)
                                 .border(1.dp, if (canSave) darkAccent else borderColor, RoundedCornerShape(22.dp))
                                 .clickable(enabled = canSave, onClick = {
+                                    if (encryptingUris.isNotEmpty()) {
+                                        Toast.makeText(context, "Encrypting media, please wait...", Toast.LENGTH_SHORT).show()
+                                        return@clickable
+                                    }
                                     val totalTime = timeSpentWritingSec + currentSessionTime
                                     val contentStr = title + "\n" + textContent
                                     
@@ -957,7 +998,7 @@ fun TextJournalScreen(
                                             val newAttachmentsJson: String = run {
                                                 val gson = Gson()
                                                 val selectedUriStrings = selectedMedia.map { it.toString() }
-                                                if (entry.isEncrypted) {
+                                                if (entry.isEncrypted || encryptMedia) {
                                                     // Preserve object format so type metadata survives
                                                     val listType = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
                                                     val existingList: List<Map<String, Any>> = try {
@@ -999,7 +1040,8 @@ fun TextJournalScreen(
                                                 audioPath = recordingFile?.absolutePath ?: entry.audioPath,
                                                 attachments = newAttachmentsJson,
                                                 promptResponses = formatJson,
-                                                timeSpentWriting = (entry.timeSpentWriting ?: 0L) + totalTime
+                                                timeSpentWriting = (entry.timeSpentWriting ?: 0L) + totalTime,
+                                                isEncrypted = entry.isEncrypted || encryptMedia
                                             )
                                             // Use diff-aware update: deletes removed .enc files,
                                             // re-encrypts newly added plain URIs
@@ -1375,8 +1417,56 @@ fun TextJournalScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(selectedMedia) { uri ->
-                                val mimeType = context.contentResolver.getType(uri) ?: ""
-                                val isVideo  = mimeType.startsWith("video")
+                                val uriStr = uri.toString()
+                                val isEncFile = com.gxdevs.aethra.utils.MediaEncryptionManager.isEncrypted(uriStr) ||
+                                    (uri.scheme == null && com.gxdevs.aethra.utils.MediaEncryptionManager.isEncrypted(uri.path ?: ""))
+                                val encPath = if (isEncFile) (uri.path ?: uriStr) else null
+
+                                // For plain URIs: quick check from extension first
+                                val isVideoPlain = if (!isEncFile) {
+                                    uriStr.endsWith(".mp4", ignoreCase = true) ||
+                                        uriStr.endsWith(".mkv", ignoreCase = true) ||
+                                        uriStr.endsWith(".webm", ignoreCase = true)
+                                } else false
+
+                                // Mutable state for video detection + thumbnail model (both updated on IO)
+                                var isVideo by remember(uriStr) { mutableStateOf(isVideoPlain) }
+                                var thumbModel: Any by remember(uriStr) { mutableStateOf<Any>(uri) }
+                                var thumbTempFile by remember(uriStr) { mutableStateOf<File?>(null) }
+
+                                androidx.compose.runtime.LaunchedEffect(uriStr) {
+                                    if (encPath != null) {
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            // Detect video type from file header on IO thread
+                                            val detectedVideo = com.gxdevs.aethra.utils.MediaEncryptionManager.isVideoEncrypted(context, encPath)
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                isVideo = detectedVideo
+                                            }
+                                            val extHint = if (detectedVideo) "mp4" else "jpg"
+                                            val dec = com.gxdevs.aethra.utils.MediaEncryptionManager.decryptToTemp(context, encPath, extHint)
+                                            if (dec != null) {
+                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                    thumbTempFile = dec
+                                                    thumbModel = dec
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // Plain URI: verify mime type on IO thread
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            val mimeType = try { context.contentResolver.getType(uri) } catch (_: Exception) { null }
+                                            val detectedVideo = mimeType?.startsWith("video") == true ||
+                                                uriStr.endsWith(".mp4", ignoreCase = true)
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                isVideo = detectedVideo
+                                            }
+                                        }
+                                    }
+                                }
+                                androidx.compose.runtime.DisposableEffect(uriStr) {
+                                    onDispose { thumbTempFile?.delete() }
+                                }
+
                                 Box(modifier = Modifier
                                     .size(64.dp)
                                     .clickable {
@@ -1385,7 +1475,7 @@ fun TextJournalScreen(
                                                 context,
                                                 MediaViewerActivity::class.java
                                             ).apply {
-                                                putExtra("media_uri", uri.toString())
+                                                putExtra("media_uri", uriStr)
                                                 putExtra("is_video", isVideo)
                                                 putExtra("encryption_enabled", encryptMedia)
                                             }
@@ -1399,13 +1489,29 @@ fun TextJournalScreen(
                                 ) {
                                     @OptIn(ExperimentalGlideComposeApi::class)
                                     GlideImage(
-                                        model = uri,
+                                        model = thumbModel,
                                         contentDescription = null,
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .clip(RoundedCornerShape(12.dp)),
                                         contentScale = ContentScale.Crop
                                     )
+                                    // Shimmer/loading overlay while encrypting in the background
+                                    if (encryptingUris.contains(uri)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(Color.Black.copy(alpha = 0.5f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                color = primaryAccent,
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                    }
                                     // Video overlay icon
                                     if (isVideo) {
                                         Box(
@@ -1429,7 +1535,15 @@ fun TextJournalScreen(
                                             .clip(CircleShape)
                                             .background(bottomNavBackground)
                                             .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
-                                            .clickable { selectedMedia = selectedMedia - uri },
+                                            .clickable {
+                                                val isEncryptedFile = MediaEncryptionManager.isEncrypted(uri.toString())
+                                                if (editId != null && (encryptMedia || isEncryptedFile) && !hasShownMediaRemovalWarning) {
+                                                    pendingMediaToRemove = uri
+                                                    showMediaRemovalWarningDialog = true
+                                                } else {
+                                                    selectedMedia = selectedMedia - uri
+                                                }
+                                            },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(10.dp))
@@ -1519,6 +1633,59 @@ fun TextJournalScreen(
                 }
             }
         }
+    }
+    if (showMediaRemovalWarningDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showMediaRemovalWarningDialog = false
+                pendingMediaToRemove = null
+            },
+            containerColor = cardBackground,
+            title = {
+                Text(
+                    "Delete Encrypted Media?",
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary,
+                    fontSize = 20.sp
+                )
+            },
+            text = {
+                Text(
+                    "Removing this encrypted media from the journal entry will permanently delete it from your device's app storage when you save. This action cannot be undone.",
+                    color = textSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val uriToRemove = pendingMediaToRemove
+                        if (uriToRemove != null) {
+                            selectedMedia = selectedMedia - uriToRemove
+                        }
+                        showMediaRemovalWarningDialog = false
+                        pendingMediaToRemove = null
+                        coroutineScope.launch {
+                            settingsRepo.setHasShownMediaRemovalWarning(true)
+                        }
+                    }
+                ) {
+                    Text("Remove", color = Color(0xFFD32F2F), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showMediaRemovalWarningDialog = false
+                        pendingMediaToRemove = null
+                    }
+                ) {
+                    Text("Cancel", color = textSecondary)
+                }
+            }
+        )
     }
 }
 

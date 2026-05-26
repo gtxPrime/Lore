@@ -1,6 +1,8 @@
-﻿package com.gxdevs.aethra.utils
+package com.gxdevs.aethra.utils
 
 import android.app.AlarmManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -20,7 +22,7 @@ const val NOTIF_DAILY_ID    = 1001
 fun createNotificationChannels(context: Context) {
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     nm.createNotificationChannel(
-        NotificationChannel(CHANNEL_DAILY, "Daily Writing Reminder", NotificationManager.IMPORTANCE_DEFAULT).apply {
+        NotificationChannel(CHANNEL_DAILY, "Daily Writing Reminder", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Reminds you to write your daily journal entry."
         }
     )
@@ -48,14 +50,32 @@ fun scheduleDailyReminder(context: Context, hour: Int = 22, minute: Int = 0) {
         set(Calendar.HOUR_OF_DAY, hour)
         set(Calendar.MINUTE, minute)
         set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
         if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
     }
     try {
-        am.setInexactRepeating(
-            AlarmManager.RTC_WAKEUP, cal.timeInMillis,
-            AlarmManager.INTERVAL_DAY, intent
-        )
-    } catch (_: SecurityException) { /* exact alarm permission not granted on API 31+ */ }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            am.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                cal.timeInMillis,
+                intent
+            )
+        } else {
+            am.setExact(
+                AlarmManager.RTC_WAKEUP,
+                cal.timeInMillis,
+                intent
+            )
+        }
+    } catch (e: SecurityException) {
+        try {
+            am.set(
+                AlarmManager.RTC_WAKEUP,
+                cal.timeInMillis,
+                intent
+            )
+        } catch (_: Exception) {}
+    }
 }
 
 /** Cancel the daily writing reminder. */
@@ -71,21 +91,60 @@ fun cancelDailyReminder(context: Context) {
 
 /** BroadcastReceiver that fires the daily reminder notification. */
 class DailyReminderReceiver : BroadcastReceiver() {
+    companion object {
+        data class ReminderVariant(val title: String, val text: String)
+
+        val reminderVariants = listOf(
+            ReminderVariant("Write in your Aethra", "A few words today keep the silence away."),
+            ReminderVariant("Pause and Reflect", "Capture a moment from today before it fades."),
+            ReminderVariant("Your Daily Sanctuary", "Take a moment to write down your thoughts."),
+            ReminderVariant("A Moment of Peace", "How was your day? Put it into words."),
+            ReminderVariant("Reflect on Today", "Every day has a story. What is yours?"),
+            ReminderVariant("Aethra Journaling", "Speak your mind, clear your thoughts, and find peace."),
+            ReminderVariant("Mindful Reflection", "Settle down and record a memory from today."),
+            ReminderVariant("Unburden Your Mind", "Write down whatever is on your heart tonight."),
+            ReminderVariant("Capture the Day", "A blank page is waiting. Share your journey."),
+            ReminderVariant("Daily Check-in", "Take a deep breath and write down how you feel."),
+            ReminderVariant("Your Thoughts Matter", "Leave a trace of your day in your digital sanctuary.")
+        )
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val tapIntent = PendingIntent.getActivity(
             context, 0,
-            Intent(context, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK },
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("navigate_to", "text_journal")
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val variant = reminderVariants.random()
         val notif = NotificationCompat.Builder(context, CHANNEL_DAILY)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Time to write in your Aethra ðŸ“–")
-            .setContentText("A few words today keep the silence away.")
+            .setSmallIcon(com.gxdevs.aethra.R.drawable.scroll)
+            .setContentTitle(variant.title)
+            .setContentText(variant.text)
             .setAutoCancel(true)
             .setContentIntent(tapIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
         nm.notify(NOTIF_DAILY_ID, notif)
+
+        // Reschedule the exact alarm for tomorrow at the same hour/minute
+        val settingsRepo = com.gxdevs.aethra.data.SettingsRepository(context)
+        try {
+            runBlocking {
+                val dailyReminderOn = settingsRepo.dailyReminder.first()
+                if (dailyReminderOn) {
+                    val hour = settingsRepo.reminderHour.first()
+                    val minute = settingsRepo.reminderMinute.first()
+                    scheduleDailyReminder(context, hour, minute)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
 

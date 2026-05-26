@@ -97,6 +97,8 @@ fun SettingsScreen(
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var showBackupPinPromptDialog by remember { mutableStateOf(false) }
     var showSetBackupKeyDialog by remember { mutableStateOf(false) }
+    var showOldMediaWarningDialog by remember { mutableStateOf(false) }
+    var pendingBackupKey by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(hideMedia) {
         activity?.window?.let { w ->
@@ -332,14 +334,7 @@ fun SettingsScreen(
                     if (backupEncryptionKey.isNullOrBlank()) {
                         showSetBackupKeyDialog = true
                     } else {
-                        settingsRepo.setEncryptMedia(true)
-                        showProgressDialog.value = true
-                        progressMessage = "Encrypting existing media... This may take a while."
-                        com.gxdevs.aethra.utils.MediaEncryptionManager.migrateExistingEntries(context) { cur, tot ->
-                            progressMessage = if (tot > 0) "Encrypting media... ($cur / $tot)" else "Encrypting media..."
-                        }
-                        showProgressDialog.value = false
-                        android.widget.Toast.makeText(context, "All media is now encrypted. You can safely delete originals from your gallery.", android.widget.Toast.LENGTH_LONG).show()
+                        showOldMediaWarningDialog = true
                     }
                 } else {
                     settingsRepo.setEncryptMedia(false)
@@ -529,22 +524,10 @@ fun SettingsScreen(
                 confirmButton = {
                     TextButton(onClick = {
                         if (setKeyInput.length == 6) {
-                            val key = setKeyInput
-                            scope.launch {
-                                settingsRepo.setBackupEncryptionKey(key)
-                                settingsRepo.setEncryptMedia(true)
-                                showSetBackupKeyDialog = false
-                                setKeyInput = ""
-                                
-                                // Run migration
-                                showProgressDialog.value = true
-                                progressMessage = "Encrypting existing media... This may take a while."
-                                com.gxdevs.aethra.utils.MediaEncryptionManager.migrateExistingEntries(context) { cur, tot ->
-                                    progressMessage = if (tot > 0) "Encrypting media... ($cur / $tot)" else "Encrypting media..."
-                                }
-                                showProgressDialog.value = false
-                                android.widget.Toast.makeText(context, "All media is now encrypted. You can safely delete originals from your gallery.", android.widget.Toast.LENGTH_LONG).show()
-                            }
+                            pendingBackupKey = setKeyInput
+                            showSetBackupKeyDialog = false
+                            setKeyInput = ""
+                            showOldMediaWarningDialog = true
                         } else {
                             setKeyError = true
                         }
@@ -555,6 +538,45 @@ fun SettingsScreen(
                         showSetBackupKeyDialog = false
                         setKeyInput = ""
                         setKeyError = false
+                    }) { Text("Cancel", color = textSecondary) }
+                },
+                containerColor = cardBackground
+            )
+        }
+
+        if (showOldMediaWarningDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showOldMediaWarningDialog = false
+                    pendingBackupKey = null
+                },
+                title = { Text("Encryption Info", color = textPrimary, fontWeight = FontWeight.Bold) },
+                text = {
+                    Text(
+                        text = "Your old media (if any exists) is not automatically encrypted; only new media will be encrypted.\n\n" +
+                               "To encrypt older media, you must edit the old journal entry, remove the media items, and re-add them.",
+                        color = textSecondary,
+                        fontSize = 14.sp
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch {
+                            val key = pendingBackupKey
+                            if (key != null) {
+                                settingsRepo.setBackupEncryptionKey(key)
+                            }
+                            settingsRepo.setEncryptMedia(true)
+                            showOldMediaWarningDialog = false
+                            pendingBackupKey = null
+                            android.widget.Toast.makeText(context, "Media encryption enabled. Only new media will be encrypted.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }) { Text("Got it", color = primaryAccent, fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showOldMediaWarningDialog = false
+                        pendingBackupKey = null
                     }) { Text("Cancel", color = textSecondary) }
                 },
                 containerColor = cardBackground

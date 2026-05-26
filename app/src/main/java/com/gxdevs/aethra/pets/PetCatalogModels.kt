@@ -1,9 +1,11 @@
-﻿package com.gxdevs.aethra.pets
+package com.gxdevs.aethra.pets
 
+import androidx.annotation.Keep
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.google.gson.annotations.SerializedName
 
 // -----------------------------------------------------------------------------
 // Room Entities
@@ -77,26 +79,29 @@ data class CachedStageImage(
 // Gson-mapped JSON models (not Room entities)
 // -----------------------------------------------------------------------------
 
+@Keep
 data class PetCatalogJson(
     val version: Int,
-    val lastUpdated: String,
+    @SerializedName("last_updated") val lastUpdated: String,
     val pets: List<PetJson>
 )
 
+@Keep
 data class PetJson(
     val id: String,
     val name: String,
     val emotion: String,
     val level: Int,
     val description: String,
-    val totalStages: Int,
+    @SerializedName("total_stages") val totalStages: Int,
     val stages: List<PetStageJson>
 )
 
+@Keep
 data class PetStageJson(
     val stage: Int,
-    val stageName: String,
-    val journalsRequired: Int,
-    val imageUrl: String
+    @SerializedName("stage_name") val stageName: String,
+    @SerializedName("journals_required") val journalsRequired: Int,
+    @SerializedName("image_url") val imageUrl: String
 )
 

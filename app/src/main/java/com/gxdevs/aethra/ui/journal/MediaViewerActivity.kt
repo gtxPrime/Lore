@@ -87,7 +87,7 @@ class MediaViewerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val mediaUriStr = intent.getStringExtra("media_uri") ?: ""
-        val isVideo = intent.getBooleanExtra("is_video", false)
+        val isVideoExtra = intent.getBooleanExtra("is_video", false)
         val encryptionEnabled = intent.getBooleanExtra("encryption_enabled", false)
 
         if (mediaUriStr.isEmpty()) {
@@ -99,6 +99,7 @@ class MediaViewerActivity : ComponentActivity() {
         setContent {
             var resolvedFile by remember { mutableStateOf<File?>(null) }
             var resolveError by remember { mutableStateOf(false) }
+            var isVideo by remember { mutableStateOf(isVideoExtra) }
 
             LaunchedEffect(mediaUriStr) {
                 withContext(Dispatchers.IO) {
@@ -110,9 +111,20 @@ class MediaViewerActivity : ComponentActivity() {
                         val isCurrentlyEncrypted = MediaEncryptionManager.isEncrypted(uriString) ||
                                 (uri.scheme == null && MediaEncryptionManager.isEncrypted(uri.path))
 
+                        var isVideoLoc = isVideoExtra
                         if (isCurrentlyEncrypted) {
                             val encPath = uri.path ?: uriString
-                            val extHint = if (isVideo) "mp4" else "jpg"
+                            // Sniff if not already identified as video
+                            if (!isVideoLoc) {
+                                val detectedVideo = MediaEncryptionManager.isVideoEncrypted(this@MediaViewerActivity, encPath)
+                                if (detectedVideo) {
+                                    isVideoLoc = true
+                                    withContext(Dispatchers.Main) {
+                                        isVideo = true
+                                    }
+                                }
+                            }
+                            val extHint = if (isVideoLoc) "mp4" else "jpg"
                             val decrypted = MediaEncryptionManager.decryptToTemp(this@MediaViewerActivity, encPath, extHint)
                             if (decrypted != null) {
                                 tempMediaFile = decrypted
@@ -122,40 +134,45 @@ class MediaViewerActivity : ComponentActivity() {
                             }
                         } else {
                             // Unencrypted media.
-                            // Copy it to a safe temp cache file to ensure ExoPlayer / Glide can access it securely.
-                            val sharedDir = File(cacheDir, "shared_media").apply { mkdirs() }
-                            val mimeType = contentResolver.getType(uri)
-                             val ext = when {
-                                isVideo -> "mp4"
-                                mimeType?.startsWith("image/") == true -> mimeType.substringAfter("/")
-                                mimeType?.startsWith("video/") == true -> mimeType.substringAfter("/")
-                                uriString.endsWith(".mp4", ignoreCase = true) -> "mp4"
-                                else -> "jpg"
-                            }
-                            val temp = File(sharedDir, "media_${System.currentTimeMillis()}.$ext")
-
-                            val inputStream = when (uri.scheme) {
-                                "content" -> contentResolver.openInputStream(uri)
-                                "file" -> File(uri.path ?: uriString).inputStream()
-                                else -> {
-                                    val f = File(mediaUriStr)
-                                    if (f.exists()) f.inputStream() else null
+                            val uriS = uri.toString()
+                            if (!isVideoLoc) {
+                                val mimeType = try { contentResolver.getType(uri) } catch (_: Exception) { null }
+                                val detectedVideo = mimeType?.startsWith("video/") == true ||
+                                        uriS.endsWith(".mp4", ignoreCase = true) ||
+                                        uriS.endsWith(".mkv", ignoreCase = true)
+                                if (detectedVideo) {
+                                    isVideoLoc = true
+                                    withContext(Dispatchers.Main) { isVideo = true }
                                 }
                             }
 
-                            if (inputStream != null) {
-                                inputStream.use { input ->
-                                    temp.outputStream().use { output ->
-                                        input.copyTo(output)
-                                    }
-                                }
-                                tempMediaFile = temp
-                                resolvedFile = temp
+                            // For plain file paths (no scheme, or file://), we can use
+                            // the file directly — no need to copy to a temp file.
+                            val directFile: File? = when (uri.scheme) {
+                                null -> File(mediaUriStr).takeIf { it.exists() }
+                                "file" -> File(uri.path ?: mediaUriStr).takeIf { it.exists() }
+                                else -> null
+                            }
+
+                            if (directFile != null) {
+                                resolvedFile = directFile
                             } else {
-                                // Try direct file fallback
-                                val directFile = File(uri.path ?: mediaUriStr)
-                                if (directFile.exists()) {
-                                    resolvedFile = directFile
+                                // content:// or other — copy to temp so ExoPlayer / Glide can access it
+                                val mimeType = try { contentResolver.getType(uri) } catch (_: Exception) { null }
+                                val ext = when {
+                                    isVideoLoc -> "mp4"
+                                    mimeType?.startsWith("image/") == true -> mimeType.substringAfter("/")
+                                    mimeType?.startsWith("video/") == true -> mimeType.substringAfter("/")
+                                    uriS.endsWith(".mp4", ignoreCase = true) -> "mp4"
+                                    else -> "jpg"
+                                }
+                                val sharedDir = File(cacheDir, "shared_media").apply { mkdirs() }
+                                val temp = File(sharedDir, "media_${System.currentTimeMillis()}.$ext")
+                                val inputStream = contentResolver.openInputStream(uri)
+                                if (inputStream != null) {
+                                    inputStream.use { input -> temp.outputStream().use { out -> input.copyTo(out) } }
+                                    tempMediaFile = temp
+                                    resolvedFile = temp
                                 } else {
                                     resolveError = true
                                 }

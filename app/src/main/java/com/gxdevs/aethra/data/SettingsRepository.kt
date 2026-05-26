@@ -86,6 +86,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_BACKUP_ENCRYPTION_KEY   = stringPreferencesKey("backup_encryption_key")
         // Auto-lock delay (seconds; 0 = instant, max 15)
         val KEY_AUTO_LOCK_DELAY         = intPreferencesKey("auto_lock_delay")
+        val KEY_HAS_SHOWN_MEDIA_REMOVAL_WARNING = booleanPreferencesKey("has_shown_media_removal_warning")
     }
 
     val appLockEnabled: Flow<Boolean> = context.dataStore.data
@@ -180,6 +181,9 @@ class SettingsRepository(private val context: Context) {
 
     val autoLockDelay: Flow<Int> = context.dataStore.data
         .map { it[KEY_AUTO_LOCK_DELAY] ?: 0 }
+
+    val hasShownMediaRemovalWarning: Flow<Boolean> = context.dataStore.data
+        .map { it[KEY_HAS_SHOWN_MEDIA_REMOVAL_WARNING] ?: false }
 
     // ——— Setters ———
 
@@ -347,6 +351,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAutoLockDelay(seconds: Int) {
         context.dataStore.edit { it[KEY_AUTO_LOCK_DELAY] = seconds.coerceIn(0, 15) }
+    }
+
+    suspend fun setHasShownMediaRemovalWarning(shown: Boolean) {
+        context.dataStore.edit { it[KEY_HAS_SHOWN_MEDIA_REMOVAL_WARNING] = shown }
     }
 
     suspend fun clearGoogleAuth() {

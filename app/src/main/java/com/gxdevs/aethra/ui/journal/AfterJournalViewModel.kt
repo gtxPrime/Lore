@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.ui.journal
+package com.gxdevs.aethra.ui.journal
 
 import android.app.Application
 import android.net.Uri
@@ -49,11 +49,10 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
         this.pendingFormatRanges = formatRangesJson
         
         if (audioPath != null && audioPath != "null") {
-            // Save audio as pending file path if not already set, or handle separately
-            // Since we added audioPath to JournalEntry, we can just track it.
+            // Audio is stored directly in JournalEntry.audioPath — do NOT also add it
+            // to attachedFiles, which would cause it to appear in both audioPath AND
+            // attachments JSON (leading to duplicate files on export and double-encryption).
             this.pendingAudioPath = audioPath
-            val uri = audioPath.toUri()
-            addFile(uri, FileType.FILE, "Audio Recording")
         }
 
         if (mediaUrisJson != null && mediaUrisJson != "null") {
@@ -171,6 +170,8 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
                     if (enc != null) encEntry = encEntry.copy(videoPath = enc)
                 }
                 if (!filesJson.isNullOrBlank()) {
+                    // encryptAttachmentsJson only re-encrypts items not already encrypted,
+                    // so this is safe even if some URIs are already .enc paths.
                     val encJson = MediaEncryptionManager.encryptAttachmentsJson(app, filesJson)
                     encEntry = encEntry.copy(attachments = encJson)
                 }

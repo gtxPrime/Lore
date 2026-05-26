@@ -1,4 +1,4 @@
-﻿package com.gxdevs.aethra.ui
+package com.gxdevs.aethra.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -89,25 +89,11 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             if (entry != null) {
                 repository.deleteEntry(entry)
 
-                // File cleanup â€” plain files
-                if (entry.videoPath != null) {
-                    try {
-                        val file = File(entry.videoPath.toUri().path ?: entry.videoPath)
-                        if (file.exists()) file.delete()
-                    } catch (e: Exception) { e.printStackTrace() }
-                }
-                if (entry.audioPath != null) {
-                    try {
-                        if (MediaEncryptionManager.isEncrypted(entry.audioPath)) {
-                            MediaEncryptionManager.deleteEncrypted(entry.audioPath)
-                        } else {
-                            val file = File(entry.audioPath)
-                            if (file.exists()) file.delete()
-                        }
-                    } catch (e: Exception) { e.printStackTrace() }
-                }
+                // Unified media cleanup â€” handles encrypted_media (.enc) and aeth_media (plain)
+                deleteMediaFile(entry.videoPath)
+                deleteMediaFile(entry.audioPath)
 
-                // Encrypted attachment cleanup parse JSON, delete any .enc files
+                // Attachment cleanup â€” parse JSON and delete each media file
                 if (!entry.attachments.isNullOrBlank()) {
                     try {
                         val gson = Gson()
@@ -117,23 +103,34 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                             val list: List<Map<String, Any>> = gson.fromJson(raw, listType)
                             list.forEach { item ->
                                 val uriStr = item["uri"] as? String
-                                if (!uriStr.isNullOrBlank() && MediaEncryptionManager.isEncrypted(uriStr)) {
-                                    MediaEncryptionManager.deleteEncrypted(uriStr)
-                                }
+                                if (!uriStr.isNullOrBlank()) deleteMediaFile(uriStr)
                             }
                         } else {
                             val listType = object : TypeToken<List<String>>() {}.type
                             val uris: List<String> = gson.fromJson(raw, listType)
-                            uris.forEach { uriStr ->
-                                if (MediaEncryptionManager.isEncrypted(uriStr)) {
-                                    MediaEncryptionManager.deleteEncrypted(uriStr)
-                                }
-                            }
+                            uris.forEach { uriStr -> deleteMediaFile(uriStr) }
                         }
                     } catch (e: Exception) { e.printStackTrace() }
                 }
             }
         }
+    }
+
+    /**
+     * Deletes a single media file regardless of whether it lives in encrypted_media/ (.enc)
+     * or aeth_media/ (plain imported files) or any other app-internal path.
+     */
+    private fun deleteMediaFile(path: String?) {
+        if (path.isNullOrBlank()) return
+        try {
+            if (MediaEncryptionManager.isEncrypted(path)) {
+                MediaEncryptionManager.deleteEncrypted(path)
+            } else {
+                // Plain file â€” covers aeth_media/ and any other app-internal path
+                val file = File(path.toUri().path ?: path)
+                if (file.exists()) file.delete()
+            }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     /**
@@ -146,21 +143,24 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             val context = getApplication<Application>()
             var finalEntry = newEntry
 
-            //Diff attachments: delete removed .enc files
+            //Diff attachments: delete removed files from storage
             val oldUris = parseAttachmentUris(oldEntry.attachments)
             val newUriSet = parseAttachmentUris(newEntry.attachments).toSet()
 
             oldUris.forEach { oldUri ->
-                if (oldUri !in newUriSet && MediaEncryptionManager.isEncrypted(oldUri)) {
-                    MediaEncryptionManager.deleteEncrypted(oldUri)
+                if (oldUri !in newUriSet) {
+                    deleteMediaFile(oldUri)
                 }
             }
 
-            // Delete removed audioPath if it was encrypted
+            // Delete removed audioPath if replaced or removed
             if (oldEntry.audioPath != null && oldEntry.audioPath != newEntry.audioPath) {
-                if (MediaEncryptionManager.isEncrypted(oldEntry.audioPath)) {
-                    MediaEncryptionManager.deleteEncrypted(oldEntry.audioPath)
-                }
+                deleteMediaFile(oldEntry.audioPath)
+            }
+
+            // Delete removed videoPath if replaced or removed
+            if (oldEntry.videoPath != null && oldEntry.videoPath != newEntry.videoPath) {
+                deleteMediaFile(oldEntry.videoPath)
             }
 
             // Re-encrypt newly added plain URIs if entry is encrypted
@@ -177,6 +177,14 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                 !MediaEncryptionManager.isEncrypted(newEntry.audioPath)) {
                 val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.audioPath)
                 if (enc != null) finalEntry = finalEntry.copy(audioPath = enc)
+            }
+
+            // Re-encrypt new video if needed
+            if (newEntry.isEncrypted &&
+                !newEntry.videoPath.isNullOrBlank() &&
+                !MediaEncryptionManager.isEncrypted(newEntry.videoPath)) {
+                val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.videoPath)
+                if (enc != null) finalEntry = finalEntry.copy(videoPath = enc)
             }
 
             repository.insertEntry(finalEntry)

@@ -24,26 +24,26 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val bg         = Color(0xFF0E1108)
-private val surface    = Color(0xFF181E10)
-private val accent     = Color(0xFF606F49)
-private val textCol    = Color(0xFFF4F1EA)
-private val subText    = Color(0xFF828779)
-private val errorCol   = Color(0xFFC06352)
-private val keyBg      = Color(0xFF1E2717)
-private val keyBorder  = Color(0xFF2E3820)
+private val bg = Color(0xFF0E1108)
+private val surface = Color(0xFF181E10)
+private val accent = Color(0xFF606F49)
+private val textCol = Color(0xFFF4F1EA)
+private val subText = Color(0xFF828779)
+private val errorCol = Color(0xFFC06352)
+private val keyBg = Color(0xFF1E2717)
+private val keyBorder = Color(0xFF2E3820)
 
 @Composable
 fun PinLockScreen(
     onUnlockNormal: () -> Unit,
-    onUnlockDecoy:  () -> Unit,
-    realPin:        String?,
-    decoyPinValue:  String?
+    onUnlockDecoy: () -> Unit,
+    realPin: String?,
+    decoyPinValue: String?
 ) {
-    var input    by remember { mutableStateOf("") }
-    var isError  by remember { mutableStateOf(false) }
-    var shake    by remember { mutableStateOf(false) }
-    val scope    = rememberCoroutineScope()
+    var input by remember { mutableStateOf("") }
+    var isError by remember { mutableStateOf(false) }
+    var shake by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     fun handleDigit(d: String) {
         if (input.length >= 4) return
@@ -58,7 +58,7 @@ fun PinLockScreen(
                     decoyPinValue -> onUnlockDecoy()
                     else -> {
                         isError = true
-                        shake  = true
+                        shake = true
                         delay(500)
                         shake = false
                         input = ""
@@ -69,7 +69,9 @@ fun PinLockScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(bg),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(bg),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -78,7 +80,10 @@ fun PinLockScreen(
         ) {
             // Lock icon
             Box(
-                modifier = Modifier.size(72.dp).clip(CircleShape).background(surface)
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(surface)
                     .border(1.dp, accent.copy(alpha = 0.3f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -101,7 +106,8 @@ fun PinLockScreen(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.offset {
-                    val currentShakeX = shakeAnim * 8 * if ((System.currentTimeMillis() / 100).toInt() % 2 == 0) 1 else -1
+                    val currentShakeX =
+                        shakeAnim * 8 * if ((System.currentTimeMillis() / 100).toInt() % 2 == 0) 1 else -1
                     androidx.compose.ui.unit.IntOffset(
                         x = currentShakeX.dp.roundToPx(),
                         y = 0
@@ -115,7 +121,9 @@ fun PinLockScreen(
                         animationSpec = tween(150), label = "dot$idx"
                     )
                     Box(
-                        modifier = Modifier.size(16.dp).clip(CircleShape)
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
                             .background(dotColor)
                             .border(1.5.dp, if (filled) accent else keyBorder, CircleShape)
                     )
@@ -124,17 +132,22 @@ fun PinLockScreen(
 
             if (isError) {
                 Spacer(Modifier.height(10.dp))
-                Text("Incorrect PIN", color = errorCol, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    "Incorrect PIN",
+                    color = errorCol,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
 
             Spacer(Modifier.height(40.dp))
 
             // Number pad
             val keys = listOf(
-                listOf("1","2","3"),
-                listOf("4","5","6"),
-                listOf("7","8","9"),
-                listOf("","0","⌫")
+                listOf("1", "2", "3"),
+                listOf("4", "5", "6"),
+                listOf("7", "8", "9"),
+                listOf("", "0", "⌫")
             )
             keys.forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -142,8 +155,11 @@ fun PinLockScreen(
                         when (key) {
                             "" -> Spacer(Modifier.size(76.dp))
                             "⌫" -> PinKey(label = key, isSpecial = true, onClick = {
-                                if (input.isNotEmpty()) { input = input.dropLast(1); isError = false }
+                                if (input.isNotEmpty()) {
+                                    input = input.dropLast(1); isError = false
+                                }
                             })
+
                             else -> PinKey(label = key, onClick = { handleDigit(key) })
                         }
                     }
@@ -157,7 +173,11 @@ fun PinLockScreen(
 @Composable
 private fun PinKey(label: String, isSpecial: Boolean = false, onClick: () -> Unit) {
     var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (pressed) 0.88f else 1f, animationSpec = tween(80), label = "scale")
+    val scale by animateFloatAsState(
+        if (pressed) 0.88f else 1f,
+        animationSpec = tween(80),
+        label = "scale"
+    )
     val bgColor by animateColorAsState(
         if (pressed) accent.copy(alpha = 0.2f) else keyBg,
         animationSpec = tween(80), label = "bg"
@@ -176,9 +196,19 @@ private fun PinKey(label: String, isSpecial: Boolean = false, onClick: () -> Uni
         contentAlignment = Alignment.Center
     ) {
         if (label == "⌫") {
-            Icon(Icons.AutoMirrored.Rounded.Backspace, null, tint = subText, modifier = Modifier.size(22.dp))
+            Icon(
+                Icons.AutoMirrored.Rounded.Backspace,
+                null,
+                tint = subText,
+                modifier = Modifier.size(22.dp)
+            )
         } else {
-            Text(label, color = if (isSpecial) subText else textCol, fontSize = 22.sp, fontWeight = FontWeight.Medium)
+            Text(
+                label,
+                color = if (isSpecial) subText else textCol,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

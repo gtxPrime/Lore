@@ -270,6 +270,21 @@ class MainActivity : FragmentActivity() {
                         val viewModel: JournalViewModel = viewModel()
                         val petViewModel: PetViewModel = viewModel()
 
+                        val localLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                        DisposableEffect(localLifecycleOwner) {
+                            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                                    val target = this@MainActivity.intent?.getStringExtra("navigate_to")
+                                    if (target == "text_journal") {
+                                        this@MainActivity.intent?.removeExtra("navigate_to")
+                                        navController.navigate("text_journal")
+                                    }
+                                }
+                            }
+                            localLifecycleOwner.lifecycle.addObserver(observer)
+                            onDispose { localLifecycleOwner.lifecycle.removeObserver(observer) }
+                        }
+
                         // Re-apply daily reminder on cold start if enabled
                         val dailyReminderOn by settingsRepo.dailyReminder.collectAsState(initial = true)
                         val reminderHour    by settingsRepo.reminderHour.collectAsState(initial = 10)
@@ -426,6 +441,8 @@ class MainActivity : FragmentActivity() {
                             }
                         }
  
+                        val encryptMediaState by settingsRepo.encryptMedia.collectAsState(initial = false)
+ 
                         AfterJournalRecordScreen(
                                 onSave = {
                                     afVM.selectedEmotions.value
@@ -443,7 +460,8 @@ class MainActivity : FragmentActivity() {
                                 },
                                 onDiscard = { navController.popBackStack() },
                                 viewModel = afVM,
-                                isRelic = isRelic
+                                isRelic = isRelic,
+                                encryptMedia = encryptMediaState
                         )
                     }
                     composable("stats") {
@@ -533,6 +551,11 @@ class MainActivity : FragmentActivity() {
                 checkForUpdate()
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 }
 
