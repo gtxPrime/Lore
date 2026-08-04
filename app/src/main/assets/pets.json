@@ -1,0 +1,103 @@
+{
+  "version": 2,
+  "last_updated": "2026-08-04",
+  "pets": [
+
+    {
+      "id": "bright_001",
+      "name": "Solara",
+      "emotion": "bright",
+      "level": 1,
+      "description": "Born from golden moments, Solara carries the warmth of every sunrise you noticed.",
+      "total_stages": 5,
+      "stages": [
+        { "stage": 1, "stage_name": "Egg",     "journals_required": 1,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1ofERAJUylLDzgSCw8CBkUDClYuX1JwIw0AWBQbGUFUcUJYOE8KAh4XDVxaADpaA24aTBhBEAEHCRM7VFRoRhsbHwcfRx8RYlcDKkELAA9FUgUAWG4=" },
+        { "stage": 2, "stage_name": "Kit",     "journals_required": 3,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oUF1QHDTJcRmZGDR4SBQAWXhw2SExwIw0AWBQbGUFXcUJYOE8KAh4XDVwBEC4LAiwHEQsdAQISAxY0B05uSAFZBwMfRx8RYlpTOxYaDxEbUgUAWG4=" },
+        { "stage": 3, "stage_name": "Cub",     "journals_required": 7,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oETQlVEG1TXSoZGV0BFgIbXwkoS1twIw0AWBQbGUFWcUJYOE8KAh4XDVxcUm5VAWsKAFoQS0wYChAzAVE8EkwDHgoCRx8RYkJYahwJVhsIUgUAWG4=" },
+        { "stage": 4, "stage_name": "Sun Pup", "journals_required": 15, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oaEBULDjdYAD4bDAtGBEwNDwIvBUNwIw0AWBQbGUFRcUJYOE8KAh4XDVwIATZZAzVGTVYMHB8HWQ1vRlU1Hw4DEEJHRx8RYkRQaUIRBgRHUgUAWG4=" },
+        { "stage": 5, "stage_name": "Mythic",  "journals_required": 30, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1ocA1JfUDoEQmgZCgodAkwNGQ1rUFxwIw0AWBQbGUFQcUJYOE8KAh4XDVwZDDgHRWYZDBoCHBUKAwYwVFgrFAsbEgQbRx8RYkZQa0MKCB8DUgUAWG4=" }
+      ]
+    },
+
+    {
+      "id": "calm_001",
+      "name": "Cappi",
+      "emotion": "calm",
+      "level": 1,
+      "description": "Unhurried and gentle, Cappi teaches you that stillness is its own kind of strength.",
+      "total_stages": 5,
+      "stages": [
+        { "stage": 1, "stage_name": "Egg",    "journals_required": 1,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oTQAcPAyxDWWwUChxFHRIZA10lQw9wMxkeBQsWAB4EcgMYLx4fUQceHwQVWDleWTZFTxYZAU1WVVAnXk4xHQAEHwdAUxpDLEYLOQlMFEcZBVJKATMPBw==" },
+        { "stage": 2, "stage_name": "Pup",    "journals_required": 3,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oLFVIdXSpFUDEWHB0NHR4EVVwrQgJwMxkeBQsWAB4EcgAYLx4fUQceHwQVWDJTXCoFCB4eHx4EHghsAwJpFQgWQBADAx9DLEYLKwgNWUYaGghKATMPBw==" },
+        { "stage": 3, "stage_name": "Young",  "journals_required": 7,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1pLExQeHTNfTD4ZAl8YEBVWVQZqRQVwMxkeBQsWAB4EcgEYLx4fUQceHwQVWDZeQW4dHlgFSkAKABZoWlMyAgIMGxMBBgRDLEYLJh4TAgUXBhtKATMPBw==" },
+        { "stage": 4, "stage_name": "Capy",   "journals_required": 15, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oHHg5YDS5aTDYSCRoTHAwTDVRpWFpwMxkeBQsWAB4EcgYYLx4fUQceHwQVWD0ABDcXDx8CBE0FWwkpAUVnAE8UAQQHFgRDLEYLOEBOWwZBG1hKATMPBw==" },
+        { "stage": 5, "stage_name": "Mythic", "journals_required": 30, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oYGgAND2tKBT4GCVoSBR0IDQ5sWQ5wMxkeBQsWAB4EcgcYLx4fUQceHwQVWDBfUG0bHw8UFE0FXABpWFwwCBAHRxoEUFVDLEYLKBUAV0wZGwxKATMPBw==" }
+      ]
+    },
+
+    {
+      "id": "heavy_001",
+      "name": "Pebble",
+      "emotion": "heavy",
+      "level": 1,
+      "description": "Small but carrying so much. Pebble knows how to keep going despite the weight.",
+      "total_stages": 5,
+      "stages": [
+        { "stage": 1, "stage_name": "Egg",    "journals_required": 1,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oaEAkBBGhfTycBCVYGEBMKBgolXAFwIB0AEgcdD0FUcUJYOE8KAh4XDVwLBy5GWzdADwhFHRgSWgo3UEw5BA0XGRVGRx8RYgJBJgQbFgQAUgUAWG4=" },
+        { "stage": 2, "stage_name": "Chick",  "journals_required": 3,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oQRxAeCTJXWjkZTQMPAw0bHQgpBg9wIB0AEgcdD0FXcUJYOE8KAh4XDVwCXGgEDjQaCxsRGkVRDg4mXEFoQhIMQERGRx8RYkFTOkRAWUIGUgUAWG4=" },
+        { "stage": 3, "stage_name": "Waddle", "journals_required": 7,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1pBRABaFCVFWysSFFwPQxAbCw00BAJwIB0AEgcdD0FWcUJYOE8KAh4XDVwbBC1AVGsRQBQaQR4FXlQrVQ84GQ5dD0RCRx8RYlxANBIBGhYZUgUAWG4=" },
+        { "stage": 4, "stage_name": "Diver",  "journals_required": 15, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oIQwwWCD5eVyUIEwlGQwIEBRxqX0xwIB0AEgcdD0FRcUJYOE8KAh4XDVwCB25HVC0ISAESAkAVAAc9WFsnCUAPRkAbRx8RYgZBPRQLDQMfUgUAWG4=" },
+        { "stage": 5, "stage_name": "Mythic", "journals_required": 30, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oGDFgDEjZBA2sUThdERwwPCFY7AkJwIB0AEgcdD0FQcUJYOE8KAh4XDVwCBidDXCwAHAgcHB0VHhwoUAUmQQpdHkIWRx8RYgUFJUhMAERFUgUAWG4=" }
+      ]
+    },
+
+    {
+      "id": "tangled_001",
+      "name": "River",
+      "emotion": "tangled",
+      "level": 1,
+      "description": "River drifts through confusion with surprising grace, turning tangles into currents.",
+      "total_stages": 5,
+      "stages": [
+        { "stage": 1, "stage_name": "Egg",     "journals_required": 1,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1ofAxkYBjdTWC4JGglMBQVUFQ0wAlJwPwwaEABZUEIVMVUJLRwTCwxPHRVUHyZVDjMCFx8dHwMVBAs9BlU+QBYYGVQHFVEUa1NaNBweClMWGFxd" },
+        { "stage": 2, "stage_name": "Pup",     "journals_required": 3,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1pARA4WUTBZXDkYTxYbAR4TXgk2BFJwPwwaEABZU0IVMVUJLRwTCwxPRgAJBC9QQ2lAAhodCh8QVQNtUA5oFgAZQlQHFVFVOFdebwgKC1MWGFxd" },
+        { "stage": 3, "stage_name": "Whelp",   "journals_required": 7,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oXGRccDilFBSkUSVoBSgQEHgE6BVFwPwwaEABZUkIVMVUJLRwTCwxPDgQKFDFHATMfHV9CQUcPCww8XVtqBEAGElQHFVFWMgVRMQBIC1MWGFxd" },
+        { "stage": 4, "stage_name": "Current", "journals_required": 15, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oYARVYHGsDQDcZAF1CRQMEGBc+QEFwPwwaEABZVUIVMVUJLRwTCwxPRBhVVj1WUzYFGh0cFxwZWgQyBlw5HQFZB1QHFVEHMF0APkATVlMWGFxd" },
+        { "stage": 5, "stage_name": "Mythic",  "journals_required": 30, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oHEVhbFDNdWDpBDRYPQkIEWVUwB0FwPwwaEABZVEIVMVUJLRwTCwxPEBgWAigLWC8UE1wFFRUQA1YnRwNoSB4GRlQHFVFXKlEHMwAeXVMWGFxd" }
+      ]
+    },
+
+    {
+      "id": "dark_001",
+      "name": "Luna",
+      "emotion": "dark",
+      "level": 1,
+      "description": "Luna moves through the dark without fear, a quiet companion when the night feels too long.",
+      "total_stages": 5,
+      "stages": [
+        { "stage": 1, "stage_name": "Egg",    "journals_required": 1,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1obEg4YAD4CAzkVSwEHQRwLDRIyBFJwMg0AGwtZUEIVMVUJLRwTCwxPHxADAzxbUzUfDBscGh8UCxQ5BEMpERALGVQHFVELawNQMAMQA1MWGFxd" },
+        { "stage": 2, "stage_name": "Kitten", "journals_required": 3,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1pEDFEWEDZVRjcaTQhHBUcSVFwtWVFwMg0AGwtZU0IVMVUJLRwTCwxPAAkKHWwGWy8BCF5BChpZXQgmWwE4ChsdGFQHFVEDZwBFKgAXXFMWGFxd" },
+        { "stage": 3, "stage_name": "Dusk",   "journals_required": 7,  "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1oLTVMPDmtfA20eElpDQ0RVBl1mClpwMg0AGwtZUkIVMVUJLRwTCwxPAxAFBiYCV2kYDx9NRxwZWA1rR1o4RgoYGFQHFVEGM0pbZxIdWFMWGFxd" },
+        { "stage": 4, "stage_name": "Shadow", "journals_required": 15, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1pGEQ4WFGcGBjRCFQ9DARgCWhU2BFlwMg0AGwtZVUIVMVUJLRwTCwxPFxkKVTJWQGxETBRFS00XGxE+VUQlHUwDAFQHFVEAbwBUMhYbHlMWGFxd" },
+        { "stage": 5, "stage_name": "Mythic", "journals_required": 30, "image_url": "enc:BgEGBBJWSnBWWnEUCgEFEBsZGRY6QFUwHgwLGwZaAgMIcEFVM18eB1pGGAVcBm1FVW8DDwUQQgEPHAAsS1VwMg0AGwtZVEIVMVUJLRwTCwxPTRgYFC1TAC8CQBdNFxFZXR9sVAcpF0FWGlQHFVEEMFZGakkRH1MWGFxd" }
+      ]
+    },
+
+    {
+      "id": "blank_001",
+      "name": "Pip",
+      "emotion": "blank",
+      "level": 1,
+      "description": "Soft, wide-eyed, and gentle, Pip floats peacefully on cool waters, turning empty pages into a tranquil sanctuary.",
+      "total_stages": 5,
+      "stages": [
+        { "stage": 1, "stage_name": "Egg",    "journals_required": 1,  "image_url": "enc:BgEGBBJWSnBFQSheHBwaAhYOFEs8XVtwAxsCWhQdTlsfKlMON0ZJWBkKAhcEESlZTDUXEkEmFxUNQVRxQlg4TwoCHhcNXBhTJUMDOkQaA0FLRQgFHDReTCcZDVYYHEJHHxFiBlgrGRoFE0VSBQBYbw==" },
+        { "stage": 2, "stage_name": "Pup",    "journals_required": 3,  "image_url": "enc:BgEGBBJWSnBFQSheHBwaAhYOFEs8XVtwAxsCWhQdThpSMF9ZLQEIWg1DGhMIEWoKTyUWG0EmFxUNQVdxQlg4TwoCHhcNXFkXMl5bJxkcWRlKTRMZHDoABS4RHQNBRxZHHxFiSlk2AksZA0JSBQBYbw==" },
+        { "stage": 3, "stage_name": "Floe",   "journals_required": 7,  "image_url": "enc:BgEGBBJWSnBFQSheHBwaAhYOFEs8XVtwAxsCWhQdTl9dalRabwAaBxoZDQtaAGgABS4RC0EmFxUNQVZxQlg4TwoCHhcNXANUKVNVMQIZHQAbH1EHCDADUicRAFYFR0JHHxFiB0M5B0sCERFSBQBYbw==" },
+        { "stage": 4, "stage_name": "Glider", "journals_required": 15, "image_url": "enc:BgEGBBJWSnBFQSheHBwaAhYOFEs8XVtwAxsCWhQdThocOEdVaxUaHhRAAVkYUjYKTC1JEUEmFxUNQVFxQlg4TwoCHhcNXBkWa1dUN0VNWRYQRlBfUihFWTIFE19DEAxHHxFiQwYuARYUBwRSBQBYbw==" },
+        { "stage": 5, "stage_name": "Mythic", "journals_required": 30, "image_url": "enc:BgEGBBJWSnBFQSheHBwaAhYOFEs8XVtwAxsCWhQdTgoWZwRCNkcWFhgTGgkYDC0DW28fD0EmFxUNQVBxQlg4TwoCHhcNXA8WLEQAKkhJHEcEB1cbUj5WXiUSQBgSB0NHHxFiCwJrHEwXBkNSBQBYbw==" }
+      ]
+    }
+
+  ]
+}
