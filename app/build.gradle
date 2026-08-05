@@ -34,6 +34,11 @@ android {
                 storePassword keyProperties['storePassword']
                 keyAlias keyProperties['keyAlias']
                 keyPassword keyProperties['keyPassword']
+            } else if (project.hasProperty('KEYSTORE_FILE')) {
+                storeFile file(project.property('KEYSTORE_FILE'))
+                storePassword project.property('KEYSTORE_PASSWORD')
+                keyAlias project.property('KEY_ALIAS')
+                keyPassword project.property('KEY_PASSWORD')
             }
         }
     }
