@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
@@ -44,10 +44,17 @@
             android:theme="@style/Theme.MyApplication"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
+        <!-- Dedicated Lore Scantury premium purchase screen -->
+        <activity
+            android:name=".ui.premium.PremiumActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
         <!-- Secure file sharing provider -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.gxdevs.nurtale.fileprovider"
+            android:authorities="com.gxdevs.lore.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

@@ -28,7 +28,7 @@ googleid = "1.2.0"
 uiText = "1.11.2"
 mlkitLanguageId = "17.0.6"
 mediapipe = "0.10.35"
-playBilling = "7.1.1"
+playBilling = "9.0.0"
 
 
 [libraries]

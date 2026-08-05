@@ -4,19 +4,19 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.google.services)
+    // alias(libs.plugins.google.services) // Removed old google-services.json
 }
 
 android {
-    namespace 'com.gxdevs.nurtale'
+    namespace 'com.gxdevs.lore'
     compileSdk 37
 
     defaultConfig {
-        applicationId "com.gxdevs.nurtale"
+        applicationId "com.gxdevs.lore"
         minSdk 26
         targetSdk 37
-        versionCode 4
-        versionName 'Wisp 4'
+        versionCode 5
+        versionName 'Lore 1.0'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
