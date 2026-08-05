@@ -221,7 +221,7 @@ private fun OnboardingPageWelcome() {
     }
 }
 
-// ── Page 2: Real Sanctuary Companions ──────────────────────────────────────────
+// ── Page 2: Mystery Emotion Guardians ─────────────────────────────────────────
 @Composable
 private fun OnboardingPageCompanions() {
     Column(
@@ -230,7 +230,7 @@ private fun OnboardingPageCompanions() {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Meet Your Companions",
+            text = "Emotions Awaken Guardians",
             fontSize = 26.sp,
             fontWeight = FontWeight.ExtraBold,
             color = TextPri,
@@ -239,44 +239,53 @@ private fun OnboardingPageCompanions() {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Living reflections born from your emotions",
+            text = "Every feeling holds a secret companion waiting to hatch",
             fontSize = 13.sp,
             color = TextSec,
             textAlign = TextAlign.Center
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             CompanionCard(
-                name = "Solara",
-                type = "Bright · Sun Pup",
-                desc = "Carries the warmth of golden sunrises and joyful moments.",
+                name = "Bright & Warm",
+                type = "Golden Reflection",
+                desc = "Awakened by joy, gratitude, and sunny moments.",
                 icon = Icons.Rounded.WbSunny,
                 accentColor = Color(0xFFB88E10)
             )
             CompanionCard(
-                name = "Cappi",
-                type = "Calm · Capybara",
-                desc = "Unhurried and gentle. Teaches that stillness is strength.",
+                name = "Calm & Still",
+                type = "Sage Reflection",
+                desc = "Awakened by peace, mindfulness, and quiet stillness.",
                 icon = Icons.Rounded.Spa,
                 accentColor = GreenPrimary
             )
             CompanionCard(
-                name = "Pebble",
-                type = "Heavy · Penguin",
-                desc = "Small but resilient. Knows how to keep going despite weight.",
+                name = "Heavy & Deep",
+                type = "Resilient Reflection",
+                desc = "Awakened by unspoken burdens and hidden strength.",
                 icon = Icons.Rounded.Shield,
                 accentColor = Color(0xFF4A6B47)
             )
             CompanionCard(
-                name = "River",
-                type = "Tangled · Otter",
-                desc = "Drifts through confusion, turning tangles into calm currents.",
+                name = "Tangled & Drifting",
+                type = "Current Reflection",
+                desc = "Awakened by confusion, unraveling thoughts into clarity.",
                 icon = Icons.Rounded.Water,
                 accentColor = Color(0xFF3B82A6)
             )
         }
+
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = "✦ Their names, forms & mythic evolutions are revealed as you write.",
+            fontSize = 11.sp,
+            color = GreenPrimary,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

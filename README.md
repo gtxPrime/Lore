@@ -70,23 +70,23 @@ Every journal entry you write channels growth energy into your sanctuary compani
 
 ## 🐾 Sanctuary Companions & Evolution
 
-Lore visualizes your emotional landscapes as virtual companions that absorb your daily reflections:
+Lore visualizes your emotional landscapes as mysterious virtual companions. As you write daily reflections, your emotions channel growth energy into secret companion eggs, revealing their names, forms, and mythic evolutions over time.
 
-| Companion | Emotion Theme | Form | Description |
-| :--- | :--- | :--- | :--- |
-| **Solara** | **Bright** | `Sun Pup` | Born from golden warmth & morning sunrises. |
-| **Cappi** | **Calm** | `Capybara` | Unhurried and serene; teaches that stillness is strength. |
-| **Pebble** | **Heavy** | `Penguin` | Resilient & steady; knows how to carry heavy weight. |
-| **River** | **Tangled** | `Otter` | Drifts through confusion, turning tangles into calm currents. |
+| Emotion Archetype | Reflection Theme | Discovery |
+| :--- | :--- | :--- |
+| **Bright & Warm** | Joy, gratitude, and sunny moments | *Secret Companion Egg* |
+| **Calm & Still** | Peace, mindfulness, and quiet stillness | *Secret Companion Egg* |
+| **Heavy & Deep** | Unspoken burdens and hidden strength | *Secret Companion Egg* |
+| **Tangled & Drifting** | Confusion, unraveling thoughts into clarity | *Secret Companion Egg* |
 
 ### 5-Stage Evolutionary Progression
 ```mermaid
 graph LR
-    subgraph Growth Stages
-        A["Egg (1 Entry)"] --> B["Kit / Chick (3 Entries)"]
-        B --> C["Cub / Waddle (7 Entries)"]
-        C --> D["Sun Pup / Capy (15 Entries)"]
-        D --> E["Mythic Form (30 Entries)"]
+    subgraph Discovery Stages
+        A["Egg (1 Entry)"] --> B["Stage 2 (3 Entries)"]
+        B --> C["Stage 3 (7 Entries)"]
+        C --> D["Stage 4 (15 Entries)"]
+        D --> E["Mythic Guardian (30 Entries)"]
     end
 ```
 
