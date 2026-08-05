@@ -13,7 +13,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,10 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -38,27 +38,34 @@ import androidx.compose.ui.unit.sp
 import com.gxdevs.lore.data.SettingsRepository
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
+import kotlin.math.cos
 import kotlin.math.sin
 
-// ── Palette aligned with Lore Sanctuary Theme ───────────────────────────
-private val BgPage       = Color(0xFFFAF7F2) // Soft warm ivory background
-private val BgCard       = Color(0xFFEFECE2) // Warm paper card background
-private val Border       = Color(0xFFDCD6C8)
-private val TextPri      = Color(0xFF1E241A) // Deep charcoal green
-private val TextSec      = Color(0xFF6B7262) // Sage gray secondary text
-private val GreenPrimary = Color(0xFF52633A) // Deep rich sage accent
-private val GreenHero    = Color(0xFF384626)
-private val GoldAccent   = Color(0xFFC49A1B) // Warm golden glow accent
+// ── Lore Sanctuary Palette — matched exactly to HomeScreen.kt ────────────────
+private val BgPage       = Color(0xFFEBE8E0)  // appBackground
+private val BgCard       = Color(0xFFEAE7DF)  // cardBackground
+private val Border       = Color(0xFFE0DCD1)  // borderColor
+private val TextPri      = Color(0xFF2E332A)  // textPrimary
+private val TextSec      = Color(0xFF828779)  // textSecondary
+private val GreenDeep    = Color(0xFF4A5638)  // darkAccent
+private val GreenPrimary = Color(0xFF606F49)  // primaryAccent
+private val GreenLight   = Color(0xFF7A8C62)  // midtone
+private val GoldAccent   = Color(0xFFC49A1B)
+private val GoldWarm     = Color(0xFFD4AF37)
+private val AIAccent     = Color(0xFF5B6EA8)  // deep periwinkle — on-device intelligence
+
+// Smooth luxury easing — Apple-style spring feel
+private val LuxuryEasing     = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+private val SinusoidalEasing = CubicBezierEasing(0.37f, 0f, 0.63f, 1f)
 
 @Composable
 fun OnboardingScreen(
     onComplete: () -> Unit
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val context      = LocalContext.current
+    val scope        = rememberCoroutineScope()
     val settingsRepo = remember { SettingsRepository(context) }
-
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    val pagerState   = rememberPagerState(pageCount = { 5 })
 
     fun finishOnboarding() {
         scope.launch {
@@ -67,38 +74,51 @@ fun OnboardingScreen(
         }
     }
 
-    // Dynamic Ambient Glow Color based on current page
+    // Dynamic ambient glow per page
     val targetGlowColor = when (pagerState.currentPage) {
-        0 -> Color(0xFF52633A)
-        1 -> Color(0xFFC49A1B)
-        2 -> Color(0xFFD4AF37)
-        else -> Color(0xFF384626)
+        0    -> GreenPrimary
+        1    -> GoldAccent
+        2    -> GoldWarm
+        3    -> GreenDeep
+        else -> AIAccent      // on-device AI page
     }
     val ambientGlowColor by animateColorAsState(
-        targetValue = targetGlowColor,
-        animationSpec = tween(750, easing = FastOutSlowInEasing),
-        label = "ambient_glow"
+        targetValue   = targetGlowColor,
+        animationSpec = tween(900, easing = LuxuryEasing),
+        label         = "ambient_glow"
     )
 
-    // Breathing glow animation
-    val infiniteTransition = rememberInfiniteTransition(label = "ambient_breathe")
+    // ── Global infinite animations ─────────────────────────────────────────────
+    val infiniteTransition = rememberInfiniteTransition(label = "global")
     val breatheScale by infiniteTransition.animateFloat(
-        initialValue = 0.88f,
-        targetValue  = 1.15f,
-        animationSpec = infiniteRepeatable(tween(3200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "breathe"
+        initialValue  = 0.82f,
+        targetValue   = 1.18f,
+        animationSpec = infiniteRepeatable(tween(4200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "breathe"
     )
     val floatY by infiniteTransition.animateFloat(
-        initialValue = -7f,
-        targetValue  = 7f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "float"
+        initialValue  = -9f,
+        targetValue   = 9f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = SinusoidalEasing), RepeatMode.Reverse),
+        label         = "float"
     )
     val rotateAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue  = 360f,
-        animationSpec = infiniteRepeatable(tween(18000, easing = LinearEasing), RepeatMode.Restart),
-        label = "rotate"
+        initialValue  = 0f,
+        targetValue   = 360f,
+        animationSpec = infiniteRepeatable(tween(22000, easing = LinearEasing), RepeatMode.Restart),
+        label         = "rotate"
+    )
+    val rotateReverse by infiniteTransition.animateFloat(
+        initialValue  = 360f,
+        targetValue   = 0f,
+        animationSpec = infiniteRepeatable(tween(16000, easing = LinearEasing), RepeatMode.Restart),
+        label         = "rotate_rev"
+    )
+    val particlePhase by infiniteTransition.animateFloat(
+        initialValue  = 0f,
+        targetValue   = (2f * Math.PI.toFloat()),
+        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Restart),
+        label         = "particle"
     )
 
     Box(
@@ -106,13 +126,10 @@ fun OnboardingScreen(
             .fillMaxSize()
             .background(BgPage)
     ) {
-        // ── Ambient Liquid Background Radial Glow Canvas ───────────────────────
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .blur(90.dp)
-        ) {
-            val centerPx = Offset(size.width / 2f, size.height * 0.35f)
+        // ── Liquid ambient radial glow (dual bloom) ────────────────────────────
+        Canvas(modifier = Modifier.fillMaxSize().blur(110.dp)) {
+            val cx = size.width / 2f
+            val cy = size.height * 0.38f
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
@@ -120,189 +137,221 @@ fun OnboardingScreen(
                         ambientGlowColor.copy(alpha = 0.10f),
                         Color.Transparent
                     ),
-                    center = centerPx,
-                    radius = size.width * 0.85f * breatheScale
+                    center = Offset(cx, cy),
+                    radius = size.width * 0.90f * breatheScale
                 ),
-                radius = size.width * 0.85f * breatheScale,
-                center = centerPx
+                radius = size.width * 0.90f * breatheScale,
+                center = Offset(cx, cy)
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(ambientGlowColor.copy(alpha = 0.12f), Color.Transparent),
+                    center = Offset(cx * 0.4f, cy * 1.5f),
+                    radius = size.width * 0.55f
+                ),
+                radius = size.width * 0.55f,
+                center = Offset(cx * 0.4f, cy * 1.5f)
             )
         }
 
-        // ── Top & Bottom Sanctuary Edge Soft Gradient Fades ───────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(70.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(BgPage.copy(alpha = 0.98f), BgPage.copy(alpha = 0.0f))
-                    )
+        // ── Floating ambient particles ─────────────────────────────────────────
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val particles = listOf(
+                Triple(0.14f, 0.20f, 3.0f), Triple(0.83f, 0.17f, 2.2f),
+                Triple(0.73f, 0.70f, 2.6f), Triple(0.24f, 0.77f, 2.0f),
+                Triple(0.56f, 0.10f, 1.6f), Triple(0.91f, 0.44f, 2.4f),
+                Triple(0.07f, 0.58f, 1.4f),
+            )
+            particles.forEachIndexed { i, (rx, ry, radius) ->
+                val phase = particlePhase + i * 1.05f
+                val xOff  = sin(phase.toDouble()).toFloat() * 11f
+                val yOff  = cos(phase.toDouble() * 0.7).toFloat() * 7f
+                drawCircle(
+                    color  = ambientGlowColor.copy(alpha = 0.08f + i * 0.010f),
+                    radius = radius.dp.toPx(),
+                    center = Offset(size.width * rx + xOff, size.height * ry + yOff)
                 )
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(90.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(BgPage.copy(alpha = 0.0f), BgPage.copy(alpha = 0.98f))
-                    )
-                )
-        )
+            }
+        }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
                 .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
-                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp)
+                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 20.dp)
         ) {
-            // ── Top Bar (Skip button with Frosted Glass look) ────────────────
+            // ── Top Bar ────────────────────────────────────────────────────────
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                modifier              = Modifier.fillMaxWidth().height(52.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
             ) {
-                if (pagerState.currentPage < 3) {
+                Surface(
+                    shape  = RoundedCornerShape(12.dp),
+                    color  = GreenDeep.copy(alpha = 0.08f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GreenDeep.copy(alpha = 0.18f))
+                ) {
+                    Row(
+                        modifier          = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, null, tint = GreenDeep, modifier = Modifier.size(10.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            text          = "LORE",
+                            fontSize      = 11.sp,
+                            fontWeight    = FontWeight.ExtraBold,
+                            color         = GreenDeep,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = pagerState.currentPage < 4,
+                    enter   = fadeIn(tween(300)),
+                    exit    = fadeOut(tween(200))
+                ) {
                     Surface(
-                        modifier = Modifier
-                            .shadow(6.dp, RoundedCornerShape(14.dp), spotColor = Color.Black.copy(alpha = 0.08f))
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { finishOnboarding() },
-                        color = Color.White.copy(alpha = 0.70f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.7f)),
-                        shape = RoundedCornerShape(14.dp)
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication        = null
+                        ) { finishOnboarding() },
+                        color    = Color.White.copy(alpha = 0.68f),
+                        border   = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                        shape    = RoundedCornerShape(12.dp)
                     ) {
                         Text(
-                            text = "Skip",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = TextSec,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                            text       = "Skip",
+                            fontSize   = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = TextSec,
+                            modifier   = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                         )
                     }
                 }
             }
 
-            // ── Pager Pages with Bouncy Slide Morphing ───────────────────────
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) { page ->
-                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-                val scaleFactor = (1f - (pageOffset * 0.14f)).coerceIn(0.86f, 1f)
-                val alphaFactor = (1f - (pageOffset * 0.5f)).coerceIn(0f, 1f)
+            // ── Pager ─────────────────────────────────────────────────────────
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                HorizontalPager(
+                    state    = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val rawOffset  = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                    val pageOffset = rawOffset.absoluteValue
+                    val scale      = (1f - pageOffset * 0.13f).coerceIn(0.87f, 1f)
+                    val alpha      = (1f - pageOffset * 0.55f).coerceIn(0f, 1f)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = scaleFactor
-                            scaleY = scaleFactor
-                            alpha  = alphaFactor
-                            translationY = floatY
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX       = scale
+                                scaleY       = scale
+                                this.alpha   = alpha
+                                rotationY    = rawOffset * 5f
+                                translationY = floatY
+                                translationX = rawOffset * -28f
+                            }
+                    ) {
+                        val isCurrentPage = pagerState.currentPage == page
+                        when (page) {
+                            0 -> OnboardingPageWelcome(rotateAngle, rotateReverse, particlePhase, isCurrentPage)
+                            1 -> OnboardingPageCompanions(isCurrentPage)
+                            2 -> OnboardingPageEvolution(rotateAngle, isCurrentPage)
+                            3 -> OnboardingPageSecurity(isCurrentPage)
+                            4 -> OnboardingPageAI(rotateAngle, isCurrentPage)
                         }
-                ) {
-                    when (page) {
-                        0 -> OnboardingPageWelcome(rotateAngle)
-                        1 -> OnboardingPageCompanions()
-                        2 -> OnboardingPageEvolution()
-                        3 -> OnboardingPageSecurity()
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // ── Footer (Liquid Bouncy Indicators + Dynamic CTA Button) ───────
+            // ── Footer: dots + CTA ─────────────────────────────────────────────
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment     = Alignment.CenterVertically
             ) {
-                // Bouncy Liquid Page Indicator Dots
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    repeat(4) { idx ->
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    repeat(5) { idx ->
                         val isCurrent = pagerState.currentPage == idx
                         val dotWidth by animateDpAsState(
-                            targetValue = if (isCurrent) 32.dp else 8.dp,
-                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
-                            label = "dot_width"
+                            targetValue   = if (isCurrent) 28.dp else 6.dp,
+                            animationSpec = spring(dampingRatio = 0.55f, stiffness = 350f),
+                            label         = "dot_$idx"
                         )
                         val dotColor by animateColorAsState(
-                            targetValue = if (isCurrent) GreenPrimary else Border,
-                            animationSpec = tween(300),
-                            label = "dot_color"
+                            targetValue   = if (isCurrent) GreenPrimary else Border,
+                            animationSpec = tween(350, easing = LuxuryEasing),
+                            label         = "dot_c_$idx"
                         )
-
                         Box(
                             modifier = Modifier
-                                .height(8.dp)
-                                .width(dotWidth)
+                                .height(6.dp).width(dotWidth)
                                 .clip(CircleShape)
-                                .background(dotColor)
+                                .background(dotColor.copy(alpha = if (isCurrent) 1f else 0.6f))
                         )
                     }
                 }
 
-                // Fluid Bouncy CTA Button with Ambient Shadow
-                val buttonScale by animateFloatAsState(
-                    targetValue = if (pagerState.currentPage == 3) 1.05f else 1f,
-                    animationSpec = spring(dampingRatio = 0.55f, stiffness = 300f),
-                    label = "btn_scale"
+                val isLast   = pagerState.currentPage == 4
+                val btnScale by animateFloatAsState(
+                    targetValue   = if (isLast) 1.06f else 1f,
+                    animationSpec = spring(dampingRatio = 0.5f, stiffness = 280f),
+                    label         = "btn_s"
+                )
+                val btnColor by animateColorAsState(
+                    targetValue   = if (isLast) GreenDeep else GreenPrimary,
+                    animationSpec = tween(500, easing = LuxuryEasing),
+                    label         = "btn_c"
                 )
 
                 Button(
                     onClick = {
-                        if (pagerState.currentPage < 3) {
+                        if (!isLast) {
                             scope.launch {
                                 pagerState.animateScrollToPage(
                                     pagerState.currentPage + 1,
-                                    animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
+                                    animationSpec = spring(dampingRatio = 0.75f, stiffness = 380f)
                                 )
                             }
                         } else {
                             finishOnboarding()
                         }
                     },
-                    modifier = Modifier
-                        .graphicsLayer { scaleX = buttonScale; scaleY = buttonScale }
-                        .shadow(
-                            elevation = 16.dp,
-                            shape = RoundedCornerShape(22.dp),
-                            spotColor = GreenPrimary.copy(alpha = 0.50f),
-                            ambientColor = Color.Black.copy(alpha = 0.15f)
-                        ),
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    shape = RoundedCornerShape(22.dp),
-                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
+                    modifier       = Modifier.graphicsLayer { scaleX = btnScale; scaleY = btnScale },
+                    colors         = ButtonDefaults.buttonColors(containerColor = btnColor),
+                    shape          = RoundedCornerShape(20.dp),
+                    elevation      = ButtonDefaults.buttonElevation(defaultElevation = if (isLast) 10.dp else 6.dp),
+                    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AnimatedContent(
-                            targetState = pagerState.currentPage == 3,
-                            transitionSpec = { (fadeIn(tween(250)) + scaleIn(initialScale = 0.8f)).togetherWith(fadeOut(tween(150))) },
-                            label = "btn_text"
-                        ) { isLast ->
+                            targetState    = isLast,
+                            transitionSpec = {
+                                (fadeIn(tween(280)) + slideInVertically { it / 3 })
+                                    .togetherWith(fadeOut(tween(180)) + slideOutVertically { -it / 3 })
+                            },
+                            label          = "btn_label"
+                        ) { last ->
                             Text(
-                                text = if (isLast) "Begin Journey" else "Next",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                letterSpacing = 0.4.sp
+                                text          = if (last) "Begin Your Journey" else "Continue",
+                                fontSize      = 14.sp,
+                                fontWeight    = FontWeight.ExtraBold,
+                                color         = Color.White,
+                                letterSpacing = 0.3.sp
                             )
                         }
                         Spacer(Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            imageVector        = Icons.AutoMirrored.Rounded.ArrowForward,
                             contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(17.dp)
+                            tint               = Color.White,
+                            modifier           = Modifier.size(17.dp)
                         )
                     }
                 }
@@ -311,465 +360,1068 @@ fun OnboardingScreen(
     }
 }
 
-// ── Page 1: Welcome to Lore ─────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+// PAGE 1 — Welcome
+// ════════════════════════════════════════════════════════════════════
 @Composable
-private fun OnboardingPageWelcome(rotateAngle: Float) {
-    val infiniteTransition = rememberInfiniteTransition(label = "hero_ring")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue  = 0.85f,
-        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse_alpha"
+private fun OnboardingPageWelcome(
+    rotateAngle  : Float,
+    rotateReverse: Float,
+    particlePhase: Float,
+    isCurrentPage: Boolean
+) {
+    val infiniteT   = rememberInfiniteTransition(label = "welcome")
+    val pulseAlpha  by infiniteT.animateFloat(
+        initialValue  = 0.28f, targetValue = 0.90f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "pulse"
+    )
+    val innerGlow by infiniteT.animateFloat(
+        initialValue  = 0.50f, targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(3000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "inner_glow"
     )
 
+    // Reset animation every time this page becomes active
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentPage) {
+        if (isCurrentPage) {
+            visible = false
+            kotlinx.coroutines.delay(60)
+            visible = true
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier            = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Top Pill Badge
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = GreenPrimary.copy(alpha = 0.12f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GreenPrimary.copy(alpha = 0.35f))
+        // Badge
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(500, easing = LuxuryEasing)) +
+                      slideInVertically(tween(500, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(200))
         ) {
-            Text(
-                text = "✦ PRIVATE & ENCRYPTED INNER HAVEN ✦",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = GreenPrimary,
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-            )
+            Surface(
+                shape  = RoundedCornerShape(22.dp),
+                color  = GreenPrimary.copy(alpha = 0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GreenPrimary.copy(alpha = 0.26f))
+            ) {
+                Row(
+                    modifier          = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Lock, null, tint = GreenPrimary, modifier = Modifier.size(9.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text          = "PRIVATE  ENCRYPTED  ALIVE",
+                        fontSize      = 9.sp,
+                        fontWeight    = FontWeight.ExtraBold,
+                        color         = GreenPrimary,
+                        letterSpacing = 1.6.sp
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Icon(Icons.Rounded.Lock, null, tint = GreenPrimary, modifier = Modifier.size(9.dp))
+                }
+            }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(26.dp))
 
-        // Center Orbital Sparkle Ring
-        Box(contentAlignment = Alignment.Center) {
-            // Rotating dashed orbital aura ring
-            Canvas(modifier = Modifier.size(155.dp).graphicsLayer { rotationZ = rotateAngle }) {
-                drawCircle(
-                    brush = Brush.sweepGradient(
-                        colors = listOf(
-                            GreenPrimary.copy(alpha = 0.7f),
-                            GoldAccent.copy(alpha = 0.5f),
-                            Color.Transparent,
-                            GreenPrimary.copy(alpha = 0.7f)
-                        )
-                    ),
-                    style = Stroke(width = 2.dp.toPx())
-                )
-            }
-
-            // Glowing inner circle
-            Box(
-                modifier = Modifier
-                    .size(125.dp)
-                    .shadow(20.dp, CircleShape, spotColor = GreenPrimary.copy(alpha = 0.45f))
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.95f),
-                                GreenPrimary.copy(alpha = 0.18f)
-                            )
-                        )
+        // Hero orb — dual orbital rings
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(700, delayMillis = 100, easing = LuxuryEasing)) +
+                      scaleIn(tween(700, delayMillis = 100, easing = LuxuryEasing), initialScale = 0.55f),
+            exit    = fadeOut(tween(200))
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp)) {
+                // Outer counter-rotating halo
+                Canvas(modifier = Modifier.size(200.dp).graphicsLayer { rotationZ = rotateReverse }) {
+                    drawCircle(
+                        brush  = Brush.sweepGradient(
+                            listOf(GreenLight.copy(0.30f), GoldAccent.copy(0.16f), Color.Transparent, GreenLight.copy(0.30f))
+                        ),
+                        style  = Stroke(width = 1.dp.toPx()),
+                        radius = size.minDimension / 2f - 1.dp.toPx()
                     )
-                    .border(1.5.dp, GreenPrimary.copy(alpha = pulseAlpha), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    tint = GreenPrimary,
-                    modifier = Modifier.size(54.dp)
-                )
+                }
+                // Inner forward-rotating ring with sparkle dots
+                Canvas(modifier = Modifier.size(168.dp).graphicsLayer { rotationZ = rotateAngle }) {
+                    drawCircle(
+                        brush  = Brush.sweepGradient(
+                            listOf(GreenPrimary.copy(0.78f), GoldAccent.copy(0.52f), Color.Transparent, GreenPrimary.copy(0.78f))
+                        ),
+                        style  = Stroke(width = 2.2f.dp.toPx()),
+                        radius = size.minDimension / 2f - 1.dp.toPx()
+                    )
+                    val r = size.minDimension / 2f - 1.dp.toPx()
+                    listOf(0.0, 90.0, 180.0, 270.0).forEach { deg ->
+                        val rad = Math.toRadians(deg)
+                        drawCircle(
+                            color  = GoldAccent.copy(0.86f),
+                            radius = 3.dp.toPx(),
+                            center = Offset(center.x + r * cos(rad).toFloat(), center.y + r * sin(rad).toFloat())
+                        )
+                    }
+                }
+                // Orbital particle trail
+                Canvas(modifier = Modifier.size(200.dp)) {
+                    val r = size.minDimension / 2f - 20.dp.toPx()
+                    (0 until 5).forEach { i ->
+                        val phase = particlePhase + i * (2f * Math.PI.toFloat() / 5f)
+                        drawCircle(
+                            color  = GreenPrimary.copy(0.16f),
+                            radius = 2.5f.dp.toPx(),
+                            center = Offset(center.x + r * cos(phase.toDouble()).toFloat(), center.y + r * sin(phase.toDouble()).toFloat())
+                        )
+                    }
+                }
+                // Core orb — using Surface for correct shadow rendering (no shadow+clip chain)
+                Surface(
+                    modifier        = Modifier.size(130.dp),
+                    shape           = CircleShape,
+                    color           = Color.White.copy(0.94f),
+                    border          = androidx.compose.foundation.BorderStroke(1.8.dp, GreenPrimary.copy(pulseAlpha)),
+                    shadowElevation = (innerGlow * 14f).dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        // Inner radial tint
+                        Box(
+                            modifier = Modifier.fillMaxSize()
+                                .background(Brush.radialGradient(listOf(Color.Transparent, GreenPrimary.copy(0.08f))))
+                        )
+                        Icon(Icons.Rounded.AutoAwesome, null, tint = GreenPrimary, modifier = Modifier.size(56.dp))
+                    }
+                }
             }
         }
 
         Spacer(Modifier.height(28.dp))
 
-        Text(
-            text = "Welcome to Lore",
-            fontSize = 32.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = TextPri,
-            fontFamily = FontFamily.Serif,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "A Safe Space For Your Soul",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = GreenPrimary,
-            fontFamily = FontFamily.Serif,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(14.dp))
-        Text(
-            text = "Lore is a quiet sanctuary to express your raw thoughts, process daily emotions in safety, and nurture living companions born from your feelings.",
-            fontSize = 14.sp,
-            color = TextSec,
-            textAlign = TextAlign.Center,
-            lineHeight = 22.sp,
-            modifier = Modifier.padding(horizontal = 12.dp)
-        )
-    }
-}
+        // Title
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(600, delayMillis = 200, easing = LuxuryEasing)) +
+                      slideInVertically(tween(600, delayMillis = 200, easing = LuxuryEasing)) { it / 3 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text       = "Welcome to Lore",
+                    fontSize   = 34.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color      = TextPri,
+                    fontFamily = FontFamily.Serif,
+                    textAlign  = TextAlign.Center,
+                    lineHeight = 40.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text          = "Your Living Inner Sanctuary",
+                    fontSize      = 15.sp,
+                    fontWeight    = FontWeight.Bold,
+                    color         = GreenPrimary,
+                    fontFamily    = FontFamily.Serif,
+                    textAlign     = TextAlign.Center,
+                    letterSpacing = 0.3.sp
+                )
+            }
+        }
 
-// ── Page 2: 6 Secret Mood Guardians ──────────────────────────────────────────
-@Composable
-private fun OnboardingPageCompanions() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = GoldAccent.copy(alpha = 0.12f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.35f))
+        Spacer(Modifier.height(14.dp))
+
+        // Description
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(700, delayMillis = 340, easing = LuxuryEasing)) +
+                      slideInVertically(tween(700, delayMillis = 340, easing = LuxuryEasing)) { it / 3 },
+            exit    = fadeOut(tween(150))
         ) {
             Text(
-                text = "✦ REFLECTION ARCHETYPES ✦",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = GoldAccent,
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                text       = "Lore is a private journal where your raw emotions don't just sit on a page. They breathe, grow, and hatch into living companions. Write freely. Evolve together.",
+                fontSize   = 13.5.sp,
+                color      = TextSec,
+                textAlign  = TextAlign.Center,
+                lineHeight = 22.sp,
+                modifier   = Modifier.padding(horizontal = 8.dp)
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        Text(
-            text = "Emotions Hatch Guardians",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = TextPri,
-            fontFamily = FontFamily.Serif,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Every feeling awakens a secret companion egg",
-            fontSize = 13.sp,
-            color = TextSec,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CompanionArchetypeBadge("Bright", "Joy & Sunshine", Icons.Rounded.WbSunny, Color(0xFFB88E10), Modifier.weight(1f))
-                CompanionArchetypeBadge("Calm", "Peace & Stillness", Icons.Rounded.Spa, GreenPrimary, Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CompanionArchetypeBadge("Heavy", "Resilience & Strength", Icons.Rounded.Shield, Color(0xFF4A6B47), Modifier.weight(1f))
-                CompanionArchetypeBadge("Tangled", "Confusion & Flow", Icons.Rounded.Water, Color(0xFF3B82A6), Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CompanionArchetypeBadge("Dark", "Quiet Night & Solitude", Icons.Rounded.NightsStay, Color(0xFF4A4E69), Modifier.weight(1f))
-                CompanionArchetypeBadge("Blank", "Tranquil Fresh Slate", Icons.Rounded.AutoAwesome, Color(0xFF6B705C), Modifier.weight(1f))
+        // Three pillars — icons only, no emojis
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(700, delayMillis = 480, easing = LuxuryEasing)) +
+                      slideInVertically(tween(700, delayMillis = 480, easing = LuxuryEasing)) { it / 3 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                PillarChip(Icons.Rounded.Edit,     "Express", "Write freely",    GreenPrimary, Modifier.weight(1f))
+                PillarChip(Icons.Rounded.Park,     "Evolve",  "Grow companions", GoldAccent,   Modifier.weight(1f))
+                PillarChip(Icons.Rounded.Security, "Private", "100% encrypted",  GreenDeep,    Modifier.weight(1f))
             }
         }
-
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = "✦ Names, forms & mythic evolutions hatch as you write.",
-            fontSize = 11.sp,
-            color = GreenPrimary,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
     }
 }
 
 @Composable
-private fun CompanionArchetypeBadge(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    accentColor: Color,
+private fun PillarChip(
+    icon    : ImageVector,
+    title   : String,
+    sub     : String,
+    tintCol : Color,
     modifier: Modifier = Modifier
 ) {
-    var isPressed by remember { mutableStateOf(false) }
+    Surface(
+        modifier        = modifier,
+        shape           = RoundedCornerShape(14.dp),
+        color           = BgCard,
+        border          = androidx.compose.foundation.BorderStroke(1.dp, Border),
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            modifier            = Modifier.padding(vertical = 12.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier         = Modifier.size(32.dp).clip(CircleShape).background(tintCol.copy(0.10f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = tintCol, modifier = Modifier.size(17.dp))
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(title, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TextPri, textAlign = TextAlign.Center)
+            Text(sub,   fontSize = 9.sp,  color = TextSec, textAlign = TextAlign.Center, lineHeight = 13.sp)
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PAGE 2 — Companions
+// ════════════════════════════════════════════════════════════════════
+@Composable
+private fun OnboardingPageCompanions(isCurrentPage: Boolean) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentPage) {
+        if (isCurrentPage) {
+            visible = false
+            kotlinx.coroutines.delay(60)
+            visible = true
+        }
+    }
+
+    Column(
+        modifier            = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(450, easing = LuxuryEasing)) +
+                      slideInVertically(tween(450, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                shape  = RoundedCornerShape(22.dp),
+                color  = GoldAccent.copy(alpha = 0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.26f))
+            ) {
+                Row(
+                    modifier          = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Mood, null, tint = GoldAccent, modifier = Modifier.size(10.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text          = "EMOTIONAL ARCHETYPES",
+                        fontSize      = 9.sp,
+                        fontWeight    = FontWeight.ExtraBold,
+                        color         = GoldAccent,
+                        letterSpacing = 1.8.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(550, delayMillis = 80, easing = LuxuryEasing)) +
+                      slideInVertically(tween(550, delayMillis = 80, easing = LuxuryEasing)) { it / 3 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text       = "Your Feelings Hatch Guardians",
+                    fontSize   = 25.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color      = TextPri,
+                    fontFamily = FontFamily.Serif,
+                    textAlign  = TextAlign.Center,
+                    lineHeight = 31.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text       = "Each emotion you journal awakens a mythic companion egg. Six archetypes, each carrying the essence of a different inner world.",
+                    fontSize   = 12.sp,
+                    color      = TextSec,
+                    textAlign  = TextAlign.Center,
+                    lineHeight = 19.sp,
+                    modifier   = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(650, delayMillis = 180, easing = LuxuryEasing)) +
+                      slideInVertically(tween(650, delayMillis = 180, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompanionCard("Bright",  "Joy and Sunshine",   Icons.Rounded.WbSunny,   Color(0xFFB88E10), "Joyful entries",  Modifier.weight(1f))
+                    CompanionCard("Calm",    "Peace and Stillness", Icons.Rounded.Spa,        GreenPrimary,     "Mindful writing", Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompanionCard("Heavy",   "Resilience and Depth",Icons.Rounded.Shield,    Color(0xFF4A6B47), "Hard emotions",   Modifier.weight(1f))
+                    CompanionCard("Tangled", "Confusion and Flow",  Icons.Rounded.Waves,      Color(0xFF3B82A6), "Uncertain days",  Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompanionCard("Dark",    "Night and Solitude",  Icons.Rounded.NightsStay, Color(0xFF4A4E69), "Quiet darkness",  Modifier.weight(1f))
+                    CompanionCard("Blank",   "The Fresh Slate",     Icons.Rounded.Flare,      Color(0xFF6B705C), "Neutral space",   Modifier.weight(1f))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(500, delayMillis = 300, easing = LuxuryEasing)),
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                shape  = RoundedCornerShape(14.dp),
+                color  = GreenPrimary.copy(0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GreenPrimary.copy(0.20f))
+            ) {
+                Row(
+                    modifier              = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Rounded.TouchApp, null, tint = GreenPrimary, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text       = "Long press on companion avatar anytime to enable Demo Mode",
+                        fontSize   = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = GreenPrimary,
+                        textAlign  = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompanionCard(
+    title      : String,
+    subtitle   : String,
+    icon       : ImageVector,
+    accentColor: Color,
+    trigger    : String,
+    modifier   : Modifier = Modifier
+) {
+    var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
-        label = "badge_press"
+        targetValue   = if (pressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.48f, stiffness = 420f),
+        label         = "cc_scale"
     )
+    LaunchedEffect(pressed) { if (pressed) { kotlinx.coroutines.delay(110); pressed = false } }
 
     Surface(
-        modifier = modifier
+        modifier        = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(18.dp),
-                spotColor = accentColor.copy(alpha = 0.22f),
-                ambientColor = Color.Black.copy(alpha = 0.05f)
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { isPressed = true }
-            ),
-        shape = RoundedCornerShape(18.dp),
-        color = BgCard,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.8f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { pressed = true },
+        shape           = RoundedCornerShape(16.dp),
+        color           = BgCard,
+        border          = androidx.compose.foundation.BorderStroke(1.dp, Border),
+        shadowElevation = 0.dp
     ) {
-        LaunchedEffect(isPressed) {
-            if (isPressed) {
-                kotlinx.coroutines.delay(120)
-                isPressed = false
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier         = Modifier.size(32.dp).clip(CircleShape).background(accentColor.copy(0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, null, tint = accentColor, modifier = Modifier.size(16.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(title,    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TextPri)
+                    Text(subtitle, fontSize = 8.5.sp, color = TextSec, lineHeight = 11.sp)
+                }
             }
-        }
-
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(accentColor.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = accentColor, modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPri)
-                Text(subtitle, fontSize = 9.sp, color = TextSec, lineHeight = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            Surface(shape = RoundedCornerShape(6.dp), color = accentColor.copy(0.08f)) {
+                Text(trigger, fontSize = 8.sp, color = accentColor, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
             }
         }
     }
 }
 
-// ── Page 3: Watch Them Evolve ───────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+// PAGE 3 — Evolution
+// ════════════════════════════════════════════════════════════════════
 @Composable
-private fun OnboardingPageEvolution() {
-    val infiniteTransition = rememberInfiniteTransition(label = "gold_pulse")
-    val glowScale by infiniteTransition.animateFloat(
-        initialValue = 0.94f,
-        targetValue  = 1.06f,
+private fun OnboardingPageEvolution(rotateAngle: Float, isCurrentPage: Boolean) {
+    val infiniteT   = rememberInfiniteTransition(label = "evo")
+    val goldPulse   by infiniteT.animateFloat(
+        initialValue  = 0.92f, targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "gold_pulse"
+    )
+    val glowAlpha   by infiniteT.animateFloat(
+        initialValue  = 0.35f, targetValue = 0.82f,
         animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "glow_scale"
+        label         = "gold_alpha"
     )
 
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentPage) {
+        if (isCurrentPage) {
+            visible = false
+            kotlinx.coroutines.delay(60)
+            visible = true
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier            = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = GoldAccent.copy(alpha = 0.12f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.35f))
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(450, easing = LuxuryEasing)) +
+                      slideInVertically(tween(450, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
         ) {
-            Text(
-                text = "✦ 5 MYTHIC STAGES ✦",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = GoldAccent,
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-            )
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        Box(contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(GoldAccent.copy(alpha = 0.15f))
-                    .scale(glowScale)
-            )
-            Box(
-                modifier = Modifier
-                    .size(98.dp)
-                    .shadow(16.dp, CircleShape, spotColor = GoldAccent.copy(alpha = 0.40f))
-                    .clip(CircleShape)
-                    .background(GoldAccent.copy(alpha = 0.15f))
-                    .border(1.5.dp, GoldAccent.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center
+            Surface(
+                shape  = RoundedCornerShape(22.dp),
+                color  = GoldAccent.copy(0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(0.26f))
             ) {
-                Icon(Icons.Rounded.Pets, null, tint = GoldAccent, modifier = Modifier.size(46.dp))
+                Row(
+                    modifier          = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Whatshot, null, tint = GoldAccent, modifier = Modifier.size(10.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text          = "5 MYTHIC EVOLUTION STAGES",
+                        fontSize      = 9.sp,
+                        fontWeight    = FontWeight.ExtraBold,
+                        color         = GoldAccent,
+                        letterSpacing = 1.8.sp
+                    )
+                }
             }
         }
 
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(18.dp))
 
-        Text(
-            text = "Write & Evolve",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = TextPri,
-            fontFamily = FontFamily.Serif,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Every reflection channels growth energy",
-            fontSize = 13.sp,
-            color = GreenPrimary,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
+        // Gold evolution orb with rotating ring
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(650, delayMillis = 80, easing = LuxuryEasing)) +
+                      scaleIn(tween(650, delayMillis = 80, easing = LuxuryEasing), 0.5f),
+            exit    = fadeOut(tween(150))
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp)) {
+                Canvas(modifier = Modifier.size(160.dp).graphicsLayer { rotationZ = rotateAngle }) {
+                    drawCircle(
+                        brush  = Brush.sweepGradient(listOf(GoldWarm.copy(0.58f), GoldAccent.copy(0.26f), Color.Transparent, GoldWarm.copy(0.58f))),
+                        style  = Stroke(width = 2.dp.toPx()),
+                        radius = size.minDimension / 2f - 1.dp.toPx()
+                    )
+                }
+                Box(modifier = Modifier.size(130.dp).scale(goldPulse).clip(CircleShape).background(GoldAccent.copy(0.08f)))
+                // Orb — Surface handles shadow correctly
+                Surface(
+                    modifier        = Modifier.size(102.dp),
+                    shape           = CircleShape,
+                    color           = Color.White.copy(0.94f),
+                    border          = androidx.compose.foundation.BorderStroke(1.8.dp, GoldAccent.copy(glowAlpha)),
+                    shadowElevation = (glowAlpha * 16f).dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.Transparent, GoldAccent.copy(0.08f)))))
+                        Icon(Icons.Rounded.Pets, null, tint = GoldAccent, modifier = Modifier.size(46.dp))
+                    }
+                }
+            }
+        }
 
         Spacer(Modifier.height(18.dp))
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(12.dp, RoundedCornerShape(20.dp), spotColor = GreenPrimary.copy(alpha = 0.15f)),
-            shape = RoundedCornerShape(20.dp),
-            color = BgCard,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.8f))
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(600, delayMillis = 160, easing = LuxuryEasing)) +
+                      slideInVertically(tween(600, delayMillis = 160, easing = LuxuryEasing)) { it / 3 },
+            exit    = fadeOut(tween(150))
         ) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                EvolutionStep(step = "1", title = "Hatch your Egg", desc = "Your first journal awakens a new companion egg.")
-                EvolutionStep(step = "2", title = "Nurture Daily", desc = "Reflect daily to grant XP and evolve through progressive stages.")
-                EvolutionStep(step = "3", title = "Reach Mythic Stage", desc = "Complete 30 entries to unlock their final Mythic guardian form.")
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text       = "Write, Evolve, Ascend",
+                    fontSize   = 27.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color      = TextPri,
+                    fontFamily = FontFamily.Serif,
+                    textAlign  = TextAlign.Center
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text       = "Every word channels growth energy into your companion. Witness them evolve through five mythic stages as your journal deepens.",
+                    fontSize   = 12.sp,
+                    color      = TextSec,
+                    textAlign  = TextAlign.Center,
+                    lineHeight = 19.sp,
+                    modifier   = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(650, delayMillis = 260, easing = LuxuryEasing)) +
+                      slideInVertically(tween(650, delayMillis = 260, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                modifier        = Modifier.fillMaxWidth(),
+                shape           = RoundedCornerShape(20.dp),
+                color           = BgCard,
+                border          = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                shadowElevation = 0.dp
+            ) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    EvoStep(1, "Hatch an Egg",      "Your first journal entry awakens a sleeping companion in their egg.",            GreenPrimary)
+                    DividerLine()
+                    EvoStep(2, "Nurture Daily",      "Each reflection grants XP. Emotions fuel their stage-by-stage transformation.", GoldAccent)
+                    DividerLine()
+                    EvoStep(3, "Reach Mythic Form", "30 entries unlock their final guardian form with a unique name and legend.",     GoldWarm)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(500, delayMillis = 360, easing = LuxuryEasing)),
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                shape  = RoundedCornerShape(14.dp),
+                color  = GoldAccent.copy(0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(0.20f))
+            ) {
+                Row(
+                    modifier              = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Rounded.TouchApp, null, tint = GoldAccent, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text       = "Tip: Long press avatar to toggle Demo Mode",
+                        fontSize   = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = GoldAccent,
+                        textAlign  = TextAlign.Center
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun EvolutionStep(step: String, title: String, desc: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(GreenPrimary.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center
+private fun DividerLine() {
+    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Border.copy(alpha = 0.55f)))
+}
+
+@Composable
+private fun EvoStep(step: Int, title: String, desc: String, color: Color) {
+    Row(verticalAlignment = Alignment.Top) {
+        Surface(
+            modifier = Modifier.size(32.dp),
+            shape    = CircleShape,
+            color    = color.copy(0.12f),
+            border   = androidx.compose.foundation.BorderStroke(1.dp, color.copy(0.26f))
         ) {
-            Text(step, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = GreenPrimary)
+            Box(contentAlignment = Alignment.Center) {
+                Text("$step", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = color)
+            }
         }
         Spacer(Modifier.width(14.dp))
-        Column {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPri)
-            Text(desc, fontSize = 11.sp, color = TextSec, lineHeight = 16.sp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TextPri)
+            Spacer(Modifier.height(3.dp))
+            Text(desc,  fontSize = 10.5.sp, color = TextSec, lineHeight = 16.sp)
         }
     }
 }
 
-// ── Page 4: Security & Total Privacy ───────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+// PAGE 4 — Privacy
+// ════════════════════════════════════════════════════════════════════
 @Composable
-private fun OnboardingPageSecurity() {
-    val infiniteTransition = rememberInfiniteTransition(label = "shield_breathe")
-    val shieldPulse by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue  = 1.05f,
+private fun OnboardingPageSecurity(isCurrentPage: Boolean) {
+    val infiniteT   = rememberInfiniteTransition(label = "security")
+    val shieldScale by infiniteT.animateFloat(
+        initialValue  = 0.94f, targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "shield_s"
+    )
+    val shieldGlow  by infiniteT.animateFloat(
+        initialValue  = 0.35f, targetValue = 0.88f,
         animationSpec = infiniteRepeatable(tween(2500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "shield_pulse"
+        label         = "shield_g"
     )
 
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentPage) {
+        if (isCurrentPage) {
+            visible = false
+            kotlinx.coroutines.delay(60)
+            visible = true
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier            = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = GreenPrimary.copy(alpha = 0.12f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GreenPrimary.copy(alpha = 0.35f))
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(450, easing = LuxuryEasing)) +
+                      slideInVertically(tween(450, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
         ) {
-            Text(
-                text = "✦ END-TO-END ENCRYPTED ✦",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = GreenPrimary,
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-            )
+            Surface(
+                shape  = RoundedCornerShape(22.dp),
+                color  = GreenPrimary.copy(0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GreenPrimary.copy(0.26f))
+            ) {
+                Row(
+                    modifier          = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.GppGood, null, tint = GreenPrimary, modifier = Modifier.size(10.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text          = "ZERO KNOWLEDGE  TOTAL CONTROL",
+                        fontSize      = 9.sp,
+                        fontWeight    = FontWeight.ExtraBold,
+                        color         = GreenPrimary,
+                        letterSpacing = 1.6.sp
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(20.dp))
 
-        Box(contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(GreenPrimary.copy(alpha = 0.15f))
-                    .scale(shieldPulse)
-            )
-            Box(
-                modifier = Modifier
-                    .size(98.dp)
-                    .shadow(16.dp, CircleShape, spotColor = GreenPrimary.copy(alpha = 0.40f))
-                    .clip(CircleShape)
-                    .background(GreenPrimary.copy(alpha = 0.15f))
-                    .border(1.5.dp, GreenPrimary.copy(alpha = 0.4f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Rounded.Lock, null, tint = GreenPrimary, modifier = Modifier.size(46.dp))
+        // Pulsing shield orb
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(650, delayMillis = 80, easing = LuxuryEasing)) +
+                      scaleIn(tween(650, delayMillis = 80, easing = LuxuryEasing), 0.5f),
+            exit    = fadeOut(tween(150))
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(150.dp)) {
+                Box(modifier = Modifier.size(138.dp).scale(shieldScale).clip(CircleShape).background(GreenPrimary.copy(0.06f)))
+                Surface(
+                    modifier        = Modifier.size(110.dp),
+                    shape           = CircleShape,
+                    color           = Color.White.copy(0.94f),
+                    border          = androidx.compose.foundation.BorderStroke(1.8.dp, GreenPrimary.copy(shieldGlow * 0.78f)),
+                    shadowElevation = (shieldGlow * 16f).dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.Transparent, GreenPrimary.copy(0.07f)))))
+                        Icon(Icons.Rounded.Lock, null, tint = GreenPrimary, modifier = Modifier.size(48.dp))
+                    }
+                }
             }
         }
 
-        Spacer(Modifier.height(22.dp))
-
-        Text(
-            text = "Total Privacy & Control",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = TextPri,
-            fontFamily = FontFamily.Serif,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Your thoughts belong to you alone",
-            fontSize = 13.sp,
-            color = GreenPrimary,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-
         Spacer(Modifier.height(18.dp))
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(12.dp, RoundedCornerShape(20.dp), spotColor = GreenPrimary.copy(alpha = 0.15f)),
-            shape = RoundedCornerShape(20.dp),
-            color = BgCard,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.8f))
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(600, delayMillis = 160, easing = LuxuryEasing)) +
+                      slideInVertically(tween(600, delayMillis = 160, easing = LuxuryEasing)) { it / 3 },
+            exit    = fadeOut(tween(150))
         ) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SecurityFeature(Icons.Rounded.Fingerprint, "App Lock & Biometrics", "Secure your sanctuary with PIN or Fingerprint.")
-                SecurityFeature(Icons.Rounded.VisibilityOff, "Decoy PIN Vault", "Enter a fake PIN to show a blank stealth journal.")
-                SecurityFeature(Icons.Rounded.Shield, "Screenshot Protection", "Prevents screen grabs and hides recent app previews.")
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text       = "Total Privacy and Control",
+                    fontSize   = 27.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color      = TextPri,
+                    fontFamily = FontFamily.Serif,
+                    textAlign  = TextAlign.Center
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text       = "Your thoughts belong only to you. Lore is built with military-grade privacy. No cloud sync, no ads, no tracking. Ever.",
+                    fontSize   = 12.sp,
+                    color      = TextSec,
+                    textAlign  = TextAlign.Center,
+                    lineHeight = 19.sp,
+                    modifier   = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(650, delayMillis = 260, easing = LuxuryEasing)) +
+                      slideInVertically(tween(650, delayMillis = 260, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                modifier        = Modifier.fillMaxWidth(),
+                shape           = RoundedCornerShape(20.dp),
+                color           = BgCard,
+                border          = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                shadowElevation = 0.dp
+            ) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    PrivacyFeature(Icons.Rounded.Fingerprint,   "App Lock and Biometrics", "Secure your sanctuary with PIN or Fingerprint.")
+                    DividerLine()
+                    PrivacyFeature(Icons.Rounded.VisibilityOff, "Decoy PIN Vault",         "Enter a decoy PIN to reveal a blank stealth journal to prying eyes.")
+                    DividerLine()
+                    PrivacyFeature(Icons.Rounded.Shield,        "Screenshot Blackout",     "Prevents all screen captures and hides content in the recent apps view.")
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // Final promise badge
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(500, delayMillis = 400, easing = LuxuryEasing)),
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                shape  = RoundedCornerShape(12.dp),
+                color  = GreenDeep.copy(0.07f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GreenDeep.copy(0.16f))
+            ) {
+                Row(
+                    modifier          = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Rounded.VerifiedUser, null, tint = GreenDeep, modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text          = "No cloud  No ads  No data collection  Ever",
+                        fontSize      = 10.sp,
+                        fontWeight    = FontWeight.Bold,
+                        color         = GreenDeep,
+                        textAlign     = TextAlign.Center,
+                        letterSpacing = 0.4.sp
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SecurityFeature(icon: ImageVector, title: String, desc: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(GreenPrimary.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
+private fun PrivacyFeature(icon: ImageVector, title: String, desc: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Surface(
+            modifier = Modifier.size(34.dp),
+            shape    = RoundedCornerShape(10.dp),
+            color    = GreenPrimary.copy(0.10f)
         ) {
-            Icon(icon, null, tint = GreenPrimary, modifier = Modifier.size(18.dp))
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = GreenPrimary, modifier = Modifier.size(17.dp))
+            }
         }
         Spacer(Modifier.width(12.dp))
-        Column {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPri)
-            Text(desc, fontSize = 11.sp, color = TextSec, lineHeight = 15.sp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TextPri)
+            Spacer(Modifier.height(2.dp))
+            Text(desc,  fontSize = 10.5.sp, color = TextSec, lineHeight = 16.sp)
+        }
+    }
+}
+// ══════════════════════════════════════════════════════════════════
+// PAGE 5 — On-Device AI: Your Companion Learns You
+// ══════════════════════════════════════════════════════════════════
+@Composable
+private fun OnboardingPageAI(rotateAngle: Float, isCurrentPage: Boolean) {
+    val infiniteT  = rememberInfiniteTransition(label = "ai")
+    val brainPulse by infiniteT.animateFloat(
+        initialValue  = 0.90f, targetValue = 1.10f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "brain_pulse"
+    )
+    val brainGlow  by infiniteT.animateFloat(
+        initialValue  = 0.30f, targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "brain_glow"
+    )
+    val scanLine   by infiniteT.animateFloat(
+        initialValue  = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(8000, easing = LinearEasing), RepeatMode.Restart),
+        label         = "scan_line"
+    )
+
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentPage) {
+        if (isCurrentPage) {
+            visible = false
+            kotlinx.coroutines.delay(60)
+            visible = true
+        }
+    }
+
+    Column(
+        modifier            = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Badge
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(450, easing = LuxuryEasing)) +
+                      slideInVertically(tween(450, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                shape  = RoundedCornerShape(22.dp),
+                color  = AIAccent.copy(0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, AIAccent.copy(0.26f))
+            ) {
+                Row(
+                    modifier          = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Psychology, null, tint = AIAccent, modifier = Modifier.size(10.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text          = "100% ON-DEVICE INTELLIGENCE",
+                        fontSize      = 9.sp,
+                        fontWeight    = FontWeight.ExtraBold,
+                        color         = AIAccent,
+                        letterSpacing = 1.6.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        // Hero: AI brain orb with rotating scan ring
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(700, delayMillis = 80, easing = LuxuryEasing)) +
+                      scaleIn(tween(700, delayMillis = 80, easing = LuxuryEasing), 0.5f),
+            exit    = fadeOut(tween(150))
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(170.dp)) {
+                // Outer scan ring
+                Canvas(modifier = Modifier.size(170.dp).graphicsLayer { rotationZ = scanLine }) {
+                    drawCircle(
+                        brush  = Brush.sweepGradient(
+                            listOf(AIAccent.copy(0.75f), GoldAccent.copy(0.30f), Color.Transparent, Color.Transparent, AIAccent.copy(0.75f))
+                        ),
+                        style  = Stroke(width = 2.dp.toPx()),
+                        radius = size.minDimension / 2f - 1.dp.toPx()
+                    )
+                    // Scan tip sparkle dot
+                    val r = size.minDimension / 2f - 1.dp.toPx()
+                    drawCircle(
+                        color  = GoldAccent.copy(0.90f),
+                        radius = 4.dp.toPx(),
+                        center = Offset(center.x + r, center.y)
+                    )
+                }
+                // Slower counter-rotating halo
+                Canvas(modifier = Modifier.size(145.dp).graphicsLayer { rotationZ = -rotateAngle * 0.4f }) {
+                    drawCircle(
+                        brush  = Brush.sweepGradient(
+                            listOf(AIAccent.copy(0.20f), Color.Transparent, AIAccent.copy(0.20f))
+                        ),
+                        style  = Stroke(width = 1.dp.toPx()),
+                        radius = size.minDimension / 2f - 1.dp.toPx()
+                    )
+                }
+                // Pulse halo
+                Box(modifier = Modifier.size(130.dp).scale(brainPulse).clip(CircleShape).background(AIAccent.copy(0.07f)))
+                // Core orb — no box shadow, glow lives in the orb border
+                Surface(
+                    modifier = Modifier.size(108.dp),
+                    shape    = CircleShape,
+                    color    = Color.White.copy(0.94f),
+                    border   = androidx.compose.foundation.BorderStroke(1.8.dp, AIAccent.copy(brainGlow * 0.80f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.Transparent, AIAccent.copy(0.10f)))))
+                        Icon(Icons.Rounded.EmojiEmotions, null, tint = AIAccent, modifier = Modifier.size(52.dp))
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        // Title
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(600, delayMillis = 180, easing = LuxuryEasing)) +
+                      slideInVertically(tween(600, delayMillis = 180, easing = LuxuryEasing)) { it / 3 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text       = "Your Companion Learns You",
+                    fontSize   = 27.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color      = TextPri,
+                    fontFamily = FontFamily.Serif,
+                    textAlign  = TextAlign.Center,
+                    lineHeight = 33.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text       = "As you write, your companion silently studies your patterns. It reads your emotions, remembers your rhythms, and adapts to you. Not a generic AI. Your AI.",
+                    fontSize   = 12.sp,
+                    color      = TextSec,
+                    textAlign  = TextAlign.Center,
+                    lineHeight = 19.sp,
+                    modifier   = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Feature cards
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(650, delayMillis = 280, easing = LuxuryEasing)) +
+                      slideInVertically(tween(650, delayMillis = 280, easing = LuxuryEasing)) { it / 2 },
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                modifier        = Modifier.fillMaxWidth(),
+                shape           = RoundedCornerShape(20.dp),
+                color           = BgCard,
+                border          = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                shadowElevation = 0.dp
+            ) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    AIFeature(
+                        icon  = Icons.Rounded.FavoriteBorder,
+                        color = Color(0xFFC05A5A),
+                        title = "Reads Your Emotions",
+                        desc  = "Every entry is analyzed locally for mood patterns. Your companion senses how you truly feel, even when you cannot name it."
+                    )
+                    DividerLine()
+                    AIFeature(
+                        icon  = Icons.AutoMirrored.Rounded.TrendingUp,
+                        color = GoldAccent,
+                        title = "Learns and Evolves With You",
+                        desc  = "The more you write, the sharper the understanding. Dynamic stats, mood trends, and growth insights that are uniquely yours."
+                    )
+                    DividerLine()
+                    AIFeature(
+                        icon  = Icons.Rounded.AirplanemodeActive,
+                        color = AIAccent,
+                        title = "Works Fully Offline",
+                        desc  = "Zero servers. Zero cloud. The entire AI runs on your device. Open Lore on a plane with no signal. It all works perfectly."
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // Final note
+        AnimatedVisibility(
+            visible = visible,
+            enter   = fadeIn(tween(500, delayMillis = 420, easing = LuxuryEasing)),
+            exit    = fadeOut(tween(150))
+        ) {
+            Surface(
+                shape  = RoundedCornerShape(12.dp),
+                color  = AIAccent.copy(0.07f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, AIAccent.copy(0.16f))
+            ) {
+                Row(
+                    modifier              = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Rounded.PhonelinkLock, null, tint = AIAccent, modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text          = "Your data never leaves your device. Ever.",
+                        fontSize      = 10.sp,
+                        fontWeight    = FontWeight.Bold,
+                        color         = AIAccent,
+                        textAlign     = TextAlign.Center,
+                        letterSpacing = 0.4.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AIFeature(icon: ImageVector, color: Color, title: String, desc: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Surface(
+            modifier = Modifier.size(36.dp),
+            shape    = RoundedCornerShape(10.dp),
+            color    = color.copy(0.10f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TextPri)
+            Spacer(Modifier.height(3.dp))
+            Text(desc,  fontSize = 10.5.sp, color = TextSec, lineHeight = 16.sp)
         }
     }
 }
