@@ -156,8 +156,8 @@ fun IdentityScreen(
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "Identity",
-                            color = Color.White.copy(alpha = 0.8f),
+                            text = "Lore Sanctuary",
+                            color = Color.White.copy(alpha = 0.9f),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Serif

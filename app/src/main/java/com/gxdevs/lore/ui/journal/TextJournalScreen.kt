@@ -1343,7 +1343,7 @@ fun TextJournalScreen(
                     decorationBox = { innerTextField ->
                         if (title.isEmpty()) {
                             Text(
-                                text = "Give it a title..",
+                                text = "Sanctuary Reflection..",
                                 style = TextStyle(
                                     color = textSecondary.copy(alpha = 0.5f),
                                     fontSize = 42.sp,
@@ -1383,7 +1383,7 @@ fun TextJournalScreen(
                     decorationBox = { innerTextField ->
                         if (richTextState.textFieldValue.text.isEmpty()) {
                             Text(
-                                text = "What's on your mind today? Write as much as you need...",
+                                text = "Pour your heart into Lore... your thoughts are safe and held in warmth.",
                                 style = TextStyle(
                                     color = textSecondary.copy(alpha = 0.5f),
                                     fontSize = 18.sp,

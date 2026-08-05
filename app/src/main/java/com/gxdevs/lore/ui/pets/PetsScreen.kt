@@ -692,7 +692,7 @@ fun PetsScreen(
                 Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                     if (filteredIndices.isEmpty()) {
                         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                            Text("No companions match this filter.", color = textSecondary, fontSize = 14.sp, fontStyle = FontStyle.Italic)
+                            Text("No sanctuary guardians match this filter.", color = textSecondary, fontSize = 14.sp, fontStyle = FontStyle.Italic)
                         }
                     } else {
                         for (i in filteredIndices.indices step 3) {

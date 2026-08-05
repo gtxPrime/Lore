@@ -491,14 +491,14 @@ fun HomeTabContent(
                                     Text("\u2726", fontSize = 28.sp, color = primaryAccent.copy(alpha = 0.4f))
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Text(
-                                        text = "Nothing written today",
+                                        text = "Your Sanctuary is Peaceful",
                                         color = textPrimary,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Tap the pen below to begin your first entry.",
+                                        text = "Tap the quill below to share your heart and awaken your secret companion.",
                                         color = textSecondary,
                                         fontSize = 13.sp,
                                         lineHeight = 20.sp,
@@ -1182,7 +1182,7 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
             } else {
                 // ── Empty state ──────────────────────────────────────────────
                 Text(
-                    "Awaiting\nSpark",
+                    "Your Sanctuary\nAwaits",
                     color = Color.White,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -1190,7 +1190,7 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
                 )
                 Spacer(modifier = Modifier.height(7.dp))
                 Text(
-                    "Write your first journal\nto awaken a companion.",
+                    "Write your daily reflection\nto awaken your secret companion.",
                     color = Color.White.copy(alpha = 0.82f),
                     fontSize = 12.sp,
                     lineHeight = 17.sp
@@ -1320,7 +1320,7 @@ private fun IncubatingSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("GROWING", color = textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Text("NURTURING IN SANCTUARY", color = textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             Text("VIEW ALL >", color = primaryAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onViewAllClick() })
         }
 

@@ -376,7 +376,7 @@ private fun OnboardingPageWelcome() {
     }
 }
 
-// ── Page 2: Mystery Emotion Guardians ─────────────────────────────────────────
+// ── Page 2: 6 Secret Mood Guardians ──────────────────────────────────────────
 @Composable
 private fun OnboardingPageCompanions() {
     Column(
@@ -385,62 +385,88 @@ private fun OnboardingPageCompanions() {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Emotions Awaken Guardians",
+            text = "6 Emotion Archetypes",
             fontSize = 26.sp,
             fontWeight = FontWeight.ExtraBold,
             color = TextPri,
             fontFamily = FontFamily.Serif,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
-            text = "Every feeling holds a secret companion waiting to hatch",
+            text = "Every feeling awakens a secret guardian egg",
             fontSize = 13.sp,
             color = TextSec,
             textAlign = TextAlign.Center
         )
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(14.dp))
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            CompanionCard(
-                name = "Bright & Warm",
-                type = "Golden Reflection",
-                desc = "Awakened by joy, gratitude, and sunny moments.",
-                icon = Icons.Rounded.WbSunny,
-                accentColor = Color(0xFFB88E10)
-            )
-            CompanionCard(
-                name = "Calm & Still",
-                type = "Sage Reflection",
-                desc = "Awakened by peace, mindfulness, and quiet stillness.",
-                icon = Icons.Rounded.Spa,
-                accentColor = GreenPrimary
-            )
-            CompanionCard(
-                name = "Heavy & Deep",
-                type = "Resilient Reflection",
-                desc = "Awakened by unspoken burdens and hidden strength.",
-                icon = Icons.Rounded.Shield,
-                accentColor = Color(0xFF4A6B47)
-            )
-            CompanionCard(
-                name = "Tangled & Drifting",
-                type = "Current Reflection",
-                desc = "Awakened by confusion, unraveling thoughts into clarity.",
-                icon = Icons.Rounded.Water,
-                accentColor = Color(0xFF3B82A6)
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CompanionArchetypeBadge("Bright", "Joy & Sunshine", Icons.Rounded.WbSunny, Color(0xFFB88E10), Modifier.weight(1f))
+                CompanionArchetypeBadge("Calm", "Peace & Stillness", Icons.Rounded.Spa, GreenPrimary, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CompanionArchetypeBadge("Heavy", "Resilience & Burdens", Icons.Rounded.Shield, Color(0xFF4A6B47), Modifier.weight(1f))
+                CompanionArchetypeBadge("Tangled", "Confusion & Flow", Icons.Rounded.Water, Color(0xFF3B82A6), Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CompanionArchetypeBadge("Dark", "Quiet Night & Solitude", Icons.Rounded.NightsStay, Color(0xFF4A4E69), Modifier.weight(1f))
+                CompanionArchetypeBadge("Blank", "Tranquil Fresh Slate", Icons.Rounded.AutoAwesome, Color(0xFF6B705C), Modifier.weight(1f))
+            }
         }
 
         Spacer(Modifier.height(14.dp))
         Text(
-            text = "✦ Their names, forms & mythic evolutions are revealed as you write.",
+            text = "✦ Names, forms & mythic evolutions hatch as you write.",
             fontSize = 11.sp,
             color = GreenPrimary,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+@Composable
+private fun CompanionArchetypeBadge(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(16.dp),
+                spotColor = accentColor.copy(alpha = 0.15f),
+                ambientColor = Color.Black.copy(alpha = 0.04f)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        color = BgCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.8f))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = accentColor, modifier = Modifier.size(17.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPri)
+                Text(subtitle, fontSize = 9.sp, color = TextSec, lineHeight = 12.sp)
+            }
+        }
     }
 }
 
