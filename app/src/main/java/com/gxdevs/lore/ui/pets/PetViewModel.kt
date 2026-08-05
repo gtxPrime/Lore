@@ -263,6 +263,13 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         setDemoStageOverride(next)
     }
 
+    fun updatePetNickname(petId: String, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            defDao.updatePetName(petId, newName)
+            recalculateFromHistorySuspend()
+        }
+    }
+
     fun cycleDemoPet() {
         val next = _demoPetIndex.value + 1
         _demoPetIndex.value = next

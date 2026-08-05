@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -182,6 +183,12 @@ fun PetsScreen(
 
     val filteredIndices = remember(pets) { pets.indices.toList() }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val premiumManager = remember { com.gxdevs.lore.utils.PremiumManager.getInstance(context) }
+    val isPremium by premiumManager.isPremium.collectAsState()
+
+    var showRenameDialogPet by remember { mutableStateOf<PetUiState?>(null) }
+    var renameInputText by remember { mutableStateOf("") }
     var levelUpDialogPet by remember { mutableStateOf<PetUiState?>(null) }
 
     // --- Dynamic Active Pet Palette (updates as pager scrolls or pet changes) ---
@@ -458,14 +465,61 @@ fun PetsScreen(
                         modifier              = Modifier.fillMaxWidth(),
                         horizontalAlignment   = Alignment.CenterHorizontally
                     ) {
-                        // Pet name from DB (Solara, Cappi, Pebble, River, Luna, Vael)
-                        Text(
-                            text       = targetPet.name,
-                            fontSize   = 32.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Serif,
-                            color      = textPrimary
-                        )
+                        // Pet name from DB (Solara, Cappi, Pebble, River, Luna, Vael) + Edit Icon
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text       = targetPet.name,
+                                fontSize   = 30.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Serif,
+                                color      = textPrimary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isPremium) targetMoodColor.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.05f))
+                                    .clickable {
+                                        if (isPremium) {
+                                            renameInputText = targetPet.name
+                                            showRenameDialogPet = targetPet
+                                        } else {
+                                            try {
+                                                context.startActivity(android.content.Intent(context, com.gxdevs.lore.ui.premium.PremiumActivity::class.java))
+                                            } catch (_: Exception) {}
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isPremium) {
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Rounded.Edit,
+                                        contentDescription = "Rename Companion",
+                                        tint = targetMoodColor,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                } else {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Rounded.Edit,
+                                            contentDescription = "Rename Companion (Locked)",
+                                            tint = textSecondary.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Rounded.Lock,
+                                            contentDescription = "Locked",
+                                            tint = Color(0xFFB88E10),
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         // Emotion label (mood category)
                         Text(
                             text          = targetPet.emotion.uppercase(),
@@ -755,6 +809,54 @@ fun PetsScreen(
                 }
                 Spacer(modifier = Modifier.height(30.dp))
             }
+
+    if (showRenameDialogPet != null) {
+        val petToRename = showRenameDialogPet!!
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showRenameDialogPet = null },
+            title = {
+                Text("Rename ${petToRename.name}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = textPrimary)
+            },
+            text = {
+                Column {
+                    Text("Give your ${petToRename.emotion.uppercase()} companion a custom nickname:", fontSize = 13.sp, color = textSecondary)
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = renameInputText,
+                        onValueChange = { renameInputText = it },
+                        singleLine = true,
+                        label = { Text("Companion Nickname") },
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primaryAccent,
+                            unfocusedBorderColor = borderColor
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        if (renameInputText.isNotBlank()) {
+                            viewModel.updatePetNickname(petToRename.petId, renameInputText.trim())
+                        }
+                        showRenameDialogPet = null
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = primaryAccent),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showRenameDialogPet = null }) {
+                    Text("Cancel", color = textSecondary)
+                }
+            },
+            containerColor = cardBackground,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
         }
 
         val pendingPet by viewModel.pendingLevelUpPet.collectAsState()

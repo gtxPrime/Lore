@@ -42,6 +42,9 @@ interface PetDefinitionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(defs: List<PetDefinition>)
+
+    @Query("UPDATE pet_definitions SET name = :newName WHERE petId = :petId")
+    suspend fun updatePetName(petId: String, newName: String)
 }
 
 // -----------------------------------------------------------------------------

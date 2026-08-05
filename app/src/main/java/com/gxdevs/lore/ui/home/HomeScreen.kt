@@ -1705,6 +1705,8 @@ private fun BottomDockedArea(
                     drawCircle(brush = glowBrush, radius = radiusPx, center = center)
                 }
 
+                val context = LocalContext.current
+                val scope = rememberCoroutineScope()
                 // Button
                 Box(
                     modifier = Modifier
@@ -1715,9 +1717,18 @@ private fun BottomDockedArea(
                         )
                         .clip(CircleShape)
                         .background(accentBackground)
-                        .clickable(onClick = {
-                            if (isHomeTab) onWriteJournal() else onNavigatePage(2)
-                        }),
+                        .combinedClickable(
+                            onClick = {
+                                if (isHomeTab) onWriteJournal() else onNavigatePage(2)
+                            },
+                            onLongClick = {
+                                val repo = com.gxdevs.lore.data.SettingsRepository(context)
+                                scope.launch {
+                                    repo.setHasCompletedOnboarding(false)
+                                }
+                                android.widget.Toast.makeText(context, "Replaying Onboarding Guide (Demo)", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     AnimatedContent(
