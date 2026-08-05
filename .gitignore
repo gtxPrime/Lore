@@ -32,6 +32,8 @@ release/
 *.keystore
 *.pk8
 *.pem
+*.aab
+key.properties
 /signing/
 
 # OS-specific files

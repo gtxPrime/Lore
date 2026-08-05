@@ -1,0 +1,8 @@
+# key.properties — Release Keystore Configuration
+# Fill in your keystore path, alias, and passwords below.
+# Note: Keep key.properties out of version control (.gitignore).
+
+storeFile=release.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+keyPassword=YOUR_KEY_PASSWORD
