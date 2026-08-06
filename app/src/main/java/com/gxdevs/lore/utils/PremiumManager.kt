@@ -84,16 +84,18 @@ class PremiumManager private constructor(private val context: Context) : Purchas
             override fun onBillingSetupFinished(billingResult: BillingResult) {
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                     _billingStatus.value = "Connected"
+                    Log.i(TAG, "✅ [LoreBilling] Billing setup finished successfully (OK)")
                     queryAvailableProducts()
                     queryExistingPurchases()
                 } else {
                     _billingStatus.value = "Setup Failed (${billingResult.responseCode})"
-                    Log.w(TAG, "Billing setup failed: ${billingResult.debugMessage}")
+                    Log.e(TAG, "❌ [LoreBilling] Billing setup failed. Code=${billingResult.responseCode}, Msg=${billingResult.debugMessage}")
                 }
             }
 
             override fun onBillingServiceDisconnected() {
                 _billingStatus.value = "Disconnected"
+                Log.w(TAG, "⚠️ [LoreBilling] Billing service disconnected. Reconnecting in 5s...")
                 scope.launch {
                     kotlinx.coroutines.delay(5_000)
                     connectToGooglePlay()
@@ -105,7 +107,12 @@ class PremiumManager private constructor(private val context: Context) : Purchas
     /** Queries available products (Subscriptions & Lifetime IAP) from Google Play Console. */
     fun queryAvailableProducts() {
         val client = billingClient ?: return
-        if (!client.isReady) return
+        if (!client.isReady) {
+            Log.w(TAG, "⚠️ [LoreBilling] Cannot query products — BillingClient not ready")
+            return
+        }
+
+        Log.d(TAG, "🔍 [LoreBilling] Querying product details for: $PRODUCT_MONTHLY, $PRODUCT_ANNUAL, $PRODUCT_LIFETIME")
 
         val subsList = listOf(
             QueryProductDetailsParams.Product.newBuilder()
@@ -133,9 +140,14 @@ class PremiumManager private constructor(private val context: Context) : Purchas
 
         client.queryProductDetailsAsync(subsParams) { billingResult, queryResult ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                Log.d(TAG, "✅ [LoreBilling] SUBS products fetched: ${queryResult.productDetailsList.size} item(s)")
+                queryResult.productDetailsList.forEach { details ->
+                    val price = details.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice ?: "N/A"
+                    Log.d(TAG, "   ↳ Sub Product: id=${details.productId}, title=${details.title}, price=$price")
+                }
                 accumulatedProducts.addAll(queryResult.productDetailsList)
             } else {
-                Log.w(TAG, "queryProductDetailsAsync SUBS failed: ${billingResult.debugMessage}")
+                Log.w(TAG, "⚠️ [LoreBilling] queryProductDetailsAsync SUBS failed: code=${billingResult.responseCode}, msg=${billingResult.debugMessage}")
             }
 
             val inappParams = QueryProductDetailsParams.newBuilder()
@@ -144,13 +156,18 @@ class PremiumManager private constructor(private val context: Context) : Purchas
 
             client.queryProductDetailsAsync(inappParams) { inappResult, inappQueryResult ->
                 if (inappResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                    Log.d(TAG, "✅ [LoreBilling] INAPP products fetched: ${inappQueryResult.productDetailsList.size} item(s)")
+                    inappQueryResult.productDetailsList.forEach { details ->
+                        val price = details.oneTimePurchaseOfferDetails?.formattedPrice ?: "N/A"
+                        Log.d(TAG, "   ↳ InApp Product: id=${details.productId}, title=${details.title}, price=$price")
+                    }
                     accumulatedProducts.addAll(inappQueryResult.productDetailsList)
                 } else {
-                    Log.w(TAG, "queryProductDetailsAsync INAPP failed: ${inappResult.debugMessage}")
+                    Log.w(TAG, "⚠️ [LoreBilling] queryProductDetailsAsync INAPP failed: code=${inappResult.responseCode}, msg=${inappResult.debugMessage}")
                 }
                 _productDetailsList.value = accumulatedProducts.toList()
                 _billingStatus.value = "Products Loaded (${accumulatedProducts.size})"
-                Log.d(TAG, "Product details loaded: ${accumulatedProducts.size} product(s)")
+                Log.i(TAG, "📦 [LoreBilling] Total available products ready: ${accumulatedProducts.size}")
             }
         }
     }
@@ -158,7 +175,12 @@ class PremiumManager private constructor(private val context: Context) : Purchas
     /** Queries existing purchases to restore entitlements (SUBS & INAPP). */
     fun queryExistingPurchases() {
         val client = billingClient ?: return
-        if (!client.isReady) return
+        if (!client.isReady) {
+            Log.w(TAG, "⚠️ [LoreBilling] Cannot query purchases — BillingClient not ready")
+            return
+        }
+
+        Log.d(TAG, "🔎 [LoreBilling] Checking active purchases on Google Play...")
 
         // Check Subscriptions
         client.queryPurchasesAsync(
@@ -167,7 +189,10 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                 .build()
         ) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                Log.d(TAG, "✅ [LoreBilling] Query SUBS purchases result: ${purchases.size} purchase(s) found")
                 processPurchases(purchases)
+            } else {
+                Log.w(TAG, "⚠️ [LoreBilling] Query SUBS purchases error: ${billingResult.debugMessage}")
             }
         }
 
@@ -178,7 +203,10 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                 .build()
         ) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                Log.d(TAG, "✅ [LoreBilling] Query INAPP purchases result: ${purchases.size} purchase(s) found")
                 processPurchases(purchases)
+            } else {
+                Log.w(TAG, "⚠️ [LoreBilling] Query INAPP purchases error: ${billingResult.debugMessage}")
             }
         }
     }
@@ -190,15 +218,16 @@ class PremiumManager private constructor(private val context: Context) : Purchas
     fun launchPurchaseFlow(activity: Activity, productId: String = PRODUCT_ANNUAL, onResult: (Boolean, String) -> Unit) {
         val client = billingClient
         if (client == null || !client.isReady) {
-            Log.w(TAG, "Billing client not ready — reconnecting to Play Store")
+            Log.w(TAG, "❌ [LoreBilling] Billing client not ready for launchPurchaseFlow — reconnecting")
             connectToGooglePlay()
             onResult(false, "Connecting to Google Play... Please try again.")
             return
         }
 
+        Log.i(TAG, "🚀 [LoreBilling] Launching purchase flow for productId: $productId")
         val details = _productDetailsList.value.find { it.productId == productId }
         if (details == null) {
-            Log.w(TAG, "Product details not found for $productId — re-querying Play Store")
+            Log.w(TAG, "⚠️ [LoreBilling] Product details not found for $productId in cache (${_productDetailsList.value.size} items available). Re-querying...")
             queryAvailableProducts()
             onResult(false, "Loading product details from Google Play... Please try again in a moment.")
             return
@@ -206,6 +235,7 @@ class PremiumManager private constructor(private val context: Context) : Purchas
 
         val productDetailsParamsList = if (details.productType == BillingClient.ProductType.SUBS) {
             val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken ?: ""
+            Log.d(TAG, "   ↳ Preparing SUBS purchase: offerToken=${if (offerToken.isNotBlank()) "VALID" else "EMPTY"}")
             listOf(
                 BillingFlowParams.ProductDetailsParams.newBuilder()
                     .setProductDetails(details)
@@ -213,6 +243,7 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                     .build()
             )
         } else {
+            Log.d(TAG, "   ↳ Preparing INAPP lifetime purchase")
             listOf(
                 BillingFlowParams.ProductDetailsParams.newBuilder()
                     .setProductDetails(details)
@@ -225,6 +256,7 @@ class PremiumManager private constructor(private val context: Context) : Purchas
             .build()
 
         val response = client.launchBillingFlow(activity, billingFlowParams)
+        Log.i(TAG, "💳 [LoreBilling] launchBillingFlow returned code=${response.responseCode}, msg=${response.debugMessage}")
         if (response.responseCode != BillingClient.BillingResponseCode.OK) {
             onResult(false, "Billing Error: ${response.debugMessage}")
         } else {
@@ -233,15 +265,21 @@ class PremiumManager private constructor(private val context: Context) : Purchas
     }
 
     override fun onPurchasesUpdated(billingResult: BillingResult, purchases: MutableList<Purchase>?) {
+        Log.i(TAG, "🔔 [LoreBilling] onPurchasesUpdated event received: code=${billingResult.responseCode}, count=${purchases?.size ?: 0}")
         when (billingResult.responseCode) {
             BillingClient.BillingResponseCode.OK -> {
-                if (purchases != null) processPurchases(purchases)
+                if (purchases != null) {
+                    purchases.forEach { p ->
+                        Log.d(TAG, "   ↳ Purchase: orderId=${p.orderId}, products=${p.products}, state=${p.purchaseState}, acknowledged=${p.isAcknowledged}")
+                    }
+                    processPurchases(purchases)
+                }
             }
             BillingClient.BillingResponseCode.USER_CANCELED -> {
-                Log.d(TAG, "Purchase cancelled by user.")
+                Log.d(TAG, "ℹ️ [LoreBilling] Purchase flow cancelled by user.")
             }
             else -> {
-                Log.e(TAG, "Purchase error: ${billingResult.debugMessage}")
+                Log.e(TAG, "❌ [LoreBilling] Purchase flow error: code=${billingResult.responseCode}, msg=${billingResult.debugMessage}")
             }
         }
     }
@@ -251,11 +289,14 @@ class PremiumManager private constructor(private val context: Context) : Purchas
         for (purchase in purchases) {
             if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
                 hasValidPurchase = true
+                Log.d(TAG, "✅ [LoreBilling] Valid purchased item found: ${purchase.products}")
                 if (!purchase.isAcknowledged) {
+                    Log.d(TAG, "   ↳ Acknowledging purchase: ${purchase.purchaseToken.take(12)}...")
                     acknowledgePurchase(purchase)
                 }
             }
         }
+        Log.i(TAG, "🔒 [LoreBilling] Processing purchases complete — hasValidPurchase=$hasValidPurchase")
         updatePremiumEntitlement(hasValidPurchase)
     }
 
@@ -267,15 +308,16 @@ class PremiumManager private constructor(private val context: Context) : Purchas
 
         client.acknowledgePurchase(params) { billingResult ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                Log.d(TAG, "Purchase acknowledged successfully.")
+                Log.d(TAG, "✅ [LoreBilling] Purchase acknowledged successfully.")
             } else {
-                Log.w(TAG, "Acknowledgement failed: ${billingResult.debugMessage}")
+                Log.w(TAG, "⚠️ [LoreBilling] Acknowledgement failed: ${billingResult.debugMessage}")
             }
         }
     }
 
     /** Updates premium entitlement based on Google Play purchases. */
     fun updatePremiumEntitlement(unlocked: Boolean) {
+        Log.i(TAG, "💎 [LoreBilling] Updating entitlement state: unlocked=$unlocked")
         _isPremium.value = unlocked
         scope.launch {
             settingsRepo.setPremiumUnlocked(unlocked)
