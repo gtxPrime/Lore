@@ -62,11 +62,11 @@ fun PremiumPaywallDialog(
 }
 
 /**
- * Reusable dialog presented when attempting to access a locked Lore Scantury feature.
+ * Reusable dialog presented when attempting to access a locked Lore Sanctuary feature.
  * The CTA navigates directly to the Premium screen.
  */
 @Composable
-fun LoreScanturyFeatureDialog(
+fun LoreSanctuaryFeatureDialog(
     title: String,
     subtitle: String,
     icon: ImageVector = Icons.Rounded.WorkspacePremium,
@@ -114,7 +114,7 @@ fun LoreScanturyFeatureDialog(
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Lore Scantury",
+                    "Lore Sanctuary",
                     color = GoldPrimary,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 11.sp,
@@ -182,7 +182,7 @@ fun LoreScanturyFeatureDialog(
                             Icon(Icons.Rounded.WorkspacePremium, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "Unlock Lore Scantury",
+                                "Unlock Lore Sanctuary",
                                 color = Color.White,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 15.sp,
@@ -208,7 +208,7 @@ fun LoreScanturyFeatureDialog(
 }
 
 /**
- * Full-screen Lore Scantury paywall — cinematic hero, emotional copy, animated CTA.
+ * Full-screen Lore Sanctuary paywall — cinematic hero, emotional copy, animated CTA.
  * Navigate to this composable via the "premium_paywall" nav route.
  */
 @Composable
@@ -303,7 +303,7 @@ fun PremiumPaywallScreen(
                         Icon(Icons.Rounded.Star, null, tint = GoldPrimary, modifier = Modifier.size(11.dp))
                         Spacer(Modifier.width(5.dp))
                         Text(
-                            "LORE SCANTURY",
+                            "LORE SANCTUARY",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = GoldPrimary,
@@ -387,7 +387,7 @@ fun PremiumPaywallScreen(
 
             // ── Hero Copy ─────────────────────────────────────────────────────
             Text(
-                text = "Lore Scantury",
+                text = "Lore Sanctuary",
                 fontSize = 34.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = TextPrimary,
@@ -643,7 +643,7 @@ fun PremiumPaywallScreen(
                                 isPurchasing = false
                                 if (success) {
                                     showConfetti = true
-                                    Toast.makeText(context, "🎉 Welcome to Lore Scantury!", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "🎉 Welcome to Lore Sanctuary!", Toast.LENGTH_LONG).show()
                                 } else {
                                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                 }
@@ -665,7 +665,7 @@ fun PremiumPaywallScreen(
                         Icon(Icons.Rounded.WorkspacePremium, null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            text = if (isAlreadyPremium) "LORE SCANTURY ACTIVE" else "START MY SANCTUARY",
+                            text = if (isAlreadyPremium) "LORE SANCTUARY ACTIVE" else "START MY SANCTUARY",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
@@ -719,22 +719,16 @@ fun PremiumPaywallScreen(
                     }
                 )
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable {
-                        premiumManager.grantTestPremium(!isAlreadyPremium)
-                        if (!isAlreadyPremium) showConfetti = true
-                    }
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        if (isAlreadyPremium) Icons.Rounded.CheckCircle else Icons.Rounded.Science,
+                        if (isAlreadyPremium) Icons.Rounded.CheckCircle else Icons.Rounded.Lock,
                         null,
                         tint = AccentGreen,
                         modifier = Modifier.size(11.dp)
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = if (isAlreadyPremium) "Premium Active" else "Dev Test Unlock",
+                        text = if (isAlreadyPremium) "Premium Active" else "Secured by Google Play",
                         fontSize = 11.sp,
                         color = AccentGreen,
                         fontWeight = FontWeight.Bold

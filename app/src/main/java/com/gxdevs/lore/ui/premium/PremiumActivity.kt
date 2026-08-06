@@ -131,6 +131,8 @@ fun PremiumScreen(onBack: () -> Unit) {
             } catch (e: Exception) {
                 e.printStackTrace()
                 Toast.makeText(context, "Sign-In error occurred", Toast.LENGTH_LONG).show()
+            } finally {
+                MainActivity.bypassNextLock = false
             }
         }
     }
@@ -189,7 +191,7 @@ fun PremiumScreen(onBack: () -> Unit) {
             },
             text = {
                 Text(
-                    "To complete your Lore Scantury purchase and lock your entitlement securely across all your devices, please sign in with your Google account.",
+                    "To complete your Lore Sanctuary purchase and lock your entitlement securely across all your devices, please sign in with your Google account.",
                     color = TextSec, fontSize = 13.sp, lineHeight = 19.sp
                 )
             },
@@ -247,7 +249,7 @@ fun PremiumScreen(onBack: () -> Unit) {
                     border = androidx.compose.foundation.BorderStroke(1.dp, GoldMid.copy(alpha = 0.5f))
                 ) {
                     Text(
-                        "LORE SCANTURY",
+                        "LORE SANCTUARY",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = GoldHi,
@@ -289,7 +291,7 @@ fun PremiumScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(14.dp))
 
                     Text(
-                        "Lore Scantury",
+                        "Lore Sanctuary",
                         fontSize = 30.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White,
@@ -437,7 +439,7 @@ fun PremiumScreen(onBack: () -> Unit) {
                         Icon(Icons.Rounded.WorkspacePremium, null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            if (isAlreadyPro) "LORE SCANTURY ACTIVE" else "START MY SANCTUARY",
+                            if (isAlreadyPro) "LORE SANCTUARY ACTIVE" else "START MY SANCTUARY",
                             fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, letterSpacing = 0.4.sp
                         )
                         if (!isAlreadyPro) {
@@ -475,18 +477,13 @@ fun PremiumScreen(onBack: () -> Unit) {
                         Toast.makeText(context, "Checking Google Play...", Toast.LENGTH_SHORT).show()
                     }
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable {
-                        pm.grantTestPremium(!isAlreadyPro)
-                    }
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        if (isAlreadyPro) Icons.Rounded.CheckCircle else Icons.Rounded.Science,
+                        if (isAlreadyPro) Icons.Rounded.CheckCircle else Icons.Rounded.Lock,
                         null, tint = GreenHero1, modifier = Modifier.size(11.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text(if (isAlreadyPro) "Premium Active" else "Dev Test Unlock", fontSize = 11.sp, color = GreenHero1, fontWeight = FontWeight.Bold)
+                    Text(if (isAlreadyPro) "Premium Active" else "Secured by Google Play", fontSize = 11.sp, color = GreenHero1, fontWeight = FontWeight.Bold)
                 }
             }
 

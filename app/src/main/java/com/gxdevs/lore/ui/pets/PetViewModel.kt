@@ -227,11 +227,6 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putBoolean("is_demo_mode", next).apply()
         if (next) {
             preloadAllPetImages()
-            // Auto-enable premium so all features are testable in demo mode
-            PremiumManager.getInstance(getApplication()).grantTestPremium(true)
-        } else {
-            // Restore real purchase state from Google Play when exiting demo
-            PremiumManager.getInstance(getApplication()).queryExistingPurchases()
         }
     }
 

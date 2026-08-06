@@ -15,9 +15,9 @@ import kotlinx.coroutines.launch
  * Google Play Billing Manager for Aethra+.
  *
  * Supported Products:
- * 1. [PRODUCT_MONTHLY]:  `lore_scantury_monthly` (Monthly Subscription)
- * 2. [PRODUCT_ANNUAL]:   `lore_scantury_annual`  (Annual Subscription - 50% OFF)
- * 3. [PRODUCT_LIFETIME]: `lore_scantury`         (Lifetime Sanctuary Pass - In-App Product)
+ * 1. [PRODUCT_MONTHLY]:  `lore_sanctuary_monthly` (Monthly Subscription)
+ * 2. [PRODUCT_ANNUAL]:   `lore_sanctuary_annual`  (Annual Subscription - 50% OFF)
+ * 3. [PRODUCT_LIFETIME]: `lore_sanctuary`         (Lifetime Sanctuary Pass - In-App Product)
  *
  * Uses Play Billing Library v9 API.
  * Entitlement is stored in DataStore via SettingsRepository so it
@@ -28,9 +28,9 @@ class PremiumManager private constructor(private val context: Context) : Purchas
     companion object {
         const val TAG = "PremiumManager"
 
-        const val PRODUCT_MONTHLY  = "lore_scantury_monthly"
-        const val PRODUCT_ANNUAL   = "lore_scantury_annual"
-        const val PRODUCT_LIFETIME = "lore_scantury"
+        const val PRODUCT_MONTHLY  = "lore_sanctuary_monthly"
+        const val PRODUCT_ANNUAL   = "lore_sanctuary_annual"
+        const val PRODUCT_LIFETIME = "lore_sanctuary"
 
         @Volatile
         private var INSTANCE: PremiumManager? = null
@@ -198,10 +198,9 @@ class PremiumManager private constructor(private val context: Context) : Purchas
 
         val details = _productDetailsList.value.find { it.productId == productId }
         if (details == null) {
-            Log.w(TAG, "Product details not found for $productId — re-querying and granting test mode")
+            Log.w(TAG, "Product details not found for $productId — re-querying Play Store")
             queryAvailableProducts()
-            grantTestPremium(true)
-            onResult(true, "Lore Scantury unlocked!")
+            onResult(false, "Loading product details from Google Play... Please try again in a moment.")
             return
         }
 
@@ -257,9 +256,7 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                 }
             }
         }
-        if (hasValidPurchase) {
-            grantTestPremium(true)
-        }
+        updatePremiumEntitlement(hasValidPurchase)
     }
 
     private fun acknowledgePurchase(purchase: Purchase) {
@@ -277,16 +274,12 @@ class PremiumManager private constructor(private val context: Context) : Purchas
         }
     }
 
-    /** Grants or revokes premium entitlement. */
-    fun grantTestPremium(unlocked: Boolean) {
+    /** Updates premium entitlement based on Google Play purchases. */
+    fun updatePremiumEntitlement(unlocked: Boolean) {
         _isPremium.value = unlocked
         scope.launch {
             settingsRepo.setPremiumUnlocked(unlocked)
-            settingsRepo.setSubscriptionPlan(if (unlocked) "LORE SCANTURY (PRO)" else "FREE")
-        }
-        val msg = if (unlocked) "Lore Scantury: Activated (PRO)" else "Lore Scantury: Deactivated (FREE)"
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            settingsRepo.setSubscriptionPlan(if (unlocked) "LORE SANCTUARY (PRO)" else "FREE")
         }
     }
 }

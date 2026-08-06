@@ -110,36 +110,9 @@ dependencies {
     implementation libs.androidx.room.runtime
     ksp libs.androidx.room.compiler
     implementation libs.apiRoom.ktx
-
-    // ── On-Device AI Stack (100% Free, 100% Private, ~0 KB overhead) ──────────
-    // Architecture: User mood selection IS the training signal.
-    // The adaptive model learns each user's personal writing style over time.
-    // No 20MB model needed — personalization beats generic models for journals.
-    //
-    // Layer 1: MoodScoringEngine   — pure Kotlin lexicon, 25+ languages, bigrams/negation
-    // Layer 2: SentimentScorer     — pure Kotlin VADER algorithm, compound scoring
-    // Layer 3: ML Kit Language ID  — 110 languages, instant, fully offline
-    // Layer 4: AdaptiveMoodModel   — Room Naive Bayes, learns from every user confirmation
-    //
-    // Privacy: All processing on-device. No text ever leaves the device.
-
-    // ML Kit Language ID — BUNDLED (17.0.6). ~900KB. Works fully offline.
-    // Identifies 110 languages to apply the correct lexicon weight boosts.
     implementation libs.mlkit.language.id
-
-    // MediaPipe + LiteRT removed — no bundled model needed.
-    // The adaptive Room-based Naive Bayes is more accurate for personal journals
-    // than a generic MobileBERT because it learns THIS user's specific vocabulary.
-    // Can be added back later if a bundled model is ever introduced.
-    // implementation 'com.google.mediapipe:tasks-text:0.10.35'
-    // implementation 'com.google.android.gms:play-services-tflite-java:16.5.0'
-    // implementation 'com.google.android.gms:play-services-tflite-support:16.5.0'
-
-    // ── Security & Auth ───────────────────────────────────────────────────────
     implementation libs.androidx.security.crypto
     implementation libs.androidx.biometric
-
-    // ── Media & Data ──────────────────────────────────────────────────────────
     implementation libs.glide.compose
     implementation libs.google.gson
     implementation libs.androidx.datastore.preferences
@@ -148,11 +121,7 @@ dependencies {
     // Media3 ExoPlayer
     implementation libs.androidx.media3.exoplayer
     implementation libs.androidx.media3.ui
-
-    // WorkManager (background model download on first launch)
     implementation libs.androidx.work.runtime.ktx
-
-    // ── Firebase ──────────────────────────────────────────────────────────────
     implementation platform(libs.firebase.bom)
     implementation libs.firebase.remote.config
 
