@@ -132,7 +132,7 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                 .build()
         )
 
-        val accumulatedProducts = mutableListOf<ProductDetails>()
+        val currentProducts = mutableListOf<ProductDetails>()
 
         val subsParams = QueryProductDetailsParams.newBuilder()
             .setProductList(subsList)
@@ -145,29 +145,34 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                     val price = details.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice ?: "N/A"
                     Log.d(TAG, "   ↳ Sub Product: id=${details.productId}, title=${details.title}, price=$price")
                 }
-                accumulatedProducts.addAll(queryResult.productDetailsList)
+                synchronized(currentProducts) {
+                    currentProducts.removeAll { p -> queryResult.productDetailsList.any { it.productId == p.productId } }
+                    currentProducts.addAll(queryResult.productDetailsList)
+                    _productDetailsList.value = currentProducts.toList()
+                }
             } else {
                 Log.w(TAG, "⚠️ [LoreBilling] queryProductDetailsAsync SUBS failed: code=${billingResult.responseCode}, msg=${billingResult.debugMessage}")
             }
+        }
 
-            val inappParams = QueryProductDetailsParams.newBuilder()
-                .setProductList(inappList)
-                .build()
+        val inappParams = QueryProductDetailsParams.newBuilder()
+            .setProductList(inappList)
+            .build()
 
-            client.queryProductDetailsAsync(inappParams) { inappResult, inappQueryResult ->
-                if (inappResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    Log.d(TAG, "✅ [LoreBilling] INAPP products fetched: ${inappQueryResult.productDetailsList.size} item(s)")
-                    inappQueryResult.productDetailsList.forEach { details ->
-                        val price = details.oneTimePurchaseOfferDetails?.formattedPrice ?: "N/A"
-                        Log.d(TAG, "   ↳ InApp Product: id=${details.productId}, title=${details.title}, price=$price")
-                    }
-                    accumulatedProducts.addAll(inappQueryResult.productDetailsList)
-                } else {
-                    Log.w(TAG, "⚠️ [LoreBilling] queryProductDetailsAsync INAPP failed: code=${inappResult.responseCode}, msg=${inappResult.debugMessage}")
+        client.queryProductDetailsAsync(inappParams) { inappResult, inappQueryResult ->
+            if (inappResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                Log.d(TAG, "✅ [LoreBilling] INAPP products fetched: ${inappQueryResult.productDetailsList.size} item(s)")
+                inappQueryResult.productDetailsList.forEach { details ->
+                    val price = details.oneTimePurchaseOfferDetails?.formattedPrice ?: "N/A"
+                    Log.d(TAG, "   ↳ InApp Product: id=${details.productId}, title=${details.title}, price=$price")
                 }
-                _productDetailsList.value = accumulatedProducts.toList()
-                _billingStatus.value = "Products Loaded (${accumulatedProducts.size})"
-                Log.i(TAG, "📦 [LoreBilling] Total available products ready: ${accumulatedProducts.size}")
+                synchronized(currentProducts) {
+                    currentProducts.removeAll { p -> inappQueryResult.productDetailsList.any { it.productId == p.productId } }
+                    currentProducts.addAll(inappQueryResult.productDetailsList)
+                    _productDetailsList.value = currentProducts.toList()
+                }
+            } else {
+                Log.w(TAG, "⚠️ [LoreBilling] queryProductDetailsAsync INAPP failed: code=${inappResult.responseCode}, msg=${inappResult.debugMessage}")
             }
         }
     }
@@ -286,18 +291,27 @@ class PremiumManager private constructor(private val context: Context) : Purchas
 
     private fun processPurchases(purchases: List<Purchase>) {
         var hasValidPurchase = false
+        var activePlanTitle = "LORE SANCTUARY (PRO)"
+
         for (purchase in purchases) {
             if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
                 hasValidPurchase = true
-                Log.d(TAG, "✅ [LoreBilling] Valid purchased item found: ${purchase.products}")
+                val prodId = purchase.products.firstOrNull() ?: ""
+                activePlanTitle = when (prodId) {
+                    PRODUCT_ANNUAL -> "Annual Plan (50% OFF)"
+                    PRODUCT_MONTHLY -> "Monthly Plan"
+                    PRODUCT_LIFETIME -> "Lifetime Sanctuary Pass"
+                    else -> "Lore Sanctuary (PRO)"
+                }
+                Log.d(TAG, "✅ [LoreBilling] Valid purchased item found: $prodId ($activePlanTitle)")
                 if (!purchase.isAcknowledged) {
                     Log.d(TAG, "   ↳ Acknowledging purchase: ${purchase.purchaseToken.take(12)}...")
                     acknowledgePurchase(purchase)
                 }
             }
         }
-        Log.i(TAG, "🔒 [LoreBilling] Processing purchases complete — hasValidPurchase=$hasValidPurchase")
-        updatePremiumEntitlement(hasValidPurchase)
+        Log.i(TAG, "🔒 [LoreBilling] Processing purchases complete — hasValidPurchase=$hasValidPurchase, plan=$activePlanTitle")
+        updatePremiumEntitlement(hasValidPurchase, if (hasValidPurchase) activePlanTitle else "FREE")
     }
 
     private fun acknowledgePurchase(purchase: Purchase) {
@@ -316,12 +330,12 @@ class PremiumManager private constructor(private val context: Context) : Purchas
     }
 
     /** Updates premium entitlement based on Google Play purchases. */
-    fun updatePremiumEntitlement(unlocked: Boolean) {
-        Log.i(TAG, "💎 [LoreBilling] Updating entitlement state: unlocked=$unlocked")
+    fun updatePremiumEntitlement(unlocked: Boolean, planTitle: String = "LORE SANCTUARY (PRO)") {
+        Log.i(TAG, "💎 [LoreBilling] Updating entitlement state: unlocked=$unlocked, plan=$planTitle")
         _isPremium.value = unlocked
         scope.launch {
             settingsRepo.setPremiumUnlocked(unlocked)
-            settingsRepo.setSubscriptionPlan(if (unlocked) "LORE SANCTUARY (PRO)" else "FREE")
+            settingsRepo.setSubscriptionPlan(if (unlocked) planTitle else "FREE")
         }
     }
 }

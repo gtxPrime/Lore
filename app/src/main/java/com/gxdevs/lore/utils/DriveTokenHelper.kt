@@ -30,10 +30,21 @@ object DriveTokenHelper {
         withContext(Dispatchers.IO) {
             try {
                 val repo = SettingsRepository(context)
-                val email = repo.googleAccountEmail.first()
-                    ?: return@withContext Result.failure(
-                        IllegalStateException("No Google account signed in")
-                    )
+                var email = repo.googleAccountEmail.first()
+                if (email.isNullOrBlank()) {
+                    val accounts = try {
+                        android.accounts.AccountManager.get(context).getAccountsByType("com.google")
+                    } catch (_: Exception) { emptyArray() }
+                    if (accounts.isNotEmpty()) {
+                        email = accounts[0].name
+                        repo.setGoogleAccountEmail(email)
+                        repo.setGoogleLoggedIn(true)
+                    } else {
+                        return@withContext Result.failure(
+                            IllegalStateException("No Google account signed in. Please sign in to Google first.")
+                        )
+                    }
+                }
                 val account = Account(email, "com.google")
                 val token = GoogleAuthUtil.getToken(
                     context.applicationContext,

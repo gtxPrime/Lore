@@ -23,6 +23,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Nurtale"
+rootProject.name = "Lore"
 include ':app'
 

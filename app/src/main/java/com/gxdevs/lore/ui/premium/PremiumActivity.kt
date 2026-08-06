@@ -79,12 +79,14 @@ fun PremiumScreen(onBack: () -> Unit) {
     val pm             = remember { PremiumManager.getInstance(context) }
     val isAlreadyPro   by pm.isPremium.collectAsState()
     val products       by pm.productDetailsList.collectAsState()
+    val activePlanName by settingsRepo.subscriptionPlan.collectAsState(initial = "LORE SANCTUARY (PRO)")
 
     val googleLoggedIn by settingsRepo.googleLoggedIn.collectAsState(initial = false)
 
     var selectedPlan          by remember { mutableStateOf(PremiumManager.PRODUCT_ANNUAL) }
     var isPurchasing          by remember { mutableStateOf(false) }
     var showGoogleLoginDialog by remember { mutableStateOf(false) }
+    var showCelebration       by remember { mutableStateOf(false) }
 
     // ── Google Sign-In Helper ───────────────────────────────────────────────
     fun performGoogleSignIn(onSuccess: () -> Unit) {
@@ -147,7 +149,11 @@ fun PremiumScreen(onBack: () -> Unit) {
         if (act != null) {
             pm.launchPurchaseFlow(act, selectedPlan) { ok, msg ->
                 isPurchasing = false
-                if (!ok) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                if (ok) {
+                    showCelebration = true
+                } else {
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
             }
         } else { isPurchasing = false }
     }
@@ -224,6 +230,15 @@ fun PremiumScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .background(BgPage)
     ) {
+        if (showCelebration) {
+            ConfettiOverlay()
+            CelebrationDialog(
+                onDismiss = {
+                    showCelebration = false
+                    onBack()
+                }
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -369,37 +384,115 @@ fun PremiumScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(24.dp))
 
-            // ── Plan Chooser ──────────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("CHOOSE YOUR PLAN", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TextSec, letterSpacing = 1.5.sp)
-                Surface(shape = RoundedCornerShape(8.dp), color = GreenLight) {
-                    Text("Cancel anytime", fontSize = 9.sp, color = GreenHero1, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+            if (isAlreadyPro) {
+                // ── Active Pro Membership Status Card ──────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(BgCard)
+                        .border(1.5.dp, GoldMid.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
+                        .padding(20.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(GoldBg)
+                                    .border(1.dp, GoldMid, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.CheckCircle, null, tint = GoldHi, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "LORE SANCTUARY PRO ACTIVE",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = GoldHi,
+                                    letterSpacing = 1.2.sp
+                                )
+                                Spacer(Modifier.height(3.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = GoldBg,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldMid.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = activePlanName ?: "LORE SANCTUARY (PRO)",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = GoldHi,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(color = Border)
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Your subscription is active and managed through Google Play.",
+                            fontSize = 11.sp,
+                            color = TextSec,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
+            } else {
+                // ── Plan Chooser (Shown only when NOT premium) ────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("CHOOSE YOUR PLAN", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TextSec, letterSpacing = 1.5.sp)
+                    Surface(shape = RoundedCornerShape(8.dp), color = GreenLight) {
+                        Text("Cancel anytime", fontSize = 9.sp, color = GreenHero1, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+
+                val annualDetails = products.find { it.productId == PremiumManager.PRODUCT_ANNUAL }
+                val monthlyDetails = products.find { it.productId == PremiumManager.PRODUCT_MONTHLY }
+                val lifetimeDetails = products.find { it.productId == PremiumManager.PRODUCT_LIFETIME }
+
+                val annualPhase = annualDetails?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()
+                val monthlyPhase = monthlyDetails?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()
+
+                val annualPrice = annualPhase?.formattedPrice ?: "₹199 / year"
+                val monthlyPrice = monthlyPhase?.formattedPrice ?: "₹29 / month"
+                val rawLifetimePrice = lifetimeDetails?.oneTimePurchaseOfferDetails?.formattedPrice
+                    ?: lifetimeDetails?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
+                val lifetimePrice = if (rawLifetimePrice != null) "$rawLifetimePrice one-time" else "₹2,499 one-time"
+
+                val savingsBadgeText = remember(annualPhase, monthlyPhase) {
+                    val monthlyMicros = monthlyPhase?.priceAmountMicros ?: 0L
+                    val annualMicros = annualPhase?.priceAmountMicros ?: 0L
+                    if (monthlyMicros > 0L && annualMicros > 0L) {
+                        val fullYearMonthlyCost = monthlyMicros * 12.0
+                        val savings = (((fullYearMonthlyCost - annualMicros) / fullYearMonthlyCost) * 100).toInt()
+                        if (savings > 0) "SAVE ${savings}%" else "SAVE 50%"
+                    } else {
+                        "SAVE 50%"
+                    }
+                }
+
+                PlanCard("Annual", annualPrice, "Best deal · billed yearly", savingsBadgeText, gold = true,
+                    selected = selectedPlan == PremiumManager.PRODUCT_ANNUAL, borderA = borderA,
+                    onClick = { selectedPlan = PremiumManager.PRODUCT_ANNUAL })
+                Spacer(Modifier.height(8.dp))
+                PlanCard("Monthly", monthlyPrice, "Flexible · cancel anytime", null, gold = false,
+                    selected = selectedPlan == PremiumManager.PRODUCT_MONTHLY, borderA = borderA,
+                    onClick = { selectedPlan = PremiumManager.PRODUCT_MONTHLY })
+                Spacer(Modifier.height(8.dp))
+                PlanCard("Lifetime", lifetimePrice, "Pay once · own forever", "BEST VALUE", gold = false,
+                    selected = selectedPlan == PremiumManager.PRODUCT_LIFETIME, borderA = borderA,
+                    onClick = { selectedPlan = PremiumManager.PRODUCT_LIFETIME })
             }
-            Spacer(Modifier.height(10.dp))
-
-            val annualPrice = products.find { it.productId == PremiumManager.PRODUCT_ANNUAL }
-                ?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice ?: "₹199 / year"
-            val monthlyPrice = products.find { it.productId == PremiumManager.PRODUCT_MONTHLY }
-                ?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice ?: "₹29 / month"
-            val lifetimePrice = products.find { it.productId == PremiumManager.PRODUCT_LIFETIME }
-                ?.oneTimePurchaseOfferDetails?.formattedPrice ?: "₹499 one-time"
-
-            PlanCard("Annual", annualPrice, "Best deal · billed yearly", "SAVE 50%", gold = true,
-                selected = selectedPlan == PremiumManager.PRODUCT_ANNUAL, borderA = borderA,
-                onClick = { selectedPlan = PremiumManager.PRODUCT_ANNUAL })
-            Spacer(Modifier.height(8.dp))
-            PlanCard("Monthly", monthlyPrice, "Flexible · cancel anytime", null, gold = false,
-                selected = selectedPlan == PremiumManager.PRODUCT_MONTHLY, borderA = borderA,
-                onClick = { selectedPlan = PremiumManager.PRODUCT_MONTHLY })
-            Spacer(Modifier.height(8.dp))
-            PlanCard("Lifetime", lifetimePrice, "Pay once · own forever", "BEST VALUE", gold = false,
-                selected = selectedPlan == PremiumManager.PRODUCT_LIFETIME, borderA = borderA,
-                onClick = { selectedPlan = PremiumManager.PRODUCT_LIFETIME })
 
             Spacer(Modifier.height(24.dp))
 
@@ -436,10 +529,10 @@ fun PremiumScreen(onBack: () -> Unit) {
                     CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.WorkspacePremium, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(if (isAlreadyPro) Icons.Rounded.CheckCircle else Icons.Rounded.WorkspacePremium, null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            if (isAlreadyPro) "LORE SANCTUARY ACTIVE" else "START MY SANCTUARY",
+                            if (isAlreadyPro) "SANCTUARY UNLOCKED ✓" else "START MY SANCTUARY",
                             fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, letterSpacing = 0.4.sp
                         )
                         if (!isAlreadyPro) {
@@ -490,6 +583,207 @@ fun PremiumScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(44.dp))
         }
     }
+}
+
+// ── Celebratory Confetti & Success Overlay ─────────────────────────────────────
+
+private class ConfettiParticle(
+    var xRatio: Float,
+    var yRatio: Float,
+    val speedY: Float,
+    val speedX: Float,
+    val size: Float,
+    val color: Color
+)
+
+@Composable
+private fun ConfettiOverlay(
+    modifier: Modifier = Modifier
+) {
+    val particles = remember {
+        val colors = listOf(
+            Color(0xFFD4AF37), // Gold
+            Color(0xFFF3C042), // Gold Bright
+            Color(0xFF606F49), // Green Hero
+            Color(0xFF7CB87A), // Green Light
+            Color(0xFFFFFFFF), // White Sparkle
+            Color(0xFFE8C15A)  // Champagne
+        )
+        List(85) {
+            ConfettiParticle(
+                xRatio = (0f..1f).randomFloat(),
+                yRatio = ((-0.5f)..0.1f).randomFloat(),
+                speedY = (0.003f..0.009f).randomFloat(),
+                speedX = ((-0.002f)..0.002f).randomFloat(),
+                size = (6f..14f).randomFloat(),
+                color = colors.random()
+            )
+        }
+    }
+
+    var tick by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < 6000) {
+            kotlinx.coroutines.android.awaitFrame()
+            tick = System.currentTimeMillis()
+            particles.forEach { p ->
+                p.yRatio += p.speedY
+                p.xRatio += p.speedX
+            }
+        }
+    }
+
+    androidx.compose.foundation.Canvas(modifier = modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        particles.forEach { p ->
+            if (p.yRatio in -0.5f..1.2f) {
+                val cx = p.xRatio * w
+                val cy = p.yRatio * h
+                drawCircle(
+                    color = p.color,
+                    radius = p.size,
+                    center = Offset(cx, cy)
+                )
+            }
+        }
+    }
+}
+
+private fun ClosedRange<Float>.randomFloat(): Float =
+    (start + (endInclusive - start) * Math.random()).toFloat()
+
+@Composable
+private fun CelebrationDialog(
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BgCard,
+        shape = RoundedCornerShape(26.dp),
+        title = null,
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                // Crown Badge
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(GoldMid.copy(alpha = 0.35f), Color.Transparent)
+                            )
+                        )
+                        .border(2.dp, GoldMid, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.WorkspacePremium,
+                        contentDescription = "Success",
+                        tint = GoldHi,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Text(
+                    text = "SANCTUARY UNLOCKED!",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = TextPri,
+                    fontFamily = FontFamily.Serif,
+                    letterSpacing = (-0.5).sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(Modifier.height(6.dp))
+
+                Text(
+                    text = "Welcome to Lore Sanctuary. All features including 3x XP, Unlimited Voice, Decoy Mode, and Google Drive Auto-Sync are now active across all your devices.",
+                    fontSize = 13.sp,
+                    color = TextSec,
+                    lineHeight = 19.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(Modifier.height(18.dp))
+
+                // Feature Chips
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = GreenLight.copy(alpha = 0.6f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GreenHero1.copy(alpha = 0.4f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "⚡ 3x XP",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenHero1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = GoldBg,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldMid.copy(alpha = 0.4f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "🎙️ Unlimited",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GoldHi,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = GreenLight.copy(alpha = 0.6f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GreenHero1.copy(alpha = 0.4f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "☁️ Drive Sync",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenHero1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = GreenHero1),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                Text(
+                    text = "EXPLORE SANCTUARY",
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                    letterSpacing = 0.5.sp
+                )
+            }
+        }
+    )
 }
 
 // ── Sub-composables ─────────────────────────────────────────────────────────────

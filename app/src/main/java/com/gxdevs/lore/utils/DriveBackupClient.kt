@@ -90,7 +90,7 @@ object DriveBackupClient {
     suspend fun getLastModifiedTime(token: String): String? =
         withContext(Dispatchers.IO) {
             try {
-                val query = URLEncoder.encode("name = '$BACKUP_FILE_NAME' and trashed = false", "UTF-8")
+                val query = URLEncoder.encode("(name = '$BACKUP_FILE_NAME' or name = 'lore_backup.aeth' or name = 'aethra_backup.aeth') and trashed = false", "UTF-8")
                 val url = URL("$DRIVE_FILES_URL?spaces=appDataFolder&fields=files(modifiedTime)&q=$query")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.setRequestProperty("Authorization", "Bearer $token")
@@ -120,7 +120,7 @@ object DriveBackupClient {
     /** Returns the Drive file ID of the existing backup (.lore), or null. */
     private fun findExistingBackupId(token: String): String? {
         return try {
-            val query = URLEncoder.encode("name = '$BACKUP_FILE_NAME' and trashed = false", "UTF-8")
+            val query = URLEncoder.encode("(name = '$BACKUP_FILE_NAME' or name = 'lore_backup.aeth' or name = 'aethra_backup.aeth') and trashed = false", "UTF-8")
             val url = URL("$DRIVE_FILES_URL?spaces=appDataFolder&fields=files(id,name)&q=$query")
             val conn = url.openConnection() as HttpURLConnection
             conn.setRequestProperty("Authorization", "Bearer $token")

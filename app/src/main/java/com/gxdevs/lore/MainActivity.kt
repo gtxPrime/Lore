@@ -114,6 +114,9 @@ class MainActivity : FragmentActivity() {
         checkForUpdate()
         createNotificationChannels(this)
 
+        // ── Google Play Billing: re-verify active subscription status ─────────
+        com.gxdevs.lore.utils.PremiumManager.getInstance(applicationContext).queryExistingPurchases()
+
         // ── Pet catalog: schedule 24-hour remote sync ─────────────────────────
         PetCatalogSyncWorker.schedule(this)
 
@@ -312,22 +315,30 @@ class MainActivity : FragmentActivity() {
                             else cancelDailyReminder(this@MainActivity)
                         }
 
-                        val hasCompletedOnboarding by settingsRepo.hasCompletedOnboarding.collectAsState(initial = true)
-                        val startDest = if (!hasCompletedOnboarding) "onboarding" else "home"
+                        val hasCompletedOnboardingState by settingsRepo.hasCompletedOnboarding.collectAsState(initial = null)
 
-                        SharedTransitionLayout {
-                            CompositionLocalProvider(
-                                LocalSharedTransitionScope provides this
-                            ) {
-                                NavHost(
-                                    navController = navController,
-                                    startDestination = startDest,
-                                    modifier = Modifier.fillMaxSize(),
-                                    enterTransition = { fadeIn(animationSpec = tween(150)) },
-                                    exitTransition = { fadeOut(animationSpec = tween(150)) },
-                                    popEnterTransition = { fadeIn(animationSpec = tween(150)) },
-                                    popExitTransition = { fadeOut(animationSpec = tween(150)) }
+                        if (hasCompletedOnboardingState == null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(androidx.compose.ui.graphics.Color(0xFFEBE8E0))
+                            )
+                        } else {
+                            val startDest = if (hasCompletedOnboardingState == false) "onboarding" else "home"
+
+                            SharedTransitionLayout {
+                                CompositionLocalProvider(
+                                    LocalSharedTransitionScope provides this
                                 ) {
+                                    NavHost(
+                                        navController = navController,
+                                        startDestination = startDest,
+                                        modifier = Modifier.fillMaxSize(),
+                                        enterTransition = { fadeIn(animationSpec = tween(150)) },
+                                        exitTransition = { fadeOut(animationSpec = tween(150)) },
+                                        popEnterTransition = { fadeIn(animationSpec = tween(150)) },
+                                        popExitTransition = { fadeOut(animationSpec = tween(150)) }
+                                    ) {
                                     composable("onboarding") {
                                         com.gxdevs.lore.ui.onboarding.OnboardingScreen(
                                             onComplete = {
@@ -529,10 +540,11 @@ class MainActivity : FragmentActivity() {
                             )
                         }
                     }
-                }
-                }
-            }
-        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else {
                     // Branded loading state while security settings initialise
                     Box(
