@@ -186,7 +186,7 @@ class SettingsRepository(private val context: Context) {
     val subscriptionPlan: Flow<String?> = context.dataStore.data
         .map { prefs ->
             val unlocked = prefs[KEY_IS_PREMIUM_UNLOCKED] ?: false
-            if (unlocked) (prefs[KEY_SUBSCRIPTION_PLAN] ?: "LORE SCANTURY (PRO)") else "FREE"
+            if (unlocked) (prefs[KEY_SUBSCRIPTION_PLAN] ?: "LORE SANCTUARY (PRO)") else "FREE"
         }
 
     val encryptMedia: Flow<Boolean> = context.dataStore.data

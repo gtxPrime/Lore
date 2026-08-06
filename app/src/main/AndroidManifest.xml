@@ -44,7 +44,7 @@
             android:theme="@style/Theme.MyApplication"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
-        <!-- Dedicated Lore Scantury premium purchase screen -->
+        <!-- Dedicated Lore Sanctuary premium purchase screen -->
         <activity
             android:name=".ui.premium.PremiumActivity"
             android:exported="false"

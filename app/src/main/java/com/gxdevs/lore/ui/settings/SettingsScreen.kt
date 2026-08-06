@@ -655,7 +655,7 @@ fun SettingsScreenUI(
     var featureIcon       by remember { mutableStateOf(Icons.Rounded.WorkspacePremium) }
 
     if (showFeatureDialog) {
-        com.gxdevs.lore.ui.components.LoreScanturyFeatureDialog(
+        com.gxdevs.lore.ui.components.LoreSanctuaryFeatureDialog(
             title = featureTitle,
             subtitle = featureSubtitle,
             icon = featureIcon,
@@ -837,7 +837,7 @@ fun SettingsScreenUI(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // ── Lore Scantury Banner / Active Badge ─────────────────────────────────────
+        // ── Lore Sanctuary Banner / Active Badge ─────────────────────────────────────
         if (!isPremium) {
             CompactPremiumBanner(onClick = onNavigateToPremium)
         } else {
@@ -1331,7 +1331,7 @@ fun SettingsScreenUI(
                     onDismissRequest = { showWidgetComingSoon = false },
                     title = { Text("Home Screen Widgets 📱", color = textPrimary, fontWeight = FontWeight.Bold) },
                     text = {
-                        Text("Keep your spirit companion and current journaling streak right on your home screen with customizable Glance widgets.\n\nComing Soon for Lore Scantury members!", color = textSecondary)
+                        Text("Keep your spirit companion and current journaling streak right on your home screen with customizable Glance widgets.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
                     },
                     confirmButton = {
                         TextButton(onClick = { showWidgetComingSoon = false }) {
@@ -1431,7 +1431,7 @@ fun SettingsScreenUI(
                 onDismissRequest = { showExportJourneyComingSoon = false },
                 title = { Text("Export Journal Journey 📤", color = textPrimary, fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("Export your entire sanctuary timeline — including mood charts, pet evolution stages, and formatted journal entries into a beautiful PDF book.\n\nComing Soon for Lore Scantury members!", color = textSecondary)
+                    Text("Export your entire sanctuary timeline — including mood charts, pet evolution stages, and formatted journal entries into a beautiful PDF book.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
                 },
                 confirmButton = {
                     TextButton(onClick = { showExportJourneyComingSoon = false }) {
@@ -2011,7 +2011,7 @@ fun BackupPinBanner(
 
 
 /**
- * Cinematic full-width Lore Scantury upgrade card for Settings screen.
+ * Cinematic full-width Lore Sanctuary upgrade card for Settings screen.
  * Shown only when the user is NOT premium.
  */
 @Composable
@@ -2142,7 +2142,7 @@ fun SettingsPremiumUpgradeCard(onNavigateToPremium: () -> Unit) {
                     Icon(Icons.Rounded.WorkspacePremium, null, tint = Color.White, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "GET LORE SCANTURY",
+                        "GET LORE SANCTUARY",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White,

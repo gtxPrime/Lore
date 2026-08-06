@@ -33,7 +33,7 @@
     <span> | </span>
     <a href="#-security--privacy-vault">Security</a>
     <span> | </span>
-    <a href="#-lore-scantury-pro">Lore Scantury</a>
+    <a href="#-lore-sanctuary-pro">Lore Sanctuary</a>
     <span> | </span>
     <a href="#-tech-stack">Tech Stack</a>
     <span> | </span>
@@ -101,7 +101,7 @@ graph LR
 
 ---
 
-## 💎 Lore Scantury Pro
+## 💎 Lore Sanctuary Pro
 
 Lore includes Google Play Billing Library v9 integration:
 - **Google Sign-In Integration:** Mandatory Google Sign-In via AndroidX Credential Manager before purchase to link entitlements across devices.

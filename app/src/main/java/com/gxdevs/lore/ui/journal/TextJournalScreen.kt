@@ -730,7 +730,7 @@ fun TextJournalScreen(
     var featureIcon       by remember { mutableStateOf<androidx.compose.ui.graphics.vector.ImageVector>(Icons.Rounded.WorkspacePremium) }
 
     if (showFeatureDialog) {
-        com.gxdevs.lore.ui.components.LoreScanturyFeatureDialog(
+        com.gxdevs.lore.ui.components.LoreSanctuaryFeatureDialog(
             title = featureTitle,
             subtitle = featureSubtitle,
             icon = featureIcon,
@@ -813,7 +813,7 @@ fun TextJournalScreen(
                 if (!isPremium && durationSec >= 60) {
                     stopRecording()
                     featureTitle = "Unlimited Voice Reflections"
-                    featureSubtitle = "Free limit is 1 minute per reflection. Upgrade to Lore Scantury to record unlimited audio notes."
+                    featureSubtitle = "Free limit is 1 minute per reflection. Upgrade to Lore Sanctuary to record unlimited audio notes."
                     featureIcon = Icons.Rounded.Mic
                     showFeatureDialog = true
                     break
@@ -865,7 +865,7 @@ fun TextJournalScreen(
                 val remaining = (3 - selectedMedia.size).coerceAtLeast(0)
                 if (remaining == 0) {
                     featureTitle = "Unlimited Media Attachments"
-                    featureSubtitle = "Free limit is 3 media attachments per entry. Upgrade to Lore Scantury to attach unlimited photos & videos."
+                    featureSubtitle = "Free limit is 3 media attachments per entry. Upgrade to Lore Sanctuary to attach unlimited photos & videos."
                     featureIcon = Icons.Rounded.Image
                     showFeatureDialog = true
                     return@rememberLauncherForActivityResult
@@ -873,7 +873,7 @@ fun TextJournalScreen(
                 uris.take(remaining).also {
                     if (it.size < uris.size) {
                         featureTitle = "Unlimited Media Attachments"
-                        featureSubtitle = "Only ${it.size} of ${uris.size} media could be added. Upgrade to Lore Scantury for unlimited attachments."
+                        featureSubtitle = "Only ${it.size} of ${uris.size} media could be added. Upgrade to Lore Sanctuary for unlimited attachments."
                         featureIcon = Icons.Rounded.Image
                         showFeatureDialog = true
                     }
@@ -1752,7 +1752,7 @@ fun TextJournalScreen(
                                 onPremiumAction = { richTextState.toggleFormat(FormatType.ITALIC) },
                                 onFreeAction    = {
                                     featureTitle = "Rich Text Formatting"
-                                    featureSubtitle = "Italic, Strikethrough & List formatting are Lore Scantury features."
+                                    featureSubtitle = "Italic, Strikethrough & List formatting are Lore Sanctuary features."
                                     featureIcon = Icons.Rounded.FormatItalic
                                     showFeatureDialog = true
                                 }
@@ -1765,7 +1765,7 @@ fun TextJournalScreen(
                                 onPremiumAction = { richTextState.toggleFormat(FormatType.STRIKETHROUGH) },
                                 onFreeAction    = {
                                     featureTitle = "Rich Text Formatting"
-                                    featureSubtitle = "Italic, Strikethrough & List formatting are Lore Scantury features."
+                                    featureSubtitle = "Italic, Strikethrough & List formatting are Lore Sanctuary features."
                                     featureIcon = Icons.Rounded.FormatStrikethrough
                                     showFeatureDialog = true
                                 }
@@ -1790,7 +1790,7 @@ fun TextJournalScreen(
                                 },
                                 onFreeAction = {
                                     featureTitle = "Rich Text Formatting"
-                                    featureSubtitle = "Italic, Strikethrough & List formatting are Lore Scantury features."
+                                    featureSubtitle = "Italic, Strikethrough & List formatting are Lore Sanctuary features."
                                     featureIcon = Icons.AutoMirrored.Rounded.FormatListBulleted
                                     showFeatureDialog = true
                                 }
