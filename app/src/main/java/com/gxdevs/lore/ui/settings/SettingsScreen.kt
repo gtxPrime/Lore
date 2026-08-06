@@ -329,7 +329,7 @@ fun SettingsScreen(
         onExportData = { includeMedia ->
             exportIncludeMedia = includeMedia
             MainActivity.bypassNextLock = true
-            exportLauncher.launch("aethra_backup.aeth")
+            exportLauncher.launch("lore_backup.lore")
         },
         onImportData = { mergeMode ->
             importMergeMode = mergeMode
@@ -970,23 +970,46 @@ fun SettingsScreenUI(
 
                     // Decoy PIN toggle + card
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (!isPremium) {
+                                    onNavigateToPremium()
+                                }
+                            }
+                            .padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.VisibilityOff, null, tint = textSecondary, modifier = Modifier.size(15.dp))
+                        Icon(Icons.Outlined.VisibilityOff, null, tint = if (!isPremium) Color(0xFFD4AF37) else textSecondary, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(8.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Decoy PIN", color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Decoy PIN", color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                if (!isPremium) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xFFD4AF37).copy(alpha = 0.18f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.4f))
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.Lock, null, tint = Color(0xFFD4AF37), modifier = Modifier.size(10.dp))
+                                            Spacer(Modifier.width(3.dp))
+                                            Text("PRO", color = Color(0xFFD4AF37), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                                        }
+                                    }
+                                }
+                            }
                             Text("Shows blank journal on fake PIN", color = textSecondary, fontSize = 11.sp)
                         }
                         Switch(
                             checked = decoyPin && isPremium,
                             onCheckedChange = {
                                 if (!isPremium) {
-                                    featureTitle = "Decoy PIN Vault"
-                                    featureSubtitle = "Decoy PIN displays a stealth blank journal when entered. Upgrade to Lore Scantury to activate decoy mode."
-                                    featureIcon = Icons.Rounded.VisibilityOff
-                                    showFeatureDialog = true
+                                    onNavigateToPremium()
                                 } else if (it) {
                                     if (appPin != null) {
                                         // verify before setup
@@ -1145,9 +1168,10 @@ fun SettingsScreenUI(
             SettingsSwitchItem(
                 icon     = Icons.Outlined.Shield,
                 title    = "Screenshot Protection",
-                subtitle = if (isPremium) "Prevent screenshots and hide preview in app switcher." else "Prevent screenshots & hide app preview in recent switcher",
+                subtitle = "Prevent screenshots and hide preview in app switcher.",
                 checked  = screenshotProtection && isPremium,
                 isProFeature = true,
+                isPremium = isPremium,
                 onCheckedChange = { enabled ->
                     if (!isPremium) {
                         onNavigateToPremium()
@@ -1431,7 +1455,7 @@ fun SettingsScreenUI(
             SettingsActionItem(
                 icon = Icons.Outlined.Download,
                 title = "Export Complete Data",
-                subtitle = "Download all text, images, and audio as a secure .aeth file.",
+                subtitle = "Download all text, images, and audio as a secure .lore file.",
                 onClick = { showExportDialog = true }
             )
             SettingsActionItem(
@@ -1611,19 +1635,23 @@ fun SettingsSwitchItem(
     subtitle: String?,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    isProFeature: Boolean = false
+    isProFeature: Boolean = false,
+    isPremium: Boolean = false
 ) {
     val context = LocalContext.current
+    val showProState = isProFeature && !isPremium
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                if (isProFeature && !checked) {
+                if (showProState) {
                     try {
                         context.startActivity(android.content.Intent(context, com.gxdevs.lore.ui.premium.PremiumActivity::class.java))
                     } catch (_: Exception) {}
+                } else {
+                    onCheckedChange(!checked)
                 }
-                onCheckedChange(!checked)
             }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1632,21 +1660,21 @@ fun SettingsSwitchItem(
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(if (isProFeature && !checked) Color(0xFFD4AF37).copy(alpha = 0.15f) else accentBackground),
+                .background(if (showProState) Color(0xFFD4AF37).copy(alpha = 0.15f) else accentBackground),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isProFeature && !checked) Color(0xFFD4AF37) else primaryAccent,
+                tint = if (showProState) Color(0xFFD4AF37) else primaryAccent,
                 modifier = Modifier.size(24.dp)
             )
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = title, color = textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                if (isProFeature && !checked) {
+                Text(text = title, color = textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                if (showProState) {
                     Spacer(Modifier.width(8.dp))
                     Surface(
                         shape = RoundedCornerShape(6.dp),
@@ -1665,19 +1693,27 @@ fun SettingsSwitchItem(
                 }
             }
             if (subtitle != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = subtitle,
-                    color = if (isProFeature && !checked) textSecondary.copy(alpha = 0.75f) else textSecondary,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp
+                    color = if (showProState) textSecondary.copy(alpha = 0.75f) else textSecondary,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
                 )
             }
         }
         Spacer(modifier = Modifier.width(16.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = { newChecked ->
+                if (showProState) {
+                    try {
+                        context.startActivity(android.content.Intent(context, com.gxdevs.lore.ui.premium.PremiumActivity::class.java))
+                    } catch (_: Exception) {}
+                } else {
+                    onCheckedChange(newChecked)
+                }
+            },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = mainContainerBackground,
                 checkedTrackColor = primaryAccent,
@@ -2044,7 +2080,7 @@ fun SettingsPremiumUpgradeCard(onNavigateToPremium: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "LORE SCANTURY",
+                        "LORE SANCTUARY",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color(0xFFF3C042),

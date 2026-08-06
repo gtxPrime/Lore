@@ -250,6 +250,10 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
 
     // ── Emotion Selection ─────────────────────────────────────────────────────
 
+    fun selectEmotion(emotion: Emotion) {
+        selectedEmotions.value = listOf(emotion)
+    }
+
     fun toggleEmotion(emotion: Emotion) {
         val current = selectedEmotions.value.toMutableList()
         val existingIndex = current.indexOfFirst { it.id == emotion.id }
@@ -269,114 +273,124 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
 
     // ── Save Entry ────────────────────────────────────────────────────────────
 
-    fun saveEntry(isRelic: Boolean = false, unlockDate: Long? = null, encryptMedia: Boolean = false) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val emotionsJson     = gson.toJson(selectedEmotions.value)
-            val selectedMoodName = selectedEmotions.value.firstOrNull()?.label ?: MoodConstants.CALM
-            val analysis         = _moodAnalysis.value
+    fun saveEntry(
+        isRelic: Boolean = false,
+        unlockDate: Long? = null,
+        encryptMedia: Boolean = false,
+        onComplete: (() -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                val emotionsJson     = gson.toJson(selectedEmotions.value)
+                val selectedMoodName = selectedEmotions.value.firstOrNull()?.label ?: MoodConstants.CALM
+                val analysis         = _moodAnalysis.value
 
-            // ── Train adaptive model from confirmed user mood ─────────────────
-            // This is the key self-learning step: user's final mood choice
-            // teaches the Room Naive Bayes model their personal language patterns.
-            AdaptiveMoodModel.trainFromUserFeedback(
-                dao           = moodWeightDao,
-                text          = pendingContent,
-                confirmedMood = selectedMoodName
-            )
-
-            // ── Mood-only edit path ───────────────────────────────────────────
-            val moodEditId = editMoodEntryId
-            if (moodEditId != null) {
-                val existing = journalDao.getEntryById(moodEditId)
-                if (existing != null) {
-                    journalDao.insertEntry(existing.copy(emotions = emotionsJson))
-                }
-                return@launch
-            }
-
-            // ── Full new entry path ───────────────────────────────────────────
-            val filesJson = gson.toJson(
-                attachedFiles.value.map {
-                    mapOf("uri" to it.uri.toString(), "type" to it.type, "name" to it.name)
-                }
-            )
-
-            var finalVideoPath: String? = null
-            var finalAudioPath: String? = null
-
-            if (pendingType == "video" && pendingFilePath != null && pendingFilePath != "null") {
-                finalVideoPath = pendingFilePath
-            } else if (pendingType == "audio" && pendingFilePath != null && pendingFilePath != "null") {
-                finalAudioPath = pendingFilePath
-            }
-            if (pendingAudioPath != null && pendingAudioPath != "null") {
-                finalAudioPath = pendingAudioPath
-            }
-
-            val newEntry = JournalEntry(
-                timestamp        = System.currentTimeMillis(),
-                emotions         = emotionsJson,
-                attachments      = filesJson,
-                content          = pendingContent,
-                tags             = pendingTags,
-                videoPath        = finalVideoPath,
-                audioPath        = finalAudioPath,
-                timeSpentWriting = pendingTimeSpent,
-                promptResponses  = pendingFormatRanges,
-                isTimeCapsule    = isRelic,
-                unlockDate       = unlockDate,
-                // AI metadata persisted for future stats
-                detectedMood     = analysis.predictedMood,
-                moodConfidence   = analysis.confidence,
-                sentimentScore   = analysis.sentimentScore,
-                aiTags           = gson.toJson(analysis.suggestedTags)
-            )
-
-            val entryId = journalDao.insertEntry(newEntry)
-
-            // Media encryption
-            if (encryptMedia) {
-                val app = getApplication<Application>()
-                var encEntry = newEntry.copy(id = entryId, isEncrypted = true)
-
-                if (!finalAudioPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalAudioPath)) {
-                    MediaEncryptionManager.encryptAndCopyUri(app, finalAudioPath)?.let {
-                        encEntry = encEntry.copy(audioPath = it)
-                    }
-                }
-                if (!finalVideoPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalVideoPath)) {
-                    MediaEncryptionManager.encryptAndCopyUri(app, finalVideoPath)?.let {
-                        encEntry = encEntry.copy(videoPath = it)
-                    }
-                }
-                if (!filesJson.isNullOrBlank()) {
-                    val encJson = MediaEncryptionManager.encryptAttachmentsJson(app, filesJson)
-                    encEntry = encEntry.copy(attachments = encJson)
-                }
-                journalDao.insertEntry(encEntry)
-            }
-
-            // Time capsule (Relic)
-            if (isRelic && unlockDate != null) {
-                val unsealAfterDays = ((unlockDate - System.currentTimeMillis()) / 86_400_000L)
-                    .toInt().coerceAtLeast(1)
-                database.relicDao().insertRelic(
-                    com.gxdevs.lore.data.relic.Relic(
-                        journalEntryId  = entryId,
-                        sealedAtTimestamp = System.currentTimeMillis(),
-                        unsealAfterDays = unsealAfterDays,
-                        titleSnapshot   = pendingContent?.substringBefore("\n")?.take(60),
-                        contentSnapshot = pendingContent,
-                        moodSnapshot    = selectedMoodName
-                    )
+                // ── Train adaptive model from confirmed user mood ─────────────────
+                // This is the key self-learning step: user's final mood choice
+                // teaches the Room Naive Bayes model their personal language patterns.
+                AdaptiveMoodModel.trainFromUserFeedback(
+                    dao           = moodWeightDao,
+                    text          = pendingContent,
+                    confirmedMood = selectedMoodName
                 )
-            }
 
-            // Recalculate pet progress and trigger level-up celebration check
-            try {
-                com.gxdevs.lore.ui.pets.PetViewModel(getApplication()).onJournalSaved()
-            } catch (e: Exception) {
-                e.printStackTrace()
+                // ── Mood-only edit path ───────────────────────────────────────────
+                val moodEditId = editMoodEntryId
+                if (moodEditId != null) {
+                    val existing = journalDao.getEntryById(moodEditId)
+                    if (existing != null) {
+                        journalDao.insertEntry(existing.copy(emotions = emotionsJson))
+                    }
+                    return@withContext
+                }
+
+                // ── Full new entry path ───────────────────────────────────────────
+                val filesJson = gson.toJson(
+                    attachedFiles.value.map {
+                        mapOf("uri" to it.uri.toString(), "type" to it.type, "name" to it.name)
+                    }
+                )
+
+                var finalVideoPath: String? = null
+                var finalAudioPath: String? = null
+
+                if (pendingType == "video" && pendingFilePath != null && pendingFilePath != "null") {
+                    finalVideoPath = pendingFilePath
+                } else if (pendingType == "audio" && pendingFilePath != null && pendingFilePath != "null") {
+                    finalAudioPath = pendingFilePath
+                }
+                if (pendingAudioPath != null && pendingAudioPath != "null") {
+                    finalAudioPath = pendingAudioPath
+                }
+
+                val newEntry = JournalEntry(
+                    timestamp        = System.currentTimeMillis(),
+                    emotions         = emotionsJson,
+                    attachments      = filesJson,
+                    content          = pendingContent,
+                    tags             = pendingTags,
+                    videoPath        = finalVideoPath,
+                    audioPath        = finalAudioPath,
+                    timeSpentWriting = pendingTimeSpent,
+                    promptResponses  = pendingFormatRanges,
+                    isTimeCapsule    = isRelic,
+                    unlockDate       = unlockDate,
+                    // AI metadata persisted for future stats
+                    detectedMood     = analysis.predictedMood,
+                    moodConfidence   = analysis.confidence,
+                    sentimentScore   = analysis.sentimentScore,
+                    aiTags           = gson.toJson(analysis.suggestedTags)
+                )
+
+                val entryId = journalDao.insertEntry(newEntry)
+
+                // Media encryption
+                if (encryptMedia) {
+                    val app = getApplication<Application>()
+                    var encEntry = newEntry.copy(id = entryId, isEncrypted = true)
+
+                    if (!finalAudioPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalAudioPath)) {
+                        MediaEncryptionManager.encryptAndCopyUri(app, finalAudioPath)?.let {
+                            encEntry = encEntry.copy(audioPath = it)
+                        }
+                    }
+                    if (!finalVideoPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalVideoPath)) {
+                        MediaEncryptionManager.encryptAndCopyUri(app, finalVideoPath)?.let {
+                            encEntry = encEntry.copy(videoPath = it)
+                        }
+                    }
+                    if (!filesJson.isNullOrBlank()) {
+                        val encJson = MediaEncryptionManager.encryptAttachmentsJson(app, filesJson)
+                        encEntry = encEntry.copy(attachments = encJson)
+                    }
+                    journalDao.insertEntry(encEntry)
+                }
+
+                // Time capsule (Relic)
+                if (isRelic && unlockDate != null) {
+                    val unsealAfterDays = ((unlockDate - System.currentTimeMillis()) / 86_400_000L)
+                        .toInt().coerceAtLeast(1)
+                    database.relicDao().insertRelic(
+                        com.gxdevs.lore.data.relic.Relic(
+                            journalEntryId  = entryId,
+                            sealedAtTimestamp = System.currentTimeMillis(),
+                            unsealAfterDays = unsealAfterDays,
+                            titleSnapshot   = pendingContent?.substringBefore("\n")?.take(60),
+                            contentSnapshot = pendingContent,
+                            moodSnapshot    = selectedMoodName
+                        )
+                    )
+                }
+
+                // Recalculate pet progress and trigger level-up celebration check
+                try {
+                    com.gxdevs.lore.ui.pets.PetViewModel(getApplication()).onJournalSaved()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            withContext(Dispatchers.Main) {
+                onComplete?.invoke()
             }
         }
     }

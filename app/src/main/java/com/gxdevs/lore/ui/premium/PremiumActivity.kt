@@ -2,6 +2,7 @@ package com.gxdevs.lore.ui.premium
 
 import android.os.Bundle
 import android.widget.Toast
+import java.util.Locale
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.*
@@ -87,27 +88,29 @@ fun PremiumScreen(onBack: () -> Unit) {
 
     // ── Google Sign-In Helper ───────────────────────────────────────────────
     fun performGoogleSignIn(onSuccess: () -> Unit) {
+        val act: android.content.Context = activity ?: context.findActivity() ?: context
         MainActivity.bypassNextLock = true
         scope.launch {
             try {
-                val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId("719998347203-go19g6matolsifojlt6lf8k3e6eu15cu.apps.googleusercontent.com")
-                    .setAutoSelectEnabled(true)
-                    .build()
+                val signInWithGoogleOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(
+                    serverClientId = SettingsRepository.WEB_CLIENT_ID
+                ).build()
 
                 val request = androidx.credentials.GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
+                    .addCredentialOption(signInWithGoogleOption)
                     .build()
 
-                val result = credentialManager.getCredential(context, request)
+                val result = credentialManager.getCredential(act, request)
                 val credential = result.credential
 
                 if (credential is androidx.credentials.CustomCredential &&
                     credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
                 ) {
                     val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
-                    val name = googleIdTokenCredential.displayName ?: "Explorer"
+                    val name = googleIdTokenCredential.displayName
+                        ?: googleIdTokenCredential.givenName
+                        ?: googleIdTokenCredential.id.substringBefore("@")
+                        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
                     val email = googleIdTokenCredential.id
                     val photoUrl = googleIdTokenCredential.profilePictureUri?.toString() ?: ""
 
@@ -118,6 +121,10 @@ fun PremiumScreen(onBack: () -> Unit) {
                     Toast.makeText(context, "Signed in as $name", Toast.LENGTH_SHORT).show()
                     onSuccess()
                 }
+            } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                // User cancelled sign in, dismiss silently
+            } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+                Toast.makeText(context, "No Google accounts found", Toast.LENGTH_SHORT).show()
             } catch (e: androidx.credentials.exceptions.GetCredentialException) {
                 e.printStackTrace()
                 Toast.makeText(context, "Google Sign-In failed: ${e.message}", Toast.LENGTH_LONG).show()
@@ -602,3 +609,13 @@ private fun PlanCard(
         }
     }
 }
+
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var ctx = this
+    while (ctx is android.content.ContextWrapper) {
+        if (ctx is android.app.Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
+

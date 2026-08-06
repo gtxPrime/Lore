@@ -10,6 +10,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -615,7 +617,7 @@ private fun OnboardingPageCompanions(isCurrentPage: Boolean) {
     }
 
     Column(
-        modifier            = Modifier.fillMaxSize(),
+        modifier            = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -808,7 +810,7 @@ private fun OnboardingPageEvolution(rotateAngle: Float, isCurrentPage: Boolean) 
     }
 
     Column(
-        modifier            = Modifier.fillMaxSize(),
+        modifier            = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -1014,7 +1016,7 @@ private fun OnboardingPageSecurity(isCurrentPage: Boolean) {
     }
 
     Column(
-        modifier            = Modifier.fillMaxSize(),
+        modifier            = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -1212,7 +1214,7 @@ private fun OnboardingPageAI(rotateAngle: Float, isCurrentPage: Boolean) {
     }
 
     Column(
-        modifier            = Modifier.fillMaxSize(),
+        modifier            = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

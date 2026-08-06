@@ -675,9 +675,8 @@ fun AfterJournalRecordScreen(
                 RelicUnlockSettingsDialog(
                     onConfirm = { unlockTime ->
                         selectedMoodForRelic?.let { mood ->
-                            viewModel.toggleEmotion(Emotion(mood.lowercase(), mood))
-                            viewModel.saveEntry(isRelic = true, unlockDate = unlockTime, encryptMedia = encryptMedia)
-                            onSave()
+                            viewModel.selectEmotion(Emotion(mood.lowercase(), mood))
+                            viewModel.saveEntry(isRelic = true, unlockDate = unlockTime, encryptMedia = encryptMedia, onComplete = onSave)
                         }
                         showDateTimePicker = false
                     },
@@ -697,9 +696,8 @@ fun AfterJournalRecordScreen(
                         selectedMoodForRelic = mood
                         showDateTimePicker = true
                     } else {
-                        viewModel.toggleEmotion(Emotion(mood.lowercase(), mood))
-                        viewModel.saveEntry(encryptMedia = encryptMedia)
-                        onSave()
+                        viewModel.selectEmotion(Emotion(mood.lowercase(), mood))
+                        viewModel.saveEntry(encryptMedia = encryptMedia, onComplete = onSave)
                     }
                 }
 

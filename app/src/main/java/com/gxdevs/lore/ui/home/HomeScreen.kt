@@ -113,8 +113,17 @@ fun HomeContent(
     val settingsRepo = remember { SettingsRepository(context) }
     val blurJournals by settingsRepo.blurJournals.collectAsState(initial = false)
     val betaWelcomeState = settingsRepo.betaWelcomeShown.collectAsState(initial = null)
+    val googleLoggedIn by settingsRepo.googleLoggedIn.collectAsState(initial = false)
+    val googleName by settingsRepo.googleAccountName.collectAsState(initial = null)
+    val displayName = when {
+        !userName.isNullOrBlank() -> userName
+        googleLoggedIn && !googleName.isNullOrBlank() -> googleName!!
+        else -> "Explorer"
+    }
 
-    val displayName = if (userName.isNullOrBlank()) "User" else userName
+    LaunchedEffect(displayName, entries.size, googleLoggedIn) {
+        android.util.Log.d("HomeScreen", "HomeScreen state: displayName='$displayName', entriesCount=${entries.size}, googleLoggedIn=$googleLoggedIn")
+    }
     var showNameDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -416,11 +425,18 @@ fun HomeTabContent(
                     }
                     item { Spacer(modifier = Modifier.height(24.dp)) }
 
-                    // TODAY'S ENTRIES
+                    // TODAY'S ENTRIES & TIMELINE
                     if (entries.isNotEmpty()) {
+                        val isAllToday = entries.all { e ->
+                            val c = Calendar.getInstance().apply { timeInMillis = e.timestamp }
+                            val now = Calendar.getInstance()
+                            now.get(Calendar.YEAR) == c.get(Calendar.YEAR) && now.get(Calendar.DAY_OF_YEAR) == c.get(Calendar.DAY_OF_YEAR)
+                        }
+                        val headerTitle = if (isAllToday) "TODAY'S ENTRIES" else "JOURNAL TIMELINE"
+
                         item {
                             Text(
-                                text = "TODAY'S ENTRIES",
+                                text = headerTitle,
                                 color = textSecondary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -429,12 +445,29 @@ fun HomeTabContent(
                             )
                         }
                         itemsIndexed(entries) { index, entry ->
-                            val title = entry.content?.substringBefore("\n")?.take(40) ?: "Journal Entry"
+                            val title = entry.content?.substringBefore("\n")?.take(40)?.ifBlank { "Journal Entry" } ?: "Journal Entry"
                             val content = entry.content?.substringAfter("\n")?.take(120) ?: ""
-                            val time = SimpleDateFormat("hh:mm a", LocalLocale.current.platformLocale).format(Date(entry.timestamp))
+                            
+                            val entryDate = Date(entry.timestamp)
+                            val now = Calendar.getInstance()
+                            val entryCal = Calendar.getInstance().apply { timeInMillis = entry.timestamp }
+
+                            val formattedTime = when {
+                                now.get(Calendar.YEAR) == entryCal.get(Calendar.YEAR) && 
+                                now.get(Calendar.DAY_OF_YEAR) == entryCal.get(Calendar.DAY_OF_YEAR) -> {
+                                    "Today · " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(entryDate)
+                                }
+                                now.get(Calendar.YEAR) == entryCal.get(Calendar.YEAR) && 
+                                now.get(Calendar.DAY_OF_YEAR) - entryCal.get(Calendar.DAY_OF_YEAR) == 1 -> {
+                                    "Yesterday · " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(entryDate)
+                                }
+                                else -> {
+                                    SimpleDateFormat("MMM dd, yyyy · h:mm a", Locale.getDefault()).format(entryDate)
+                                }
+                            }
                             
                             val displayTitle = if (blurJournals) {
-                                SimpleDateFormat("MMMM dd, yyyy", LocalLocale.current.platformLocale).format(Date(entry.timestamp))
+                                SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()).format(entryDate)
                             } else {
                                 title
                             }
@@ -446,7 +479,7 @@ fun HomeTabContent(
 
                             MockTimelineEntry(
                                 title = displayTitle,
-                                time = time,
+                                time = formattedTime,
                                 content = content.takeIf { it.isNotBlank() } ?: title,
                                 isFirst = index == 0,
                                 isLast = index == entries.size - 1,
@@ -1052,7 +1085,7 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
         // ── Text Column on left side ─────────────────────────────────────────
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.54f)
+                .fillMaxWidth(if (topPet == null) 0.65f else 0.54f)
                 .padding(start = 22.dp, top = 16.dp, bottom = 16.dp, end = 4.dp),
             verticalArrangement = Arrangement.Center
         ) {
