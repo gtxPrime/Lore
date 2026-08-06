@@ -10,6 +10,7 @@ import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.compose.animation.core.tween
@@ -93,7 +94,15 @@ class MainActivity : FragmentActivity() {
     }
 
     private lateinit var appUpdateManager: AppUpdateManager
-    private val updateRequestCode = 17362
+
+    private val updateLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode != RESULT_OK) {
+            // Force update: re-trigger update check if user cancelled or flow didn't finish
+            checkForUpdate()
+        }
+    }
 
     // Android 13+ notification permission launcher
     private val notificationPermissionLauncher =
@@ -541,7 +550,7 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun checkForUpdate() {
+    fun checkForUpdate() {
         appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
             if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
                 && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
@@ -549,9 +558,8 @@ class MainActivity : FragmentActivity() {
                 try {
                     appUpdateManager.startUpdateFlowForResult(
                         appUpdateInfo,
-                        this,
-                        AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE),
-                        updateRequestCode
+                        updateLauncher,
+                        AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE)
                     )
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -568,23 +576,13 @@ class MainActivity : FragmentActivity() {
                     try {
                         appUpdateManager.startUpdateFlowForResult(
                             appUpdateInfo,
-                            this,
-                            AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE),
-                            updateRequestCode
+                            updateLauncher,
+                            AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE)
                         )
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                 }
-            }
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == updateRequestCode) {
-            if (resultCode != RESULT_OK) {
-                checkForUpdate()
             }
         }
     }

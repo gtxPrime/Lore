@@ -568,42 +568,20 @@ fun IdentityScreen(
                                 return@Button
                             }
                             isSigningIn = true
-                            // Set bypass AFTER we are sure we have the Activity, right before
-                            // the system overlay (credential chooser) pauses the app
                             MainActivity.bypassNextLock = true
                             coroutineScope.launch {
                                 try {
-                                    android.util.Log.d("CredentialAuth", "[Phase 1] Trying returning-user sign-in (GetGoogleIdOption), serverClientId=${SettingsRepository.WEB_CLIENT_ID}")
+                                    android.util.Log.d("CredentialAuth", "Initiating Google Sign-In with GetSignInWithGoogleOption, serverClientId=${SettingsRepository.WEB_CLIENT_ID}")
 
-                                    // Phase 1 — silent/one-tap for returning users (preferred path)
-                                    val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
-                                        .setServerClientId(SettingsRepository.WEB_CLIENT_ID)
-                                        .setFilterByAuthorizedAccounts(true)  // only already-consented accounts
-                                        .setAutoSelectEnabled(true)            // auto-select if exactly one account
+                                    val signInWithGoogleOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(
+                                        serverClientId = SettingsRepository.WEB_CLIENT_ID
+                                    ).build()
+
+                                    val request = androidx.credentials.GetCredentialRequest.Builder()
+                                        .addCredentialOption(signInWithGoogleOption)
                                         .build()
 
-                                    val phase1Request = androidx.credentials.GetCredentialRequest.Builder()
-                                        .addCredentialOption(googleIdOption)
-                                        .build()
-
-                                    val result = try {
-                                        credentialManager.getCredential(activity, phase1Request)
-                                    } catch (e: androidx.credentials.exceptions.NoCredentialException) {
-                                        // No previously-authorized account — fall through to Phase 2
-                                        android.util.Log.i("CredentialAuth", "[Phase 1] No authorized account found, falling back to full sign-in picker")
-
-                                        // Phase 2 — full account picker (new users / different account)
-                                        val signInWithGoogleOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(
-                                            serverClientId = SettingsRepository.WEB_CLIENT_ID
-                                        ).build()
-
-                                        val phase2Request = androidx.credentials.GetCredentialRequest.Builder()
-                                            .addCredentialOption(signInWithGoogleOption)
-                                            .build()
-
-                                        credentialManager.getCredential(activity, phase2Request)
-                                    }
-
+                                    val result = credentialManager.getCredential(activity, request)
                                     val credential = result.credential
                                     android.util.Log.d("CredentialAuth", "Received credential: type=${credential.type}, class=${credential.javaClass.simpleName}")
 
@@ -616,7 +594,6 @@ fun IdentityScreen(
                                             ?: googleIdTokenCredential.id.substringBefore("@")
                                             .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
                                         val email = googleIdTokenCredential.id
-                                        // Boost to 400px — Google photos default to ~96px
                                         val rawPhoto = googleIdTokenCredential.profilePictureUri?.toString() ?: ""
                                         val photoUrl = if (rawPhoto.isNotBlank()) {
                                             rawPhoto.replace(Regex("=s\\d+-c"), "=s400-c")
@@ -633,35 +610,23 @@ fun IdentityScreen(
                                     } else {
                                         android.util.Log.w("CredentialAuth", "⚠️ Unexpected credential type: ${credential.type} — not a GoogleIdTokenCredential")
                                         Toast.makeText(context, "Unexpected sign-in response. Please try again.", Toast.LENGTH_SHORT).show()
-                                        // Reset bypass since we didn't complete sign-in
-                                        MainActivity.bypassNextLock = false
                                     }
                                 } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
-                                    // This fires when the user cancels AND when the system fails after
-                                    // account selection (e.g. SHA-1 not registered in Cloud Console,
-                                    // OAuth client not enabled for this package name, etc.).
-                                    // We cannot reliably tell the two apart, so always show feedback.
-                                    android.util.Log.w("CredentialAuth", "⚠️ GetCredentialCancellationException — possible SHA-1/OAuth config issue: ${e.message}")
-                                    Toast.makeText(context, "Sign-in was not completed.", Toast.LENGTH_SHORT).show()
-                                    showFallbackSignInDialog = true
-                                    MainActivity.bypassNextLock = false
+                                    android.util.Log.w("CredentialAuth", "⚠️ Sign-in cancelled or SHA-1 mismatch: ${e.message}")
+                                    Toast.makeText(context, "Sign-in was cancelled.", Toast.LENGTH_SHORT).show()
                                 } catch (e: androidx.credentials.exceptions.NoCredentialException) {
-                                    // Both phases failed — no Google account on device at all
-                                    android.util.Log.e("CredentialAuth", "❌ NoCredentialException (both phases): ${e.message}")
+                                    android.util.Log.e("CredentialAuth", "❌ NoCredentialException: ${e.message}")
                                     showFallbackSignInDialog = true
-                                    MainActivity.bypassNextLock = false
                                 } catch (e: androidx.credentials.exceptions.GetCredentialException) {
                                     val msg = e.message ?: "unknown"
                                     android.util.Log.e("CredentialAuth", "❌ GetCredentialException: type=${e.type}, msg=$msg", e)
-                                    // Show fallback for configuration errors (SHA-1 mismatch, disabled OAuth, etc.)
                                     showFallbackSignInDialog = true
-                                    MainActivity.bypassNextLock = false
                                 } catch (e: Exception) {
                                     android.util.Log.e("CredentialAuth", "❌ Unhandled exception during sign-in: ${e.javaClass.simpleName}: ${e.message}", e)
                                     showFallbackSignInDialog = true
-                                    MainActivity.bypassNextLock = false
                                 } finally {
                                     isSigningIn = false
+                                    MainActivity.bypassNextLock = false
                                 }
                             }
                         },
@@ -718,7 +683,7 @@ fun IdentityScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // ─── Lore Scantury entry point (Upgrade Banner if Free, Active Badge if Premium) ───
+                    // ─── Lore Sanctuary entry point (Upgrade Banner if Free, Active Badge if Premium) ───
                     if (!isPremium) {
                         CompactPremiumBanner(onClick = onNavigateToPremium)
                     } else {
@@ -1321,7 +1286,7 @@ fun IdentityScreen(
                                 text = if (isPremium) {
                                     "Auto-backup is disabled. Turn on the switch above to automatically back up your sanctuary entries to Google Drive."
                                 } else {
-                                    "AVAILABLE WITH LORE SCANTURY"
+                                    "AVAILABLE WITH LORE SANCTUARY"
                                 },
                                 color = Color.White.copy(alpha = if (isPremium) 0.5f else 0.25f),
                                 fontSize = 11.sp,
@@ -1352,7 +1317,7 @@ fun IdentityScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Lore Scantury exclusive",
+                                    text = "Lore Sanctuary exclusive",
                                     color = Color(0xFFD4AF37),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -1418,7 +1383,7 @@ fun IdentityScreen(
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Lore Scantury",
+                                    text = "Lore Sanctuary",
                                     color = Color.White,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
@@ -1636,7 +1601,7 @@ fun IdentityScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "UNLOCK LORE SCANTURY",
+                                    text = "UNLOCK LORE SANCTUARY",
                                     color = Color(0xFFD4AF37),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1733,7 +1698,7 @@ fun CompactPremiumBanner(onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "Lore Scantury",
+                "Lore Sanctuary",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF2E332A)
@@ -1804,7 +1769,7 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "Lore Scantury",
+                "Lore Sanctuary",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
