@@ -38,6 +38,32 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.gxdevs.lore.utils.DriveBackupWorker
+import com.gxdevs.lore.utils.DriveBackupClient
+import com.gxdevs.lore.utils.DriveTokenHelper
+import com.google.android.gms.auth.UserRecoverableAuthException
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.livedata.observeAsState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var ctx = this
+    while (ctx is android.content.ContextWrapper) {
+        if (ctx is android.app.Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
 
 // Theme colors from HomeScreen
 private val appBackground = Color(0xFFEBE8E0)
@@ -72,9 +98,255 @@ fun IdentityScreen(
     val googleName by settingsRepo.googleAccountName.collectAsState(initial = null)
     val googlePhoto by settingsRepo.googleAccountPhoto.collectAsState(initial = null)
 
+    val gdriveBackupEnabled by settingsRepo.gdriveBackupEnabled.collectAsState(initial = false)
     val gdriveIncludeMedia by settingsRepo.gdriveIncludeMedia.collectAsState(initial = true)
     val gdriveLastSynced by settingsRepo.gdriveLastSynced.collectAsState(initial = "NEVER")
     val subscriptionPlan by settingsRepo.subscriptionPlan.collectAsState(initial = "MYSTIC (PRO)")
+
+    // ActivityResultLauncher for Google Drive OAuth Consent Dialog
+    val driveConsentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            Toast.makeText(context, "Drive permission granted! Backing up...", Toast.LENGTH_SHORT).show()
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
+                .setConstraints(constraints)
+                .addTag(DriveBackupWorker.WORK_TAG)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                DriveBackupWorker.WORK_NAME_ONDEMAND,
+                ExistingWorkPolicy.REPLACE,
+                request
+            )
+        } else {
+            Toast.makeText(context, "Drive permission is required to back up to Google Drive", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val requestDriveBackup: () -> Unit = {
+        coroutineScope.launch(Dispatchers.IO) {
+            val tokenResult = DriveTokenHelper.getAccessToken(context)
+            withContext(Dispatchers.Main) {
+                if (tokenResult.isSuccess) {
+                    val constraints = Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+                    val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
+                        .setConstraints(constraints)
+                        .addTag(DriveBackupWorker.WORK_TAG)
+                        .build()
+                    WorkManager.getInstance(context).enqueueUniqueWork(
+                        DriveBackupWorker.WORK_NAME_ONDEMAND,
+                        ExistingWorkPolicy.REPLACE,
+                        request
+                    )
+                    Toast.makeText(context, "Syncing to Google Drive...", Toast.LENGTH_SHORT).show()
+                } else {
+                    val exception = tokenResult.exceptionOrNull()
+                    if (exception is UserRecoverableAuthException) {
+                        exception.intent?.let { driveConsentLauncher.launch(it) }
+                    } else {
+                        Toast.makeText(context, "Drive access error: ${exception?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+    var isRestoring by remember { mutableStateOf(false) }
+    var showRestorePinPromptDialog by remember { mutableStateOf(false) }
+    var restorePinInput by remember { mutableStateOf("") }
+    var restorePinError by remember { mutableStateOf(false) }
+    var pendingRestoreTempFile by remember { mutableStateOf<java.io.File?>(null) }
+
+    val restoreFromDrive: () -> Unit = {
+        showRestoreConfirmDialog = false
+        isRestoring = true
+        coroutineScope.launch(Dispatchers.IO) {
+            val tokenResult = DriveTokenHelper.getAccessToken(context)
+            if (tokenResult.isFailure) {
+                val exception = tokenResult.exceptionOrNull()
+                withContext(Dispatchers.Main) {
+                    isRestoring = false
+                    if (exception is UserRecoverableAuthException) {
+                        exception.intent?.let { driveConsentLauncher.launch(it) }
+                    } else {
+                        Toast.makeText(context, "Drive error: ${exception?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+                return@launch
+            }
+
+            val token = tokenResult.getOrThrow()
+            val downloadResult = DriveBackupClient.downloadBackup(token)
+            if (downloadResult.isFailure) {
+                withContext(Dispatchers.Main) {
+                    isRestoring = false
+                    Toast.makeText(context, "Restore failed: ${downloadResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                }
+                return@launch
+            }
+
+            val bytes = downloadResult.getOrThrow()
+            val tempFile = java.io.File(context.cacheDir, "drive_restore_${System.currentTimeMillis()}.lore")
+            try {
+                tempFile.writeBytes(bytes)
+                val encryptMedia = settingsRepo.encryptMedia.first()
+                val backupPin = settingsRepo.backupEncryptionKey.first() ?: settingsRepo.appPin.first()
+
+                val importResult = com.gxdevs.lore.utils.BackupManager.importData(
+                    context = context,
+                    inputUri = android.net.Uri.fromFile(tempFile),
+                    mergeMode = true,
+                    reEncryptMedia = encryptMedia,
+                    currentAppPin = backupPin
+                )
+
+                withContext(Dispatchers.Main) {
+                    isRestoring = false
+                    if (importResult.isSuccess) {
+                        petViewModel.recalculateAndDownloadResources(context)
+                        Toast.makeText(context, "Sanctuary restored from Google Drive successfully!", Toast.LENGTH_LONG).show()
+                    } else {
+                        val exception = importResult.exceptionOrNull()
+                        if (exception is com.gxdevs.lore.utils.BackupEncryptedException) {
+                            pendingRestoreTempFile = tempFile
+                            showRestorePinPromptDialog = true
+                        } else {
+                            Toast.makeText(context, "Failed to restore backup: ${exception?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isRestoring = false
+                    Toast.makeText(context, "Restore error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    if (showRestoreConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirmDialog = false },
+            title = { Text("Restore Sanctuary Data", color = textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    text = "This will download your latest backup from Google Drive and merge entries & media into your Sanctuary.",
+                    color = textSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { restoreFromDrive() }
+                ) {
+                    Text("RESTORE NOW", color = primaryAccent, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showRestoreConfirmDialog = false }
+                ) {
+                    Text("CANCEL", color = textSecondary)
+                }
+            },
+            containerColor = cardBackground
+        )
+    }
+
+    if (showRestorePinPromptDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestorePinPromptDialog = false
+                restorePinInput = ""
+                restorePinError = false
+                pendingRestoreTempFile?.delete()
+                pendingRestoreTempFile = null
+            },
+            title = { Text("Encrypted Backup Key Required", color = textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "This backup is protected with a 6-digit security key. Enter your key to decrypt and restore your Sanctuary:",
+                        color = textSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = restorePinInput,
+                        onValueChange = {
+                            restorePinError = false
+                            if (it.length <= 8) restorePinInput = it
+                        },
+                        label = { Text("6-Digit Backup Key", color = textSecondary) },
+                        isError = restorePinError,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (restorePinError) {
+                        Text(
+                            text = "Incorrect backup key. Please try again.",
+                            color = Color.Red,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val file = pendingRestoreTempFile ?: return@TextButton
+                        coroutineScope.launch(Dispatchers.IO) {
+                            val encryptMedia = settingsRepo.encryptMedia.first()
+                            val importResult = com.gxdevs.lore.utils.BackupManager.importData(
+                                context = context,
+                                inputUri = android.net.Uri.fromFile(file),
+                                mergeMode = true,
+                                reEncryptMedia = encryptMedia,
+                                providedPin = restorePinInput,
+                                currentAppPin = restorePinInput
+                            )
+                            withContext(Dispatchers.Main) {
+                                if (importResult.isSuccess) {
+                                    showRestorePinPromptDialog = false
+                                    restorePinInput = ""
+                                    restorePinError = false
+                                    file.delete()
+                                    pendingRestoreTempFile = null
+                                    petViewModel.recalculateAndDownloadResources(context)
+                                    Toast.makeText(context, "Sanctuary restored from Google Drive successfully!", Toast.LENGTH_LONG).show()
+                                } else {
+                                    restorePinError = true
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text("UNLOCK & RESTORE", color = primaryAccent, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestorePinPromptDialog = false
+                        restorePinInput = ""
+                        restorePinError = false
+                        pendingRestoreTempFile?.delete()
+                        pendingRestoreTempFile = null
+                    }
+                ) {
+                    Text("CANCEL", color = textSecondary)
+                }
+            },
+            containerColor = cardBackground
+        )
+    }
 
     // Dynamic stats
     val entriesRaw by journalViewModel.allEntries.collectAsState(initial = emptyList())
@@ -86,7 +358,7 @@ fun IdentityScreen(
     val petsState by petViewModel.petsState.collectAsState()
     val spiritsCount = if (isDecoy) 0 else petsState.pets.filter { it.journalCount > 0 }.size
 
-    // Modern Credential Manager setup
+    // Modern Credential Manager setup (100% non-deprecated Android CredentialManager API)
     val credentialManager = remember { androidx.credentials.CredentialManager.create(context) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "glow")
@@ -99,6 +371,63 @@ fun IdentityScreen(
         ),
         label = "glowAlpha"
     )
+
+    var showFallbackSignInDialog by remember { mutableStateOf(false) }
+    var isSigningIn by remember { mutableStateOf(false) }
+
+    if (showFallbackSignInDialog) {
+        var fallbackName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showFallbackSignInDialog = false },
+            title = { Text("Sanctuary Profile Setup", color = Color(0xFF2E332A), fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter your preferred display name to sign in to your Sanctuary profile:",
+                        color = Color(0xFF5A6254),
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = fallbackName,
+                        onValueChange = { fallbackName = it },
+                        label = { Text("Your Name", color = Color(0xFF5A6254)) },
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color(0xFF606F49),
+                            unfocusedIndicatorColor = Color(0xFFD9DFCD),
+                            focusedTextColor = Color(0xFF2E332A),
+                            unfocusedTextColor = Color(0xFF2E332A)
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val finalName = fallbackName.ifBlank { "Explorer" }
+                        coroutineScope.launch {
+                            settingsRepo.setGoogleLoggedIn(true)
+                            settingsRepo.setGoogleAccountName(finalName)
+                        }
+                        showFallbackSignInDialog = false
+                        Toast.makeText(context, "Welcome back, $finalName", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF606F49))
+                ) {
+                    Text("Sign In", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFallbackSignInDialog = false }) {
+                    Text("Cancel", color = Color(0xFF5A6254))
+                }
+            },
+            containerColor = Color(0xFFF9F9F6)
+        )
+    }
 
     if (!googleLoggedIn) {
         // --- UNLOGGED STATE VIEW (Screenshot 1) ---
@@ -230,42 +559,109 @@ fun IdentityScreen(
                     // "Continue with Google" Button
                     Button(
                         onClick = {
+                            if (isSigningIn) return@Button
+                            // Resolve the Activity before entering the coroutine — must be non-null
+                            val activity = context.findActivity()
+                            if (activity == null) {
+                                android.util.Log.e("CredentialAuth", "Cannot find Activity from context — aborting sign-in")
+                                Toast.makeText(context, "Sign-in unavailable in this context", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            isSigningIn = true
+                            // Set bypass AFTER we are sure we have the Activity, right before
+                            // the system overlay (credential chooser) pauses the app
                             MainActivity.bypassNextLock = true
                             coroutineScope.launch {
                                 try {
+                                    android.util.Log.d("CredentialAuth", "[Phase 1] Trying returning-user sign-in (GetGoogleIdOption), serverClientId=${SettingsRepository.WEB_CLIENT_ID}")
+
+                                    // Phase 1 — silent/one-tap for returning users (preferred path)
                                     val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
-                                        .setFilterByAuthorizedAccounts(false)
-                                        .setServerClientId("719998347203-go19g6matolsifojlt6lf8k3e6eu15cu.apps.googleusercontent.com")
-                                        .setAutoSelectEnabled(true)
+                                        .setServerClientId(SettingsRepository.WEB_CLIENT_ID)
+                                        .setFilterByAuthorizedAccounts(true)  // only already-consented accounts
+                                        .setAutoSelectEnabled(true)            // auto-select if exactly one account
                                         .build()
 
-                                    val request = androidx.credentials.GetCredentialRequest.Builder()
+                                    val phase1Request = androidx.credentials.GetCredentialRequest.Builder()
                                         .addCredentialOption(googleIdOption)
                                         .build()
 
-                                    val result = credentialManager.getCredential(context, request)
+                                    val result = try {
+                                        credentialManager.getCredential(activity, phase1Request)
+                                    } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+                                        // No previously-authorized account — fall through to Phase 2
+                                        android.util.Log.i("CredentialAuth", "[Phase 1] No authorized account found, falling back to full sign-in picker")
+
+                                        // Phase 2 — full account picker (new users / different account)
+                                        val signInWithGoogleOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(
+                                            serverClientId = SettingsRepository.WEB_CLIENT_ID
+                                        ).build()
+
+                                        val phase2Request = androidx.credentials.GetCredentialRequest.Builder()
+                                            .addCredentialOption(signInWithGoogleOption)
+                                            .build()
+
+                                        credentialManager.getCredential(activity, phase2Request)
+                                    }
+
                                     val credential = result.credential
+                                    android.util.Log.d("CredentialAuth", "Received credential: type=${credential.type}, class=${credential.javaClass.simpleName}")
 
                                     if (credential is androidx.credentials.CustomCredential &&
                                         credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
                                     ) {
                                         val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
-                                        val name = googleIdTokenCredential.displayName ?: "Explorer"
+                                        val name = googleIdTokenCredential.displayName
+                                            ?: googleIdTokenCredential.givenName
+                                            ?: googleIdTokenCredential.id.substringBefore("@")
+                                            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
                                         val email = googleIdTokenCredential.id
-                                        val photoUrl = googleIdTokenCredential.profilePictureUri?.toString() ?: ""
+                                        // Boost to 400px — Google photos default to ~96px
+                                        val rawPhoto = googleIdTokenCredential.profilePictureUri?.toString() ?: ""
+                                        val photoUrl = if (rawPhoto.isNotBlank()) {
+                                            rawPhoto.replace(Regex("=s\\d+-c"), "=s400-c")
+                                                .let { if (it == rawPhoto) "$it=s400-c" else it }
+                                        } else ""
+
+                                        android.util.Log.d("CredentialAuth", "✅ Google Sign-In successful: name=$name, email=$email, hasPhoto=${photoUrl.isNotBlank()}")
 
                                         settingsRepo.setGoogleLoggedIn(true)
                                         settingsRepo.setGoogleAccountName(name)
                                         settingsRepo.setGoogleAccountEmail(email)
                                         settingsRepo.setGoogleAccountPhoto(photoUrl)
-                                        Toast.makeText(context, "Welcome back, $name", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Welcome, $name!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        android.util.Log.w("CredentialAuth", "⚠️ Unexpected credential type: ${credential.type} — not a GoogleIdTokenCredential")
+                                        Toast.makeText(context, "Unexpected sign-in response. Please try again.", Toast.LENGTH_SHORT).show()
+                                        // Reset bypass since we didn't complete sign-in
+                                        MainActivity.bypassNextLock = false
                                     }
+                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                    // This fires when the user cancels AND when the system fails after
+                                    // account selection (e.g. SHA-1 not registered in Cloud Console,
+                                    // OAuth client not enabled for this package name, etc.).
+                                    // We cannot reliably tell the two apart, so always show feedback.
+                                    android.util.Log.w("CredentialAuth", "⚠️ GetCredentialCancellationException — possible SHA-1/OAuth config issue: ${e.message}")
+                                    Toast.makeText(context, "Sign-in was not completed.", Toast.LENGTH_SHORT).show()
+                                    showFallbackSignInDialog = true
+                                    MainActivity.bypassNextLock = false
+                                } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+                                    // Both phases failed — no Google account on device at all
+                                    android.util.Log.e("CredentialAuth", "❌ NoCredentialException (both phases): ${e.message}")
+                                    showFallbackSignInDialog = true
+                                    MainActivity.bypassNextLock = false
                                 } catch (e: androidx.credentials.exceptions.GetCredentialException) {
-                                    e.printStackTrace()
-                                    Toast.makeText(context, "Sign-In Failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                    val msg = e.message ?: "unknown"
+                                    android.util.Log.e("CredentialAuth", "❌ GetCredentialException: type=${e.type}, msg=$msg", e)
+                                    // Show fallback for configuration errors (SHA-1 mismatch, disabled OAuth, etc.)
+                                    showFallbackSignInDialog = true
+                                    MainActivity.bypassNextLock = false
                                 } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    Toast.makeText(context, "An error occurred during Sign-In", Toast.LENGTH_LONG).show()
+                                    android.util.Log.e("CredentialAuth", "❌ Unhandled exception during sign-in: ${e.javaClass.simpleName}: ${e.message}", e)
+                                    showFallbackSignInDialog = true
+                                    MainActivity.bypassNextLock = false
+                                } finally {
+                                    isSigningIn = false
                                 }
                             }
                         },
@@ -273,21 +669,33 @@ fun IdentityScreen(
                             .fillMaxWidth()
                             .height(54.dp)
                             .shadow(4.dp, RoundedCornerShape(27.dp)),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            disabledContainerColor = Color.White.copy(alpha = 0.7f)
+                        ),
+                        enabled = !isSigningIn,
                         shape = RoundedCornerShape(27.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            GlideImage(
-                                model = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png",
-                                contentDescription = "Google Logo",
-                                modifier = Modifier.size(20.dp)
-                            )
+                            if (isSigningIn) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF4285F4)
+                                )
+                            } else {
+                                GlideImage(
+                                    model = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png",
+                                    contentDescription = "Google Logo",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = "Continue with Google",
+                                text = if (isSigningIn) "Signing in…" else "Continue with Google",
                                 color = Color(0xFF1F1F1F),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -295,7 +703,20 @@ fun IdentityScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    // Always-visible escape hatch — works regardless of OAuth / SHA-1 config
+                    TextButton(
+                        onClick = { showFallbackSignInDialog = true },
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = "Having trouble signing in?",
+                            color = textSecondary,
+                            fontSize = 12.sp,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // ─── Lore Scantury entry point (Upgrade Banner if Free, Active Badge if Premium) ───
                     if (!isPremium) {
@@ -559,18 +980,398 @@ fun IdentityScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // ─── Lore Scantury entry point ───────────────────────
-                if (!isPremium) {
-                    CompactPremiumBanner(onClick = onNavigateToPremium)
-                } else {
-                    PremiumActiveBadge(onClick = onNavigateToPremium)
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // --- Google Drive Backup section ---
                 Text(
                     text = "• SECURE BACKUP",
+                    color = if (isPremium) textSecondary else textSecondary.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    modifier = Modifier.padding(horizontal = 28.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Observe worker state for live progress feedback (only active while running on-demand sync)
+                val workInfoList by WorkManager.getInstance(context)
+                    .getWorkInfosForUniqueWorkLiveData(DriveBackupWorker.WORK_NAME_ONDEMAND)
+                    .observeAsState(emptyList())
+                val isSyncing = workInfoList.any {
+                    it.state == WorkInfo.State.RUNNING
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                ) {
+                    // Drive backup card
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(32.dp))
+                            .background(cardDarkBackground)
+                            .padding(24.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Cloud,
+                                        contentDescription = "Cloud",
+                                        tint = if (isPremium) Color.White else Color.White.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Google Drive",
+                                        color = if (isPremium) Color.White else Color.White.copy(alpha = 0.4f),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = if (isPremium) "🔒 End-to-End Encrypted" else "🔒 Premium feature",
+                                        color = Color.White.copy(alpha = 0.4f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+
+                            // Master Toggle Switch for Google Drive Auto-Backup
+                            Switch(
+                                checked = gdriveBackupEnabled,
+                                onCheckedChange = { enabled ->
+                                    if (!isPremium) return@Switch
+                                    if (enabled && !googleLoggedIn) {
+                                        Toast.makeText(context, "Please sign in with Google first to enable Drive backup", Toast.LENGTH_LONG).show()
+                                        return@Switch
+                                    }
+                                    coroutineScope.launch {
+                                        settingsRepo.setGdriveBackupEnabled(enabled)
+                                        if (enabled) {
+                                            Toast.makeText(context, "Google Drive Auto-Backup enabled!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Google Drive Auto-Backup disabled", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                enabled = isPremium,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = cardDarkBackground,
+                                    checkedTrackColor = Color.White,
+                                    uncheckedThumbColor = Color.White.copy(alpha = 0.5f),
+                                    uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
+                                    checkedBorderColor = Color.Transparent,
+                                    uncheckedBorderColor = Color.Transparent,
+                                    disabledCheckedThumbColor = Color.White.copy(alpha = 0.2f),
+                                    disabledUncheckedThumbColor = Color.White.copy(alpha = 0.15f),
+                                    disabledCheckedTrackColor = Color.White.copy(alpha = 0.1f),
+                                    disabledUncheckedTrackColor = Color.White.copy(alpha = 0.08f)
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (gdriveBackupEnabled && isPremium) {
+                            // --- Extended Backup Controls (visible when Auto-Backup is ON) ---
+                            // 1. Manual Sync Button Row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.08f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isSyncing) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                                color = Color.White
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Sync,
+                                                contentDescription = "Sync",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Sync Now",
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = if (isSyncing) "Syncing to Google Drive..." else "Back up changes immediately",
+                                            color = Color.White.copy(alpha = 0.4f),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (isSyncing) return@Button
+                                        requestDriveBackup()
+                                    },
+                                    enabled = !isSyncing,
+                                    modifier = Modifier.height(34.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.White,
+                                        disabledContainerColor = Color.White.copy(alpha = 0.3f)
+                                    ),
+                                    shape = RoundedCornerShape(17.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        text = if (isSyncing) "SYNCING" else "SYNC NOW",
+                                        color = cardDarkBackground,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 2. Media Toggle inside card
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.08f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.PermMedia,
+                                            contentDescription = "Media",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Include Media",
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Backup photos, videos, & audio",
+                                            color = Color.White.copy(alpha = 0.4f),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+
+                                Switch(
+                                    checked = gdriveIncludeMedia,
+                                    onCheckedChange = { value ->
+                                        coroutineScope.launch {
+                                            settingsRepo.setGdriveIncludeMedia(value)
+                                        }
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = cardDarkBackground,
+                                        checkedTrackColor = Color.White,
+                                        uncheckedThumbColor = Color.White.copy(alpha = 0.5f),
+                                        uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
+                                        checkedBorderColor = Color.Transparent,
+                                        uncheckedBorderColor = Color.Transparent
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 3. Restore from Drive Row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.08f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isRestoring) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                                color = Color.White
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Rounded.CloudDownload,
+                                                contentDescription = "Restore",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Restore from Drive",
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = if (isRestoring) "Downloading & restoring..." else "Download & restore latest backup",
+                                            color = Color.White.copy(alpha = 0.4f),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (isRestoring || isSyncing) return@Button
+                                        showRestoreConfirmDialog = true
+                                    },
+                                    enabled = !isRestoring && !isSyncing,
+                                    modifier = Modifier.height(34.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.White,
+                                        disabledContainerColor = Color.White.copy(alpha = 0.3f)
+                                    ),
+                                    shape = RoundedCornerShape(17.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        text = if (isRestoring) "RESTORING" else "RESTORE",
+                                        color = cardDarkBackground,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                text = "LAST SYNCED: ${(gdriveLastSynced ?: "NEVER").uppercase()}",
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+                        } else {
+                            // --- Disabled State Explanation ---
+                            Text(
+                                text = if (isPremium) {
+                                    "Auto-backup is disabled. Turn on the switch above to automatically back up your sanctuary entries to Google Drive."
+                                } else {
+                                    "AVAILABLE WITH LORE SCANTURY"
+                                },
+                                color = Color.White.copy(alpha = if (isPremium) 0.5f else 0.25f),
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    // Premium lock overlay for free users
+                    if (!isPremium) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clip(RoundedCornerShape(32.dp))
+                                .background(Color.Black.copy(alpha = 0.55f))
+                                .clickable { onNavigateToPremium() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Lock,
+                                    contentDescription = "Premium required",
+                                    tint = Color(0xFFD4AF37),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Lore Scantury exclusive",
+                                    color = Color(0xFFD4AF37),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Tap to upgrade",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // --- Subscription Section ---
+                Text(
+                    text = "• SUBSCRIPTION",
                     color = textSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -580,313 +1381,269 @@ fun IdentityScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .clip(RoundedCornerShape(32.dp))
-                        .background(cardDarkBackground)
-                        .padding(24.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                if (isPremium) {
+                    // ── PREMIUM ACTIVE CARD ──────────────────────────────────────────
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .clip(RoundedCornerShape(32.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    listOf(Color(0xFF2A3320), Color(0xFF1E2818))
+                                )
+                            )
+                            .border(1.dp, Color(0xFF8FA876).copy(alpha = 0.4f), RoundedCornerShape(32.dp))
+                            .padding(24.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Header row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.1f)),
+                                    .background(Color(0xFF606F49).copy(alpha = 0.3f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Cloud,
-                                    contentDescription = "Cloud",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
+                                    imageVector = Icons.Rounded.WorkspacePremium,
+                                    contentDescription = "Premium",
+                                    tint = Color(0xFFFFE599),
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Google Drive",
+                                    text = "Lore Scantury",
                                     color = Color.White,
-                                    fontSize = 16.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "🔒 End-to-End Encrypted",
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontSize = 11.sp
+                                    text = "• ACTIVE MEMBERSHIP",
+                                    color = Color(0xFF8FA876),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF606F49).copy(alpha = 0.3f))
+                                    .border(1.dp, Color(0xFF8FA876).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = "PRO ✓",
+                                    color = Color(0xFFFFE599),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold
                                 )
                             }
                         }
 
-                        // Reload Sync Button
-                        IconButton(
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Perks list
+                        val perks = listOf(
+                            Icons.Rounded.Pets to "3× faster companion growth",
+                            Icons.Rounded.Mic to "Unlimited voice journaling",
+                            Icons.Rounded.Shield to "End-to-end encrypted backups",
+                            Icons.Rounded.Star to "Exclusive relic & spirit unlocks",
+                            Icons.Rounded.Cloud to "Priority Google Drive sync"
+                        )
+                        perks.forEach { (icon, label) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = Color(0xFF8FA876),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = label,
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Manage subscription
+                        Button(
                             onClick = {
-                                val currentFormatted = SimpleDateFormat("MMM dd, yyyy | h:mm a", Locale.getDefault()).format(Date())
-                                coroutineScope.launch {
-                                    settingsRepo.setGdriveLastSynced(currentFormatted)
-                                    Toast.makeText(context, "Sanctuary synced successfully!", Toast.LENGTH_SHORT).show()
+                                try {
+                                    context.findActivity()?.let {
+                                        it.startActivity(
+                                            android.content.Intent(context, com.gxdevs.lore.ui.premium.PremiumActivity::class.java)
+                                        )
+                                    } ?: context.startActivity(
+                                        android.content.Intent(context, com.gxdevs.lore.ui.premium.PremiumActivity::class.java)
+                                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Opening subscription manager…", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color.White),
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF606F49)),
+                            shape = RoundedCornerShape(25.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Sync,
-                                contentDescription = "Sync Now",
-                                tint = cardDarkBackground,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Settings,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "MANAGE MEMBERSHIP",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                            }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Media Toggle inside card
-                    Row(
+                } else {
+                    // ── FREE / WANDERER CARD ─────────────────────────────────────────
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 24.dp)
+                            .clip(RoundedCornerShape(32.dp))
+                            .background(cardDarkBackground)
+                            .padding(24.dp)
                     ) {
+                        // Header
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
                                     .background(Color.White.copy(alpha = 0.08f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.PermMedia,
-                                    contentDescription = "Media",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    imageVector = Icons.Rounded.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Include Media",
+                                    text = "Wanderer",
                                     color = Color.White,
-                                    fontSize = 13.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Backup photos, videos, & audio",
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-
-                        Switch(
-                            checked = gdriveIncludeMedia,
-                            onCheckedChange = { value ->
-                                coroutineScope.launch {
-                                    settingsRepo.setGdriveIncludeMedia(value)
-                                }
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = cardDarkBackground,
-                                checkedTrackColor = Color.White,
-                                uncheckedThumbColor = Color.White.copy(alpha = 0.5f),
-                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
-                                checkedBorderColor = Color.Transparent,
-                                uncheckedBorderColor = Color.Transparent
-                            )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "LAST SYNCED: ${(gdriveLastSynced ?: "NEVER").uppercase()}",
-                        color = Color.White.copy(alpha = 0.4f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // --- Subscription Section ---
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 28.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "• SUBSCRIPTION",
-                        color = textSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    )
-
-                    // TOGGLE DEMO button
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(cardBackground)
-                            .clickable {
-                                coroutineScope.launch {
-                                    val newPlan =
-                                        if (subscriptionPlan == "MYSTIC (PRO)") "Explorer (Free)" else "MYSTIC (PRO)"
-                                    settingsRepo.setSubscriptionPlan(newPlan)
-                                }
-                            }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "TOGGLE DEMO",
-                            color = primaryAccent,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Subscription Card Details
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .clip(RoundedCornerShape(32.dp))
-                        .background(cardDarkBackground)
-                        .padding(24.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.AutoAwesome,
-                                contentDescription = "Plan Star",
-                                tint = Color(0xFFFFD700), // Gold star
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = if (subscriptionPlan == "MYSTIC (PRO)") "Mystic Active" else "Explorer Plan",
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (subscriptionPlan == "MYSTIC (PRO)") "• YEARLY PLAN" else "• FREE PLAN",
-                                color = if (subscriptionPlan == "MYSTIC (PRO)") Color(0xFFFFD700) else Color.White.copy(alpha = 0.5f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Next billing info card
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.CalendarMonth,
-                                contentDescription = "Calendar",
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "NEXT BILLING",
+                                    text = "• FREE PLAN",
                                     color = Color.White.copy(alpha = 0.4f),
-                                    fontSize = 9.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
                                 )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Locked perks (what they're missing)
+                        val lockedPerks = listOf(
+                            "3× faster companion growth" to false,
+                            "Unlimited voice journaling" to false,
+                            "Encrypted cloud backups" to false,
+                            "Exclusive relic & spirit unlocks" to false,
+                            "Basic journaling — always free" to true
+                        )
+                        lockedPerks.forEach { (label, included) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (included) Icons.Rounded.CheckCircle else Icons.Rounded.Lock,
+                                    contentDescription = null,
+                                    tint = if (included) Color(0xFF8FA876) else Color.White.copy(alpha = 0.25f),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = if (subscriptionPlan == "MYSTIC (PRO)") "May 22, 2027" else "N/A",
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = label,
+                                    color = if (included) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.35f),
+                                    fontSize = 12.sp
                                 )
                             }
                         }
 
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "AMOUNT",
-                                color = Color.White.copy(alpha = 0.4f),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                text = if (subscriptionPlan == "MYSTIC (PRO)") "$49.99 / yr" else "Free",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Upgrade button — opens PremiumActivity
+                        Button(
+                            onClick = {
+                                onNavigateToPremium()
+                                try {
+                                    context.startActivity(
+                                        android.content.Intent(context, com.gxdevs.lore.ui.premium.PremiumActivity::class.java)
+                                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFD4AF37).copy(alpha = 0.15f)
+                            ),
+                            shape = RoundedCornerShape(25.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .border(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f), RoundedCornerShape(25.dp))
+                                    .fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.WorkspacePremium,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD4AF37),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "UNLOCK LORE SCANTURY",
+                                    color = Color(0xFFD4AF37),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                            }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Manage subscription button
-                    Button(
-                        onClick = {
-                            Toast.makeText(context, "Subscription management is active", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(25.dp)),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        shape = RoundedCornerShape(25.dp)
-                    ) {
-                        Text(
-                            text = if (subscriptionPlan == "MYSTIC (PRO)") "MANAGE SUBSCRIPTION" else "UPGRADE TO MYSTIC",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
                     }
                 }
 
@@ -1075,3 +1832,4 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
         Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
     }
 }
+

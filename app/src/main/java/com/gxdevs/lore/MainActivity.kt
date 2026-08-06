@@ -61,11 +61,19 @@ import com.gxdevs.lore.utils.cancelDailyReminder
 import com.gxdevs.lore.utils.createNotificationChannels
 import com.gxdevs.lore.utils.MediaEncryptionManager
 import com.gxdevs.lore.utils.scheduleDailyReminder
+import com.gxdevs.lore.utils.DriveBackupWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
+import java.util.Calendar
+import java.util.concurrent.TimeUnit
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.Constraints
 import com.google.android.play.core.appupdate.AppUpdateManager
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
@@ -99,6 +107,9 @@ class MainActivity : FragmentActivity() {
 
         // ── Pet catalog: schedule 24-hour remote sync ─────────────────────────
         PetCatalogSyncWorker.schedule(this)
+
+        // ── Google Drive backup: schedule once-daily at midnight ───────────────
+        scheduleDailyDriveBackup()
 
         // Clean up stale decrypted temp files from previous sessions
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -406,17 +417,17 @@ class MainActivity : FragmentActivity() {
                                                     onBack = { navController.popBackStack() },
                                                     onNavigateToPremium = { startActivity(Intent(this@MainActivity, com.gxdevs.lore.ui.premium.PremiumActivity::class.java)) },
                                                     onSave = { text, tags, _, audioPath, mediaUris, timeSpent, formatJson, isRelic ->
-                                                        val encodedText = URLEncoder.encode(text, "UTF-8")
-                                                        val encodedTags = URLEncoder.encode(tags, "UTF-8")
-                                                        val encodedAudio = audioPath?.let { URLEncoder.encode(it, "UTF-8") } ?: "null"
-                                                        
-                                                        val urisJson = Gson().toJson(mediaUris.map { it.toString() })
-                                                        val encodedMedia = URLEncoder.encode(urisJson, "UTF-8")
-                                                        val encodedFormat = URLEncoder.encode(formatJson, "UTF-8")
-                                                        
-                                                        navController.navigate(
-                                                                "after_journal/text?content=$encodedText&tags=$encodedTags&audioPath=$encodedAudio&mediaUris=$encodedMedia&timeSpent=$timeSpent&formatRanges=$encodedFormat&isRelic=$isRelic"
-                                                        )
+                                                         val encodedText = encodeRouteParam(text)
+                                                         val encodedTags = encodeRouteParam(tags)
+                                                         val encodedAudio = encodeRouteParam(audioPath)
+                                                         
+                                                         val urisJson = Gson().toJson(mediaUris.map { it.toString() })
+                                                         val encodedMedia = encodeRouteParam(urisJson)
+                                                         val encodedFormat = encodeRouteParam(formatJson)
+                                                         
+                                                         navController.navigate(
+                                                                 "after_journal/text?content=$encodedText&tags=$encodedTags&audioPath=$encodedAudio&mediaUris=$encodedMedia&timeSpent=$timeSpent&formatRanges=$encodedFormat&isRelic=$isRelic"
+                                                         )
                                                     }
                                             )
                                         }
@@ -425,14 +436,14 @@ class MainActivity : FragmentActivity() {
                                             "after_journal/{type}?content={content}&tags={tags}&filePath={filePath}&audioPath={audioPath}&mediaUris={mediaUris}&timeSpent={timeSpent}&editMoodId={editMoodId}&formatRanges={formatRanges}&isRelic={isRelic}"
                                     ) { backStackEntry ->
                                         val type = backStackEntry.arguments?.getString("type") ?: "text"
-                                        val content = backStackEntry.arguments?.getString("content")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                                        val tags = backStackEntry.arguments?.getString("tags")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                                        val filePath = backStackEntry.arguments?.getString("filePath")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                                        val audioPath = backStackEntry.arguments?.getString("audioPath")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                                        val mediaUrisJson = backStackEntry.arguments?.getString("mediaUris")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val content = decodeRouteParam(backStackEntry.arguments?.getString("content"))
+                                        val tags = decodeRouteParam(backStackEntry.arguments?.getString("tags"))
+                                        val filePath = decodeRouteParam(backStackEntry.arguments?.getString("filePath"))
+                                        val audioPath = decodeRouteParam(backStackEntry.arguments?.getString("audioPath"))
+                                        val mediaUrisJson = decodeRouteParam(backStackEntry.arguments?.getString("mediaUris"))
                                         val timeSpent = backStackEntry.arguments?.getString("timeSpent")?.toLongOrNull() ?: 0L
                                         val editMoodId = backStackEntry.arguments?.getString("editMoodId")?.toLongOrNull()
-                                        val formatRangesJson = backStackEntry.arguments?.getString("formatRanges")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                        val formatRangesJson = decodeRouteParam(backStackEntry.arguments?.getString("formatRanges"))
                                         val isRelic = backStackEntry.arguments?.getString("isRelic")?.toBoolean() ?: false
  
                                         // Initialize ViewModel with data
@@ -578,9 +589,65 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    /**
+     * Schedules a daily Drive backup at ~midnight using WorkManager.
+     * Uses KEEP policy — safe to call on every app launch, never duplicates.
+     * The worker itself guards against running if user is not premium/signed-in.
+     */
+    private fun scheduleDailyDriveBackup() {
+        // Calculate initial delay to next midnight
+        val now = Calendar.getInstance()
+        val midnight = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val initialDelayMs = midnight.timeInMillis - now.timeInMillis
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val periodicRequest = PeriodicWorkRequestBuilder<DriveBackupWorker>(
+            repeatInterval = 24,
+            repeatIntervalTimeUnit = TimeUnit.HOURS
+        )
+            .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints)
+            .addTag(DriveBackupWorker.WORK_TAG)
+            .build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            DriveBackupWorker.WORK_NAME_PERIODIC,
+            ExistingPeriodicWorkPolicy.KEEP,
+            periodicRequest
+        )
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
     }
 }
+
+private fun encodeRouteParam(value: String?): String {
+    if (value.isNullOrEmpty()) return "null"
+    return try {
+        android.util.Base64.encodeToString(value.toByteArray(Charsets.UTF_8), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+    } catch (_: Exception) {
+        "null"
+    }
+}
+
+private fun decodeRouteParam(encoded: String?): String? {
+    if (encoded.isNullOrEmpty() || encoded == "null") return null
+    return try {
+        String(android.util.Base64.decode(encoded, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP), Charsets.UTF_8)
+    } catch (_: Exception) {
+        try { java.net.URLDecoder.decode(encoded, "UTF-8") } catch (_: Exception) { encoded }
+    }
+}
+
 

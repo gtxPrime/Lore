@@ -44,6 +44,7 @@ class SettingsRepository(private val context: Context) {
 
 
     companion object {
+        const val WEB_CLIENT_ID = "719998347203-go19g6matolsifojlt6lf8k3e6eu15cu.apps.googleusercontent.com"
         val KEY_HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
         val KEY_APP_LOCK_ENABLED        = booleanPreferencesKey("app_lock_enabled")
         val KEY_HIDE_MEDIA_IN_GALLERY   = booleanPreferencesKey("hide_media_in_gallery")
@@ -81,6 +82,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_GOOGLE_ACCOUNT_EMAIL    = stringPreferencesKey("google_account_email")
         val KEY_GOOGLE_ACCOUNT_PHOTO    = stringPreferencesKey("google_account_photo")
         val KEY_GDRIVE_INCLUDE_MEDIA    = booleanPreferencesKey("gdrive_include_media")
+        val KEY_GDRIVE_BACKUP_ENABLED   = booleanPreferencesKey("gdrive_backup_enabled")
         val KEY_GDRIVE_LAST_SYNCED      = stringPreferencesKey("gdrive_last_synced")
         val KEY_SUBSCRIPTION_PLAN       = stringPreferencesKey("subscription_plan")
         // Encrypt Media
@@ -166,11 +168,17 @@ class SettingsRepository(private val context: Context) {
     val googleAccountName: Flow<String?> = context.dataStore.data
         .map { it[KEY_GOOGLE_ACCOUNT_NAME] }
 
+    val googleAccountEmail: Flow<String?> = context.dataStore.data
+        .map { it[KEY_GOOGLE_ACCOUNT_EMAIL] }
+
     val googleAccountPhoto: Flow<String?> = context.dataStore.data
         .map { it[KEY_GOOGLE_ACCOUNT_PHOTO] }
 
     val gdriveIncludeMedia: Flow<Boolean> = context.dataStore.data
         .map { it[KEY_GDRIVE_INCLUDE_MEDIA] ?: true }
+
+    val gdriveBackupEnabled: Flow<Boolean> = context.dataStore.data
+        .map { it[KEY_GDRIVE_BACKUP_ENABLED] ?: false }
 
     val gdriveLastSynced: Flow<String?> = context.dataStore.data
         .map { it[KEY_GDRIVE_LAST_SYNCED] }
@@ -335,6 +343,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setGdriveIncludeMedia(include: Boolean) {
         context.dataStore.edit { it[KEY_GDRIVE_INCLUDE_MEDIA] = include }
+    }
+
+    suspend fun setGdriveBackupEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_GDRIVE_BACKUP_ENABLED] = enabled }
     }
 
     suspend fun setGdriveLastSynced(timeStr: String?) {
