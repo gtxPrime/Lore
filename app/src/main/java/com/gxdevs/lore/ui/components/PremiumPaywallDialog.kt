@@ -597,7 +597,7 @@ fun PremiumPaywallScreen(
 
             // Lifetime Plan
             val lifetimeDetails = productDetailsList.find { it.productId == PremiumManager.PRODUCT_LIFETIME }
-            val lifetimePrice = lifetimeDetails?.oneTimePurchaseOfferDetails?.formattedPrice ?: "₹499 one-time"
+            val lifetimePrice = lifetimeDetails?.oneTimePurchaseOfferDetails?.formattedPrice ?: "₹499"
             PlanOptionCard(
                 title = "Lifetime Sanctuary",
                 price = lifetimePrice,

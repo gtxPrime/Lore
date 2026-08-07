@@ -22,7 +22,7 @@ private val textPrimary = Color(0xFF2E332A)
 private val textSecondary = Color(0xFF828779)
 
 /**
- * Calendar Heatmap Activity Matrix component for Nurtale Insights.
+ * Calendar Heatmap Activity Matrix component for Lore Insights.
  * Renders a 30-day contribution activity grid showing journaling consistency.
  */
 @Composable

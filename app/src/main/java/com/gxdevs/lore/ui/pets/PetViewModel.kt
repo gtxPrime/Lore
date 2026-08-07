@@ -111,7 +111,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val gson           = Gson()
     private val imageCache     = PetImageCache(application)
 
-    private val prefs = application.getSharedPreferences("nurtale_demo_prefs", Context.MODE_PRIVATE)
+    private val prefs = application.getSharedPreferences("lore_demo_prefs", Context.MODE_PRIVATE)
 
     // --- Demo Mode State Controls ----------------------------------------------------------------
 

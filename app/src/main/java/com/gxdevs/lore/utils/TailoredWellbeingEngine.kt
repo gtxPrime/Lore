@@ -5,7 +5,7 @@ import com.gxdevs.lore.data.mood.MoodConstants
 import java.util.Calendar
 
 /**
- * Tailored Wellbeing & Emotional Self-Care Engine for Nurtale.
+ * Tailored Wellbeing & Emotional Self-Care Engine for Lore.
  *
  * Generates personalized, non-professional wellness micro-interventions,
  * cognitive reframing prompts, and custom notification text tailored to the
@@ -157,7 +157,7 @@ object TailoredWellbeingEngine {
             )
 
             else -> CustomNotificationVariant(
-                title = "Your Nurtale Sanctuary 🌿",
+                title = "Your Lore Sanctuary 🌿",
                 text = "Sage invites you: 'Take a soft pause and capture a memory from today.'",
                 petCompanionName = "Sage"
             )

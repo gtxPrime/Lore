@@ -1,4 +1,4 @@
-﻿package com.gxdevs.nurtale
+﻿package com.gxdevs.lore
 
 import org.junit.Test
 
@@ -15,4 +15,5 @@ class ExampleUnitTest {
         assertEquals(4, 2 + 2)
     }
 }
+
 

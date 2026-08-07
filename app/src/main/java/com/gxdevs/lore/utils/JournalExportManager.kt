@@ -10,7 +10,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Journal Export Engine for Athera / Nurtale.
+ * Journal Export Engine for Lore.
  * Supports Markdown (.md) and HTML/Printable Export.
  */
 object JournalExportManager {
@@ -25,7 +25,7 @@ object JournalExportManager {
         if (entries.isEmpty()) return null
 
         val sb = StringBuilder()
-        sb.append("# Nurtale Journal Export\n\n")
+        sb.append("# Lore Journal Export\n\n")
         sb.append("_Exported on ${dateFormatter.format(Date())}_\n\n")
         sb.append("---\n\n")
 
@@ -58,7 +58,7 @@ object JournalExportManager {
         }
 
         val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
-        val fileName = "nurtale_export_${fileNameFormatter.format(Date())}.md"
+        val fileName = "lore_export_${fileNameFormatter.format(Date())}.md"
         val file = File(exportDir, fileName)
 
         file.writeText(sb.toString())

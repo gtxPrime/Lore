@@ -1,13 +1,13 @@
-﻿package com.gxdevs.nurtale
+﻿package com.gxdevs.lore
 
 import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.gxdevs.nurtale.data.AppDatabase
-import com.gxdevs.nurtale.data.journal.JournalEntry
-import com.gxdevs.nurtale.utils.BackupEncryptedException
-import com.gxdevs.nurtale.utils.BackupManager
-import com.gxdevs.nurtale.utils.MediaEncryptionManager
+import com.gxdevs.lore.data.AppDatabase
+import com.gxdevs.lore.data.journal.JournalEntry
+import com.gxdevs.lore.utils.BackupEncryptedException
+import com.gxdevs.lore.utils.BackupManager
+import com.gxdevs.lore.utils.MediaEncryptionManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.runBlocking
@@ -463,3 +463,4 @@ class BackupManagerInstrumentedTest {
             afterMerge.any { it.content == "New backup entry" })
     }
 }
+

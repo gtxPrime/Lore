@@ -4,7 +4,7 @@ import com.gxdevs.lore.data.mood.MoodConstants
 import java.util.Locale
 
 /**
- * Robust On-Device Mood Scoring Engine for Nurtale.
+ * Robust On-Device Mood Scoring Engine for Lore.
  *
  * A multi-signal, zero-dependency sentiment and mood classifier that:
  * ─ Uses exact word-boundary tokenization (no false-positive substring matches)

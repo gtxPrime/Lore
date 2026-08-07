@@ -6,7 +6,7 @@ import com.gxdevs.lore.data.mood.MoodWordWeightDao
 import java.util.Locale
 
 /**
- * On-Device Adaptive Mood Learning Engine for Nurtale.
+ * On-Device Adaptive Mood Learning Engine for Lore.
  *
  * Implements a Naive Bayes–style self-learning system stored entirely in Room.
  * Every time a user confirms a mood for their journal entry, this engine

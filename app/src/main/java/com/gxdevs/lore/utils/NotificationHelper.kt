@@ -95,12 +95,12 @@ class DailyReminderReceiver : BroadcastReceiver() {
         data class ReminderVariant(val title: String, val text: String)
 
         val reminderVariants = listOf(
-            ReminderVariant("Write in your Nurtale", "A few words today keep the silence away."),
+            ReminderVariant("Write in your Lore", "A few words today keep the silence away."),
             ReminderVariant("Pause and Reflect", "Capture a moment from today before it fades."),
             ReminderVariant("Your Daily Sanctuary", "Take a moment to write down your thoughts."),
             ReminderVariant("A Moment of Peace", "How was your day? Put it into words."),
             ReminderVariant("Reflect on Today", "Every day has a story. What is yours?"),
-            ReminderVariant("Nurtale Journaling", "Speak your mind, clear your thoughts, and find peace."),
+            ReminderVariant("Lore Journaling", "Speak your mind, clear your thoughts, and find peace."),
             ReminderVariant("Mindful Reflection", "Settle down and record a memory from today."),
             ReminderVariant("Unburden Your Mind", "Write down whatever is on your heart tonight."),
             ReminderVariant("Capture the Day", "A blank page is waiting. Share your journey."),

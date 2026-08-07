@@ -1,7 +1,7 @@
-# Nurtale Mood Classifier — Model Training Guide
+﻿# Lore Mood Classifier — Model Training Guide
 
 This document describes how to generate the `mood_classifier.tflite` model file
-that powers Layer 4 of Nurtale's on-device AI mood detection system.
+that powers Layer 4 of Lore's on-device AI mood detection system.
 
 Place the generated file at:
 ```
@@ -23,7 +23,7 @@ app/src/main/assets/mood_classifier.tflite
 
 The model must output these 6 category names in any order:
 
-| Label | Nurtale Mood | Training Examples |
+| Label | Lore Mood | Training Examples |
 |---|---|---|
 | `bright` | BRIGHT | joy, love, gratitude, excitement, celebration |
 | `calm` | CALM | peace, serenity, relaxation, mindfulness, contentment |
@@ -36,7 +36,7 @@ The model must output these 6 category names in any order:
 
 ## Step 1 — Get the Training Dataset
 
-Use the **dair-ai/emotion** dataset (6 classes) mapped to Nurtale's taxonomy:
+Use the **dair-ai/emotion** dataset (6 classes) mapped to Lore's taxonomy:
 
 ```python
 # In Google Colab:
@@ -45,7 +45,7 @@ pip install datasets transformers mediapipe-model-maker
 from datasets import load_dataset
 dataset = load_dataset("dair-ai/emotion")
 
-# Emotion → Nurtale mood mapping
+# Emotion → Lore mood mapping
 LABEL_MAP = {
     0: "heavy",    # sadness
     1: "bright",   # joy

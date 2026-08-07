@@ -84,7 +84,7 @@ fun InsightsTab(stats: StatsState, pets: List<PetUiState> = emptyList(), onWrite
             .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
     ) {
         Column(modifier = Modifier.padding(horizontal = 24.dp).padding(top = 24.dp)) {
-            Text("Your Nurtale.", color = textPrimary, fontSize = 36.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+            Text("Your Lore.", color = textPrimary, fontSize = 36.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
             Spacer(modifier = Modifier.height(8.dp))
             Text("The history of your moods and presence.", color = textSecondary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Spacer(modifier = Modifier.height(24.dp))

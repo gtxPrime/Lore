@@ -4,7 +4,7 @@ import android.content.Context
 import com.gxdevs.lore.data.mood.MoodConstants
 
 /**
- * On-Device Emotion Model Manager for Nurtale.
+ * On-Device Emotion Model Manager for Lore.
  *
  * Currently configured in lightweight mode: zero heavy 20MB TFLite assets required.
  * All mood predictions are driven by:

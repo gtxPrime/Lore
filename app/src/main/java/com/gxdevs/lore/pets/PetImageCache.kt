@@ -27,7 +27,7 @@ class PetImageCache(private val context: Context) {
         File(context.filesDir, "pet_images").also { it.mkdirs() }
     }
 
-    private val ENC_KEY = "nurtale_26_px"
+    private val ENC_KEY = "lore_26_px"
     private val ENC_PREFIX = "enc:"
 
     // ── Public API ────────────────────────────────────────────────────────────
