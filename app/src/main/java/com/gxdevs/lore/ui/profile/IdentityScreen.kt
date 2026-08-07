@@ -372,62 +372,7 @@ fun IdentityScreen(
         label = "glowAlpha"
     )
 
-    var showFallbackSignInDialog by remember { mutableStateOf(false) }
     var isSigningIn by remember { mutableStateOf(false) }
-
-    if (showFallbackSignInDialog) {
-        var fallbackName by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showFallbackSignInDialog = false },
-            title = { Text("Sanctuary Profile Setup", color = Color(0xFF2E332A), fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text(
-                        text = "Enter your preferred display name to sign in to your Sanctuary profile:",
-                        color = Color(0xFF5A6254),
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    OutlinedTextField(
-                        value = fallbackName,
-                        onValueChange = { fallbackName = it },
-                        label = { Text("Your Name", color = Color(0xFF5A6254)) },
-                        singleLine = true,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color(0xFF606F49),
-                            unfocusedIndicatorColor = Color(0xFFD9DFCD),
-                            focusedTextColor = Color(0xFF2E332A),
-                            unfocusedTextColor = Color(0xFF2E332A)
-                        )
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val finalName = fallbackName.ifBlank { "Explorer" }
-                        coroutineScope.launch {
-                            settingsRepo.setGoogleLoggedIn(true)
-                            settingsRepo.setGoogleAccountName(finalName)
-                        }
-                        showFallbackSignInDialog = false
-                        Toast.makeText(context, "Welcome back, $finalName", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF606F49))
-                ) {
-                    Text("Sign In", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showFallbackSignInDialog = false }) {
-                    Text("Cancel", color = Color(0xFF5A6254))
-                }
-            },
-            containerColor = Color(0xFFF9F9F6)
-        )
-    }
 
     if (!googleLoggedIn) {
         // --- UNLOGGED STATE VIEW (Screenshot 1) ---
@@ -560,7 +505,6 @@ fun IdentityScreen(
                     Button(
                         onClick = {
                             if (isSigningIn) return@Button
-                            // Resolve the Activity before entering the coroutine — must be non-null
                             val activity = context.findActivity()
                             if (activity == null) {
                                 android.util.Log.e("CredentialAuth", "Cannot find Activity from context — aborting sign-in")
@@ -571,59 +515,20 @@ fun IdentityScreen(
                             MainActivity.bypassNextLock = true
                             coroutineScope.launch {
                                 try {
-                                    android.util.Log.d("CredentialAuth", "Initiating Google Sign-In with GetSignInWithGoogleOption, serverClientId=${SettingsRepository.WEB_CLIENT_ID}")
-
-                                    val signInWithGoogleOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(
-                                        serverClientId = SettingsRepository.WEB_CLIENT_ID
-                                    ).build()
-
-                                    val request = androidx.credentials.GetCredentialRequest.Builder()
-                                        .addCredentialOption(signInWithGoogleOption)
-                                        .build()
-
-                                    val result = credentialManager.getCredential(activity, request)
-                                    val credential = result.credential
-                                    android.util.Log.d("CredentialAuth", "Received credential: type=${credential.type}, class=${credential.javaClass.simpleName}")
-
-                                    if (credential is androidx.credentials.CustomCredential &&
-                                        credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                                    ) {
-                                        val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
-                                        val name = googleIdTokenCredential.displayName
-                                            ?: googleIdTokenCredential.givenName
-                                            ?: googleIdTokenCredential.id.substringBefore("@")
-                                            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-                                        val email = googleIdTokenCredential.id
-                                        val rawPhoto = googleIdTokenCredential.profilePictureUri?.toString() ?: ""
-                                        val photoUrl = if (rawPhoto.isNotBlank()) {
-                                            rawPhoto.replace(Regex("=s\\d+-c"), "=s400-c")
-                                                .let { if (it == rawPhoto) "$it=s400-c" else it }
-                                        } else ""
-
-                                        android.util.Log.d("CredentialAuth", "✅ Google Sign-In successful: name=$name, email=$email, hasPhoto=${photoUrl.isNotBlank()}")
-
-                                        settingsRepo.setGoogleLoggedIn(true)
-                                        settingsRepo.setGoogleAccountName(name)
-                                        settingsRepo.setGoogleAccountEmail(email)
-                                        settingsRepo.setGoogleAccountPhoto(photoUrl)
-                                        Toast.makeText(context, "Welcome, $name!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        android.util.Log.w("CredentialAuth", "⚠️ Unexpected credential type: ${credential.type} — not a GoogleIdTokenCredential")
-                                        Toast.makeText(context, "Unexpected sign-in response. Please try again.", Toast.LENGTH_SHORT).show()
+                                    when (val result = com.gxdevs.lore.auth.GoogleAuthManager.signIn(activity, settingsRepo)) {
+                                        is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Success -> {
+                                            Toast.makeText(context, "Welcome, ${result.displayName}!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Failure -> {
+                                            Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                        }
+                                        is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Cancelled -> {
+                                            Toast.makeText(context, result.reason, Toast.LENGTH_LONG).show()
+                                        }
                                     }
-                                } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
-                                    android.util.Log.w("CredentialAuth", "⚠️ Sign-in cancelled or SHA-1 mismatch: ${e.message}")
-                                    Toast.makeText(context, "Sign-in was cancelled.", Toast.LENGTH_SHORT).show()
-                                } catch (e: androidx.credentials.exceptions.NoCredentialException) {
-                                    android.util.Log.e("CredentialAuth", "❌ NoCredentialException: ${e.message}")
-                                    showFallbackSignInDialog = true
-                                } catch (e: androidx.credentials.exceptions.GetCredentialException) {
-                                    val msg = e.message ?: "unknown"
-                                    android.util.Log.e("CredentialAuth", "❌ GetCredentialException: type=${e.type}, msg=$msg", e)
-                                    showFallbackSignInDialog = true
                                 } catch (e: Exception) {
-                                    android.util.Log.e("CredentialAuth", "❌ Unhandled exception during sign-in: ${e.javaClass.simpleName}: ${e.message}", e)
-                                    showFallbackSignInDialog = true
+                                    android.util.Log.e("CredentialAuth", "Unhandled exception during sign-in", e)
+                                    Toast.makeText(context, "Sign-in failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                                 } finally {
                                     isSigningIn = false
                                     MainActivity.bypassNextLock = false
@@ -666,19 +571,6 @@ fun IdentityScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                    }
-
-                    // Always-visible escape hatch — works regardless of OAuth / SHA-1 config
-                    TextButton(
-                        onClick = { showFallbackSignInDialog = true },
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Text(
-                            text = "Having trouble signing in?",
-                            color = textSecondary,
-                            fontSize = 12.sp,
-                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -1618,11 +1510,8 @@ fun IdentityScreen(
                 TextButton(
                     onClick = {
                         coroutineScope.launch {
-                            settingsRepo.clearGoogleAuth()
-                            try {
-                                credentialManager.clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
-                            } catch (_: Exception) {}
-                            Toast.makeText(context, "Sanctuary sealed", Toast.LENGTH_SHORT).show()
+                            com.gxdevs.lore.auth.GoogleAuthManager.signOut(context, settingsRepo)
+                            Toast.makeText(context, "Sanctuary sealed. Signed out of Google & Firebase.", Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier

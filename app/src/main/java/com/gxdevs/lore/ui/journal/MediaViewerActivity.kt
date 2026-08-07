@@ -1,4 +1,4 @@
-package com.gxdevs.lore.ui.journal
+ï»¿package com.gxdevs.lore.ui.journal
 
 import android.content.Context
 import android.content.Intent
@@ -147,7 +147,7 @@ class MediaViewerActivity : ComponentActivity() {
                             }
 
                             // For plain file paths (no scheme, or file://), we can use
-                            // the file directly — no need to copy to a temp file.
+                            // the file directly ï¿½ no need to copy to a temp file.
                             val directFile: File? = when (uri.scheme) {
                                 null -> File(mediaUriStr).takeIf { it.exists() }
                                 "file" -> File(uri.path ?: mediaUriStr).takeIf { it.exists() }
@@ -157,7 +157,7 @@ class MediaViewerActivity : ComponentActivity() {
                             if (directFile != null) {
                                 resolvedFile = directFile
                             } else {
-                                // content:// or other — copy to temp so ExoPlayer / Glide can access it
+                                // content:// or other ï¿½ copy to temp so ExoPlayer / Glide can access it
                                 val mimeType = try { contentResolver.getType(uri) } catch (_: Exception) { null }
                                 val ext = when {
                                     isVideoLoc -> "mp4"
@@ -204,7 +204,7 @@ class MediaViewerActivity : ComponentActivity() {
                         }
                     }
                     resolvedFile == null -> {
-                        // Cohesive loader screen, matching Nurtale colors
+                        // Cohesive loader screen, matching Lore colors
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center

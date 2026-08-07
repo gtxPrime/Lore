@@ -89,6 +89,7 @@ fun SettingsScreen(
     val hideMedia         by settingsRepo.hideMediaInGallery.collectAsState(initial = false)
     val decoyPin          by settingsRepo.decoyPin.collectAsState(initial = false)
     val appPin            by settingsRepo.appPin.collectAsState(initial = null)
+    val isDecoyMode       by settingsRepo.isDecoyMode.collectAsState(initial = false)
     val useBiometric      by settingsRepo.useBiometricLock.collectAsState(initial = true)
     val dailyReminder     by settingsRepo.dailyReminder.collectAsState(initial = true)
     val companionAlerts   by settingsRepo.companionAlerts.collectAsState(initial = true)
@@ -212,6 +213,7 @@ fun SettingsScreen(
             screenshotProtection = hideMedia,
             decoyPin             = decoyPin,
             appPin               = appPin,
+            isDecoyMode          = isDecoyMode,
             useBiometric         = useBiometric,
             biometricAvailable   = biometricAvailable,
             dailyReminder        = dailyReminder,
@@ -611,6 +613,7 @@ fun SettingsScreenUI(
     screenshotProtection: Boolean = false,
     decoyPin: Boolean             = false,
     appPin: String?               = null,
+    isDecoyMode: Boolean          = false,
     useBiometric: Boolean         = true,
     biometricAvailable: Boolean   = true,
     dailyReminder: Boolean        = true,
@@ -845,8 +848,8 @@ fun SettingsScreenUI(
         }
         Spacer(modifier = Modifier.height(22.dp))
 
-        // PRIVACY & SECURITY
-        SettingsSection(
+        // PRIVACY & SECURITY — hidden in decoy mode so the intruder cannot find or change PINs
+        if (!isDecoyMode) SettingsSection(
             title = "PRIVACY & SECURITY",
             icon  = Icons.Outlined.Lock
         ) {
@@ -1201,7 +1204,7 @@ fun SettingsScreenUI(
                 checked  = encryptMedia,
                 onCheckedChange = onEncryptMediaToggle
             )
-        }
+        }  // end if (!isDecoyMode) for PRIVACY & SECURITY
 
         Spacer(modifier = Modifier.height(22.dp))
 
@@ -1442,7 +1445,8 @@ fun SettingsScreenUI(
             )
         }
 
-        SettingsSection(
+        // SANCTUARY VAULT — hidden in decoy mode to prevent backup/export of real data
+        if (!isDecoyMode) SettingsSection(
             title = "SANCTUARY VAULT",
             icon = Icons.Outlined.Lock
         ) {
@@ -1477,12 +1481,12 @@ fun SettingsScreenUI(
                     onNavigateToPremium() // Triggers navigation refresh
                 }
             )
-        }
+        }  // end if (!isDecoyMode) for SANCTUARY VAULT
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // DANGER ZONE
-        Column(
+        // DANGER ZONE — hidden in decoy mode so real data cannot be deleted
+        if (!isDecoyMode) Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))

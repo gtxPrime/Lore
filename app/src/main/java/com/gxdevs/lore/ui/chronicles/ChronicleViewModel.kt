@@ -42,17 +42,19 @@ class ChronicleViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private val _echoEntry = MutableStateFlow<JournalEntry?>(null)
-    val nowMs = System.currentTimeMillis()
+    private val _currentTime = MutableStateFlow(System.currentTimeMillis())
 
     val uiState: StateFlow<ChronicleUiState> = combine(
         _echoEntry,
-        relicDao.getSurfacedRelics(nowMs),
-        relicDao.getLockedRelics(nowMs),
-        com.gxdevs.lore.data.SettingsRepository(application).isDecoyMode
-    ) { echo, surfaced, locked, isDecoy ->
+        relicDao.getAllRelics(),
+        com.gxdevs.lore.data.SettingsRepository(application).isDecoyMode,
+        _currentTime
+    ) { echo, allRelics, isDecoy, now ->
         if (isDecoy) {
             ChronicleUiState(isLoading = false)
         } else {
+            val surfaced = allRelics.filter { !it.isUnsealed && (it.sealedAtTimestamp + it.unsealAfterDays.toLong() * 86_400_000L) <= now }
+            val locked = allRelics.filter { !it.isUnsealed && (it.sealedAtTimestamp + it.unsealAfterDays.toLong() * 86_400_000L) > now }
             ChronicleUiState(
                 echoEntry = echo,
                 surfacedRelics = surfaced,
@@ -64,6 +66,12 @@ class ChronicleViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         loadEcho()
+        viewModelScope.launch {
+            while (true) {
+                _currentTime.value = System.currentTimeMillis()
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
     }
 
     private fun loadEcho() {
@@ -79,11 +87,33 @@ class ChronicleViewModel(application: Application) : AndroidViewModel(applicatio
         return SimpleDateFormat("MMM dd, yyyy", Locale.US).format(unsealMs).uppercase()
     }
 
-    /** Days remaining until a relic unlocks */
-    fun daysRemaining(relic: Relic): String {
+    /** Format remaining time until a relic unlocks */
+    fun formatRemainingTime(relic: Relic, nowMs: Long = System.currentTimeMillis()): String {
         val unsealMs = relic.sealedAtTimestamp + relic.unsealAfterDays.toLong() * 86_400_000L
-        val days = ((unsealMs - nowMs) / 86_400_000L).toInt().coerceAtLeast(0)
-        return "$days Days"
+        val diffMs = (unsealMs - nowMs).coerceAtLeast(0)
+
+        val calUnseal = Calendar.getInstance().apply { timeInMillis = unsealMs }
+        val calNow = Calendar.getInstance().apply { timeInMillis = nowMs }
+        val isToday = calUnseal.get(Calendar.YEAR) == calNow.get(Calendar.YEAR) &&
+                calUnseal.get(Calendar.DAY_OF_YEAR) == calNow.get(Calendar.DAY_OF_YEAR)
+
+        return if (isToday || diffMs < 86_400_000L) {
+            val totalSec = diffMs / 1000L
+            val hours = totalSec / 3600L
+            val mins = (totalSec % 3600L) / 60L
+            val secs = totalSec % 60L
+
+            if (hours > 0) {
+                "${hours}h ${mins}m"
+            } else {
+                "${mins}m ${secs}s"
+            }
+        } else {
+            val days = (diffMs / 86_400_000L).toInt().coerceAtLeast(1)
+            if (days == 1) "1 Day" else "$days Days"
+        }
     }
+
+    fun daysRemaining(relic: Relic): String = formatRemainingTime(relic)
 }
 

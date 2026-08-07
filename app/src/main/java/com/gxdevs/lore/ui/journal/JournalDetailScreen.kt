@@ -143,7 +143,7 @@ fun JournalDetailScreen(
             },
             text = {
                 Text(
-                    "This memory will be permanently erased from your Nurtale. This action cannot be undone.",
+                    "This memory will be permanently erased from your Lore. This action cannot be undone.",
                     color = textSecondary,
                     fontSize = 14.sp,
                     lineHeight = 22.sp
@@ -295,7 +295,7 @@ fun JournalDetailScreen(
                 att.uri to when (att.type) {
                     "VIDEO" -> true
                     "IMAGE", "FILE", "AUDIO" -> false
-                    else -> false // UNKNOWN — will be resolved by the LaunchedEffect below
+                    else -> false // UNKNOWN ï¿½ will be resolved by the LaunchedEffect below
                 }
             }
         )
@@ -790,6 +790,7 @@ private fun DynamicMediaGrid(
             remainingMedia.size >= 3 -> {
                 val overflowCount = remainingMedia.size - 1
                 val uri = remainingMedia[0]
+                val overflowUri = remainingMedia[1]  // tapping "+N" opens the second overflow item
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     MediaThumbnail(uri = uri, isVideo = isVideo(uri), playIconSize = 16.dp,
                         modifier = Modifier.weight(1f).aspectRatio(1f),
@@ -800,7 +801,8 @@ private fun DynamicMediaGrid(
                             .weight(1f)
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(primaryAccent.copy(alpha = 0.50f)),
+                            .background(primaryAccent.copy(alpha = 0.50f))
+                            .clickable { open(overflowUri) },
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {

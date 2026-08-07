@@ -54,6 +54,12 @@ class PremiumManager private constructor(private val context: Context) : Purchas
     private val _billingStatus = MutableStateFlow<String>("Initializing")
     val billingStatus: StateFlow<String> = _billingStatus.asStateFlow()
 
+    /** Emits true once after a successful purchase — reset via [resetPurchaseSuccess]. */
+    private val _purchaseSuccess = MutableStateFlow(false)
+    val purchaseSuccess: StateFlow<Boolean> = _purchaseSuccess.asStateFlow()
+
+    fun resetPurchaseSuccess() { _purchaseSuccess.value = false }
+
     private var billingClient: BillingClient? = null
 
     init {
@@ -264,9 +270,8 @@ class PremiumManager private constructor(private val context: Context) : Purchas
         Log.i(TAG, "💳 [LoreBilling] launchBillingFlow returned code=${response.responseCode}, msg=${response.debugMessage}")
         if (response.responseCode != BillingClient.BillingResponseCode.OK) {
             onResult(false, "Billing Error: ${response.debugMessage}")
-        } else {
-            onResult(true, "Opening Google Play purchase sheet...")
         }
+        // Note: success is NOT signalled here — it comes via onPurchasesUpdated
     }
 
     override fun onPurchasesUpdated(billingResult: BillingResult, purchases: MutableList<Purchase>?) {
@@ -277,7 +282,12 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                     purchases.forEach { p ->
                         Log.d(TAG, "   ↳ Purchase: orderId=${p.orderId}, products=${p.products}, state=${p.purchaseState}, acknowledged=${p.isAcknowledged}")
                     }
+                    val hadValidPurchase = purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }
                     processPurchases(purchases)
+                    if (hadValidPurchase) {
+                        Log.i(TAG, "🎉 [LoreBilling] Purchase confirmed — signalling purchaseSuccess")
+                        _purchaseSuccess.value = true
+                    }
                 }
             }
             BillingClient.BillingResponseCode.USER_CANCELED -> {

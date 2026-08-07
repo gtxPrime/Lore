@@ -70,8 +70,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -106,11 +104,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.ui.text.TextLayoutResult
 import com.google.common.reflect.TypeToken
 import com.google.gson.Gson
 import androidx.core.net.toUri
-import kotlin.math.abs
 
 private val mainContainerBackground = Color(0xFFF4F1EA)
 private val cardBackground          = Color(0xFFEAE7DF)
@@ -606,10 +602,7 @@ fun TextJournalScreen(
     var activeList    by rememberSaveable { mutableStateOf(ListType.OFF) }
 
     val editorScrollState = rememberScrollState()
-    var textFieldTop by remember { mutableFloatStateOf(0f) }
-    var viewportHeight by remember { mutableIntStateOf(0) }
-    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    
+
     // Typing tracking for pills auto-hide
     var isTyping by remember { mutableStateOf(false) }
     LaunchedEffect(richTextState.textFieldValue.text, title) {
@@ -617,26 +610,6 @@ fun TextJournalScreen(
             isTyping = true
             kotlinx.coroutines.delay(1000)
             isTyping = false
-        }
-    }
-
-    LaunchedEffect(richTextState.textFieldValue.selection, textLayoutResult, textFieldTop, viewportHeight) {
-        val layout = textLayoutResult ?: return@LaunchedEffect
-        if (viewportHeight <= 0) return@LaunchedEffect
-        val selection = richTextState.textFieldValue.selection
-        val text = richTextState.textFieldValue.text
-        if (selection.collapsed) {
-            val cursorIndex = selection.start
-            if (cursorIndex in 0..text.length) {
-                val cursorRect = try { layout.getCursorRect(cursorIndex) } catch (_: Exception) { null }
-                if (cursorRect != null) {
-                    val cursorY = textFieldTop + cursorRect.top
-                    val targetScroll = (cursorY - viewportHeight * 0.35f).coerceAtLeast(0f).toInt()
-                    if (abs(editorScrollState.value - targetScroll) > 10) {
-                        editorScrollState.animateScrollTo(targetScroll)
-                    }
-                }
-            }
         }
     }
 
@@ -1014,14 +987,12 @@ fun TextJournalScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()  // resize entire layout when keyboard opens
         ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .onSizeChanged { size ->
-                        viewportHeight = size.height
-                    }
             ) {
                 Column(
                     modifier = Modifier
@@ -1029,7 +1000,7 @@ fun TextJournalScreen(
                         .verticalScroll(editorScrollState)
                         .padding(horizontal = 24.dp)
                         .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
-                        .padding(bottom = 24.dp)
+                        .padding(bottom = 200.dp)  // always clears the bottom toolbar
                 ) {
                 // --- Top Bar: Close + Save ---
                 Row(
@@ -1365,7 +1336,6 @@ fun TextJournalScreen(
                         val shouldTurnOffList = richTextState.onValueChange(newVal, activeList)
                         if (shouldTurnOffList) activeList = ListType.OFF
                     },
-                    onTextLayout = { textLayoutResult = it },
                     visualTransformation = RichTextVisualTransformation(richTextState),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     textStyle = TextStyle(
@@ -1375,10 +1345,7 @@ fun TextJournalScreen(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 200.dp)
-                        .onGloballyPositioned { coordinates ->
-                            textFieldTop = coordinates.positionInParent().y
-                        },
+                        .heightIn(min = 200.dp),
                     cursorBrush = SolidColor(primaryAccent),
                     decorationBox = { innerTextField ->
                         if (richTextState.textFieldValue.text.isEmpty()) {
@@ -1401,8 +1368,7 @@ fun TextJournalScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding(),
+                    .navigationBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {

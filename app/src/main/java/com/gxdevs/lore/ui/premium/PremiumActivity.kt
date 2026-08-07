@@ -39,6 +39,8 @@ import androidx.fragment.app.FragmentActivity
 import com.gxdevs.lore.MainActivity
 import com.gxdevs.lore.data.SettingsRepository
 import com.gxdevs.lore.utils.PremiumManager
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import kotlinx.coroutines.launch
 
 // ===================== ATHERA LIGHT SANCTUARY THEME =====================
@@ -88,48 +90,34 @@ fun PremiumScreen(onBack: () -> Unit) {
     var showGoogleLoginDialog by remember { mutableStateOf(false) }
     var showCelebration       by remember { mutableStateOf(false) }
 
+    // Observe real purchase success (fires only after onPurchasesUpdated confirms a PURCHASED state)
+    val purchaseSuccess by pm.purchaseSuccess.collectAsState()
+    LaunchedEffect(purchaseSuccess) {
+        if (purchaseSuccess) {
+            isPurchasing = false
+            showCelebration = true
+            pm.resetPurchaseSuccess()
+        }
+    }
+
     // ── Google Sign-In Helper ───────────────────────────────────────────────
     fun performGoogleSignIn(onSuccess: () -> Unit) {
-        val act: android.content.Context = activity ?: context.findActivity() ?: context
+        val act = activity ?: context.findActivity() ?: return
         MainActivity.bypassNextLock = true
         scope.launch {
             try {
-                val signInWithGoogleOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(
-                    serverClientId = SettingsRepository.WEB_CLIENT_ID
-                ).build()
-
-                val request = androidx.credentials.GetCredentialRequest.Builder()
-                    .addCredentialOption(signInWithGoogleOption)
-                    .build()
-
-                val result = credentialManager.getCredential(act, request)
-                val credential = result.credential
-
-                if (credential is androidx.credentials.CustomCredential &&
-                    credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                ) {
-                    val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
-                    val name = googleIdTokenCredential.displayName
-                        ?: googleIdTokenCredential.givenName
-                        ?: googleIdTokenCredential.id.substringBefore("@")
-                        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-                    val email = googleIdTokenCredential.id
-                    val photoUrl = googleIdTokenCredential.profilePictureUri?.toString() ?: ""
-
-                    settingsRepo.setGoogleLoggedIn(true)
-                    settingsRepo.setGoogleAccountName(name)
-                    settingsRepo.setGoogleAccountEmail(email)
-                    settingsRepo.setGoogleAccountPhoto(photoUrl)
-                    Toast.makeText(context, "Signed in as $name", Toast.LENGTH_SHORT).show()
-                    onSuccess()
+                when (val res = com.gxdevs.lore.auth.GoogleAuthManager.signIn(act, settingsRepo)) {
+                    is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Success -> {
+                        Toast.makeText(context, "Signed in as ${res.displayName}", Toast.LENGTH_SHORT).show()
+                        onSuccess()
+                    }
+                    is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Failure -> {
+                        Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                    }
+                    is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Cancelled -> {
+                        // User cancelled, do nothing
+                    }
                 }
-            } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
-                // User cancelled sign in, dismiss silently
-            } catch (e: androidx.credentials.exceptions.NoCredentialException) {
-                Toast.makeText(context, "No Google accounts found", Toast.LENGTH_SHORT).show()
-            } catch (e: androidx.credentials.exceptions.GetCredentialException) {
-                e.printStackTrace()
-                Toast.makeText(context, "Google Sign-In failed: ${e.message}", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 e.printStackTrace()
                 Toast.makeText(context, "Sign-In error occurred", Toast.LENGTH_LONG).show()
@@ -148,12 +136,11 @@ fun PremiumScreen(onBack: () -> Unit) {
         val act = activity
         if (act != null) {
             pm.launchPurchaseFlow(act, selectedPlan) { ok, msg ->
-                isPurchasing = false
-                if (ok) {
-                    showCelebration = true
-                } else {
+                if (!ok) {
+                    isPurchasing = false
                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                 }
+                // On success: isPurchasing stays true until onPurchasesUpdated fires purchaseSuccess
             }
         } else { isPurchasing = false }
     }
@@ -462,12 +449,11 @@ fun PremiumScreen(onBack: () -> Unit) {
 
                 val annualPhase = annualDetails?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()
                 val monthlyPhase = monthlyDetails?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()
-
                 val annualPrice = annualPhase?.formattedPrice ?: "₹199 / year"
                 val monthlyPrice = monthlyPhase?.formattedPrice ?: "₹29 / month"
                 val rawLifetimePrice = lifetimeDetails?.oneTimePurchaseOfferDetails?.formattedPrice
                     ?: lifetimeDetails?.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
-                val lifetimePrice = if (rawLifetimePrice != null) "$rawLifetimePrice one-time" else "₹2,499 one-time"
+                val lifetimePrice = rawLifetimePrice ?: "₹2,499"
 
                 val savingsBadgeText = remember(annualPhase, monthlyPhase) {
                     val monthlyMicros = monthlyPhase?.priceAmountMicros ?: 0L
@@ -566,8 +552,12 @@ fun PremiumScreen(onBack: () -> Unit) {
                     "Restore Purchase",
                     fontSize = 12.sp, color = TextSec, fontWeight = FontWeight.Medium,
                     modifier = Modifier.clickable {
-                        pm.queryExistingPurchases()
-                        Toast.makeText(context, "Checking Google Play...", Toast.LENGTH_SHORT).show()
+                        if (!googleLoggedIn) {
+                            showGoogleLoginDialog = true
+                        } else {
+                            pm.queryExistingPurchases()
+                            Toast.makeText(context, "Checking Google Play...", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -587,36 +577,61 @@ fun PremiumScreen(onBack: () -> Unit) {
 
 // ── Celebratory Confetti & Success Overlay ─────────────────────────────────────
 
+private enum class ConfettiShape { RECT, CIRCLE, DIAMOND }
+
 private class ConfettiParticle(
     var xRatio: Float,
     var yRatio: Float,
     val speedY: Float,
     val speedX: Float,
+    val wobbleSpeed: Float,   // lateral sine wobble
+    val wobbleAmp: Float,     // wobble amplitude (ratio)
     val size: Float,
-    val color: Color
+    val color: Color,
+    val shape: ConfettiShape,
+    var rotation: Float,
+    val rotationSpeed: Float, // degrees per tick
+    var wobblePhase: Float
 )
 
 @Composable
 private fun ConfettiOverlay(
     modifier: Modifier = Modifier
 ) {
+    val colors = listOf(
+        Color(0xFFD4AF37), // Rich Gold
+        Color(0xFFF3C042), // Bright Gold
+        Color(0xFF606F49), // Forest Green
+        Color(0xFF7CB87A), // Sage Green
+        Color(0xFFFFFFFF), // White
+        Color(0xFFE8C15A), // Champagne
+        Color(0xFFFF9966), // Warm Coral
+        Color(0xFFB388FF), // Soft Violet
+        Color(0xFF4FC3F7), // Sky Blue
+    )
+    val shapes = ConfettiShape.entries.toTypedArray()
+
     val particles = remember {
-        val colors = listOf(
-            Color(0xFFD4AF37), // Gold
-            Color(0xFFF3C042), // Gold Bright
-            Color(0xFF606F49), // Green Hero
-            Color(0xFF7CB87A), // Green Light
-            Color(0xFFFFFFFF), // White Sparkle
-            Color(0xFFE8C15A)  // Champagne
-        )
-        List(85) {
+        List(120) {
+            val shape = shapes[(Math.random() * shapes.size).toInt()]
+            val size = when (shape) {
+                ConfettiShape.RECT    -> (10f..22f).randomFloat()
+                ConfettiShape.CIRCLE  -> (5f..10f).randomFloat()
+                ConfettiShape.DIAMOND -> (9f..18f).randomFloat()
+            }
             ConfettiParticle(
-                xRatio = (0f..1f).randomFloat(),
-                yRatio = ((-0.5f)..0.1f).randomFloat(),
-                speedY = (0.003f..0.009f).randomFloat(),
-                speedX = ((-0.002f)..0.002f).randomFloat(),
-                size = (6f..14f).randomFloat(),
-                color = colors.random()
+                xRatio       = (0f..1f).randomFloat(),
+                yRatio       = ((-1.2f)..(-0.05f)).randomFloat(), // burst from above screen
+                speedY       = (0.0025f..0.008f).randomFloat(),
+                speedX       = ((-0.0015f)..0.0015f).randomFloat(),
+                wobbleSpeed  = (0.02f..0.07f).randomFloat(),
+                wobbleAmp    = (0.005f..0.018f).randomFloat(),
+                size         = size,
+                color        = colors[(Math.random() * colors.size).toInt()],
+                shape        = shape,
+                rotation     = (0f..360f).randomFloat(),
+                rotationSpeed = ((-4f)..4f).randomFloat(),
+                wobblePhase  = (0f..6.28f).randomFloat()
             )
         }
     }
@@ -625,12 +640,14 @@ private fun ConfettiOverlay(
 
     LaunchedEffect(Unit) {
         val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startTime < 6000) {
+        while (System.currentTimeMillis() - startTime < 7000) {
             kotlinx.coroutines.android.awaitFrame()
             tick = System.currentTimeMillis()
             particles.forEach { p ->
-                p.yRatio += p.speedY
-                p.xRatio += p.speedX
+                p.yRatio       += p.speedY
+                p.wobblePhase  += p.wobbleSpeed
+                p.xRatio       += p.speedX + p.wobbleAmp * kotlin.math.sin(p.wobblePhase.toDouble()).toFloat()
+                p.rotation     += p.rotationSpeed
             }
         }
     }
@@ -639,14 +656,37 @@ private fun ConfettiOverlay(
         val w = size.width
         val h = size.height
         particles.forEach { p ->
-            if (p.yRatio in -0.5f..1.2f) {
+            if (p.yRatio in -1.3f..1.3f) {
                 val cx = p.xRatio * w
                 val cy = p.yRatio * h
-                drawCircle(
-                    color = p.color,
-                    radius = p.size,
-                    center = Offset(cx, cy)
-                )
+                val s  = p.size
+                withTransform({
+                    translate(cx, cy)
+                    rotate(p.rotation)
+                }) {
+                    when (p.shape) {
+                        ConfettiShape.RECT -> drawRect(
+                            color  = p.color,
+                            topLeft = androidx.compose.ui.geometry.Offset(-s * 0.4f, -s * 0.9f),
+                            size   = androidx.compose.ui.geometry.Size(s * 0.8f, s * 1.8f)
+                        )
+                        ConfettiShape.CIRCLE -> drawCircle(
+                            color  = p.color,
+                            radius = s,
+                            center = Offset.Zero
+                        )
+                        ConfettiShape.DIAMOND -> {
+                            val path = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, -s)
+                                lineTo(s * 0.55f, 0f)
+                                lineTo(0f, s)
+                                lineTo(-s * 0.55f, 0f)
+                                close()
+                            }
+                            drawPath(path = path, color = p.color)
+                        }
+                    }
+                }
             }
         }
     }

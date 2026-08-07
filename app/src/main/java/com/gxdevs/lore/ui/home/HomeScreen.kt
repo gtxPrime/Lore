@@ -124,80 +124,11 @@ fun HomeContent(
     LaunchedEffect(displayName, entries.size, googleLoggedIn) {
         android.util.Log.d("HomeScreen", "HomeScreen state: displayName='$displayName', entriesCount=${entries.size}, googleLoggedIn=$googleLoggedIn")
     }
-    var showNameDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-
-    // Track whether the ViewModel has delivered its first value (avoids flashing during initial load)
-    LaunchedEffect(userName, betaWelcomeState.value) {
-        if (userName != null && betaWelcomeState.value != null) {
-            // Only show the dialog on genuine first-run (name is blank) and AFTER beta welcome
-            if (userName.isBlank() && !showNameDialog && betaWelcomeState.value == true) {
-                showNameDialog = true
-            }
-        }
-    }
 
     if (betaWelcomeState.value == false) {
         BetaWelcomeDialog(
             onComplete = { coroutineScope.launch { settingsRepo.setBetaWelcomeShown(true) } }
-        )
-    } else if (showNameDialog) {
-        var newName by remember { mutableStateOf(userName ?: "") }
-        AlertDialog(
-            onDismissRequest = { 
-                if (!userName.isNullOrBlank()) {
-                    showNameDialog = false 
-                }
-            },
-            title = { 
-                Text(
-                    if (userName.isNullOrBlank()) "Welcome to Nurtale" else "Edit Name", 
-                    color = textPrimary, 
-                    fontWeight = FontWeight.Bold
-                ) 
-            },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { input -> 
-                        newName = input.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-                    },
-                    label = { Text("Your Name", color = textSecondary) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = primaryAccent,
-                        unfocusedIndicatorColor = borderColor,
-                        focusedLabelColor = primaryAccent,
-                        unfocusedLabelColor = textSecondary,
-                        cursorColor = primaryAccent,
-                        focusedTextColor = textPrimary,
-                        unfocusedTextColor = textPrimary
-                    )
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = { 
-                        onSaveUserName(newName)
-                        showNameDialog = false 
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryAccent),
-                    enabled = newName.isNotBlank()
-                ) {
-                    Text(if (userName.isNullOrBlank()) "Start Journey" else "Save", color = Color.White)
-                }
-            },
-            dismissButton = {
-                if (!userName.isNullOrBlank()) {
-                    TextButton(onClick = { showNameDialog = false }) {
-                        Text("Cancel", color = textSecondary)
-                    }
-                }
-            },
-            containerColor = cardBackground
         )
     }
 
@@ -257,7 +188,7 @@ fun HomeContent(
                                 displayName = displayName,
                                 searchQuery = searchQuery,
                                 onSearchQueryChange = onSearchQueryChange,
-                                onNameLongClick = { showNameDialog = true },
+                                onNameLongClick = {},
                                 entries = entries,
                                 pets = petsState.pets,
                                 isDemoMode = petsState.isDemoMode,
