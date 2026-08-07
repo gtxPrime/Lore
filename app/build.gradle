@@ -4,7 +4,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
-    // alias(libs.plugins.google.services) // Removed old google-services.json
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 android {
@@ -13,10 +14,10 @@ android {
 
     defaultConfig {
         applicationId "com.gxdevs.lore"
-        minSdk 26
+        minSdk 24
         targetSdk 37
-        versionCode 8
-        versionName '1.0.7'
+        versionCode 20
+        versionName '1.1.9'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -116,14 +117,17 @@ dependencies {
     implementation libs.glide.compose
     implementation libs.google.gson
     implementation libs.androidx.datastore.preferences
-    implementation 'androidx.palette:palette-ktx:1.0.0'
+    implementation libs.androidx.palette.ktx
 
     // Media3 ExoPlayer
     implementation libs.androidx.media3.exoplayer
     implementation libs.androidx.media3.ui
     implementation libs.androidx.work.runtime.ktx
     implementation platform(libs.firebase.bom)
+    implementation libs.firebase.auth
     implementation libs.firebase.remote.config
+    implementation libs.firebase.analytics
+    implementation libs.firebase.crashlytics
 
     // ── Google Play ───────────────────────────────────────────────────────────
     implementation libs.play.app.update
