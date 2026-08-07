@@ -188,7 +188,7 @@ object BackupManager {
                                 }
                             }
                         }
-                        // Strip the isEncrypted flag — inside the ZIP everything is plain
+                        // Strip the isEncrypted flag ï¿½ inside the ZIP everything is plain
                         exportedEntries.add(updatedEntry.copy(isEncrypted = false))
                     }
 
@@ -274,7 +274,7 @@ object BackupManager {
             val ext: String
 
             if (isEncFile) {
-                // Sniff the decrypted bytes — more reliable than enc filename prefix
+                // Sniff the decrypted bytes ï¿½ more reliable than enc filename prefix
                 mediaType = MediaEncryptionManager.sniffMediaType(effectiveHeader)
                 ext = MediaEncryptionManager.mediaTypeToExtension(mediaType, encFileName)
             } else if (sourceUri.scheme == "content") {
@@ -300,7 +300,7 @@ object BackupManager {
                 inputStream.copyTo(zos)
                 zos.closeEntry()
             } catch (_: java.util.zip.ZipException) {
-                // Entry already exists — skip silently
+                // Entry already exists ï¿½ skip silently
             } finally {
                 inputStream.close()
             }
@@ -412,7 +412,7 @@ object BackupManager {
                                 val maxBytes = 50 * 1024 * 1024
                                 val buf = readBounded(zis, maxBytes)
                                 if (buf == null) {
-                                    return@withContext Result.failure(Exception("entries.json exceeds 50 MB — corrupt backup?"))
+                                    return@withContext Result.failure(Exception("entries.json exceeds 50 MB ï¿½ corrupt backup?"))
                                 }
                                 entriesJson = buf.toString(Charsets.UTF_8)
                             }
@@ -485,7 +485,7 @@ object BackupManager {
                         try { File(plainVideoPath).delete() } catch (_: Exception) {}
                     }
                 } else {
-                    // Plain — files already in aeth_media/, just clear encryption flag
+                    // Plain ï¿½ files already in aeth_media/, just clear encryption flag
                     newEntry = newEntry.copy(isEncrypted = false)
                 }
 
@@ -562,7 +562,7 @@ object BackupManager {
             val enc = MediaEncryptionManager.encryptAndCopyUri(context, updated.audioPath)
             if (enc != null) {
                 // Delete the plain aeth_media copy
-                try { File(updated.audioPath!!).delete() } catch (_: Exception) {}
+                try { File(updated.audioPath).delete() } catch (_: Exception) {}
                 updated = updated.copy(audioPath = enc)
             }
         }
@@ -571,16 +571,16 @@ object BackupManager {
         if (!updated.videoPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(updated.videoPath)) {
             val enc = MediaEncryptionManager.encryptAndCopyUri(context, updated.videoPath)
             if (enc != null) {
-                try { File(updated.videoPath!!).delete() } catch (_: Exception) {}
+                try { File(updated.videoPath).delete() } catch (_: Exception) {}
                 updated = updated.copy(videoPath = enc)
             }
         }
 
         // attachments
         if (!updated.attachments.isNullOrBlank()) {
-            val encJson = MediaEncryptionManager.encryptAttachmentsJson(context, updated.attachments!!)
+            val encJson = MediaEncryptionManager.encryptAttachmentsJson(context, updated.attachments)
             // Delete original plain files from aeth_media after encryption
-            deleteAethMediaFromJson(updated.attachments!!, encJson)
+            deleteAethMediaFromJson(updated.attachments, encJson)
             updated = updated.copy(attachments = encJson)
         }
 

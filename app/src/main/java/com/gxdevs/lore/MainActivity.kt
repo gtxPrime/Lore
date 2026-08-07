@@ -1,5 +1,6 @@
 package com.gxdevs.lore
 
+import android.widget.Toast
 import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
@@ -93,7 +94,7 @@ class MainActivity : FragmentActivity() {
         var pauseTimestamp: Long? = null
     }
 
-    private lateinit var appUpdateManager: AppUpdateManager
+    lateinit var appUpdateHelper: com.gxdevs.lore.utils.AppUpdateHelper
 
     private val updateLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -110,8 +111,8 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        appUpdateManager = AppUpdateManagerFactory.create(this)
-        checkForUpdate()
+        appUpdateHelper = com.gxdevs.lore.utils.AppUpdateHelper(this)
+        appUpdateHelper.checkForUpdateOnStart(this, updateLauncher)
         createNotificationChannels(this)
 
         // ── Google Play Billing: re-verify active subscription status ─────────
@@ -563,39 +564,15 @@ class MainActivity : FragmentActivity() {
     }
 
     fun checkForUpdate() {
-        appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
-            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
-            ) {
-                try {
-                    appUpdateManager.startUpdateFlowForResult(
-                        appUpdateInfo,
-                        updateLauncher,
-                        AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE)
-                    )
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.checkForUpdateOnStart(this, updateLauncher)
         }
     }
 
     override fun onResume() {
         super.onResume()
-        if (::appUpdateManager.isInitialized) {
-            appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
-                if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
-                    try {
-                        appUpdateManager.startUpdateFlowForResult(
-                            appUpdateInfo,
-                            updateLauncher,
-                            AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE)
-                        )
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.onResumeCheck(this, updateLauncher)
         }
     }
 

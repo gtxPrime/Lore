@@ -46,11 +46,30 @@ object DriveTokenHelper {
                     }
                 }
                 val account = Account(email, "com.google")
-                val token = GoogleAuthUtil.getToken(
-                    context.applicationContext,
-                    account,
-                    DRIVE_APPDATA_SCOPE
-                )
+
+                val token = try {
+                    GoogleAuthUtil.getToken(
+                        context.applicationContext,
+                        account,
+                        DRIVE_APPDATA_SCOPE
+                    )
+                } catch (e: Exception) {
+                    if (e.message?.contains("UNREGISTERED_ON_API_CONSOLE", ignoreCase = true) == true) {
+                        android.util.Log.w("DriveToken", "UNREGISTERED_ON_API_CONSOLE — clearing stale token and retrying...")
+                        // Clear the cached (invalid) token, then retry once with drive.appdata
+                        try {
+                            GoogleAuthUtil.clearToken(context.applicationContext, e.message ?: "")
+                        } catch (_: Exception) {}
+                        GoogleAuthUtil.getToken(
+                            context.applicationContext,
+                            account,
+                            DRIVE_APPDATA_SCOPE
+                        )
+                    } else {
+                        throw e
+                    }
+                }
+
                 Result.success(token)
             } catch (e: UserRecoverableAuthException) {
                 android.util.Log.w("DriveToken", "User action required to grant Drive scope: ${e.message}")
