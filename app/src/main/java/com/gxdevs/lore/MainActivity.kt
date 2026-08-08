@@ -67,6 +67,7 @@ import com.gxdevs.lore.utils.DriveBackupWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.util.Calendar
@@ -115,8 +116,17 @@ class MainActivity : FragmentActivity() {
         appUpdateHelper.checkForUpdateOnStart(this, updateLauncher)
         createNotificationChannels(this)
 
-        // ── Google Play Billing: re-verify active subscription status ─────────
-        com.gxdevs.lore.utils.PremiumManager.getInstance(applicationContext).queryExistingPurchases()
+        // ── Google Play Billing: re-verify active subscription (only when Google-signed-in) ──
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            val settingsRepo = com.gxdevs.lore.data.SettingsRepository(applicationContext)
+            val isGoogleLoggedIn = settingsRepo.googleLoggedIn.first()
+            if (isGoogleLoggedIn) {
+                android.util.Log.i("MainActivity", "[Billing] Google login verified — re-checking purchases")
+                com.gxdevs.lore.utils.PremiumManager.getInstance(applicationContext).queryExistingPurchases()
+            } else {
+                android.util.Log.i("MainActivity", "[Billing] User not Google-signed-in — skipping purchase re-check")
+            }
+        }
 
         // ── Pet catalog: schedule 24-hour remote sync ─────────────────────────
         PetCatalogSyncWorker.schedule(this)

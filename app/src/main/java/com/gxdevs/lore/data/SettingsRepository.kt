@@ -44,7 +44,7 @@ class SettingsRepository(private val context: Context) {
 
 
     companion object {
-        const val WEB_CLIENT_ID = "719998347203-go19g6matolsifojlt6lf8k3e6eu15cu.apps.googleusercontent.com"
+        const val WEB_CLIENT_ID = "1059655035634-msr1kcgu94511labnbsnif2pnml9kh9u.apps.googleusercontent.com"
         val KEY_HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
         val KEY_APP_LOCK_ENABLED        = booleanPreferencesKey("app_lock_enabled")
         val KEY_HIDE_MEDIA_IN_GALLERY   = booleanPreferencesKey("hide_media_in_gallery")

@@ -48,7 +48,7 @@ import androidx.work.WorkManager
 import com.gxdevs.lore.utils.DriveBackupWorker
 import com.gxdevs.lore.utils.DriveBackupClient
 import com.gxdevs.lore.utils.DriveTokenHelper
-import com.google.android.gms.auth.UserRecoverableAuthException
+import com.google.android.gms.auth.api.identity.Identity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.livedata.observeAsState
@@ -103,24 +103,30 @@ fun IdentityScreen(
     val gdriveLastSynced by settingsRepo.gdriveLastSynced.collectAsState(initial = "NEVER")
     val subscriptionPlan by settingsRepo.subscriptionPlan.collectAsState(initial = "MYSTIC (PRO)")
 
-    // ActivityResultLauncher for Google Drive OAuth Consent Dialog
+    // ActivityResultLauncher for Google Drive OAuth Consent Dialog (modern AuthorizationClient).
+    // After the user approves, we extract the token from the result intent and kick off backup.
     val driveConsentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
+        contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
-            Toast.makeText(context, "Drive permission granted! Backing up...", Toast.LENGTH_SHORT).show()
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-            val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
-                .setConstraints(constraints)
-                .addTag(DriveBackupWorker.WORK_TAG)
-                .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                DriveBackupWorker.WORK_NAME_ONDEMAND,
-                ExistingWorkPolicy.REPLACE,
-                request
-            )
+            val token = DriveTokenHelper.getTokenFromAuthorizationResult(context, result.data)
+            if (token != null) {
+                Toast.makeText(context, "Drive permission granted! Backing up...", Toast.LENGTH_SHORT).show()
+                val constraints = Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+                val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
+                    .setConstraints(constraints)
+                    .addTag(DriveBackupWorker.WORK_TAG)
+                    .build()
+                WorkManager.getInstance(context).enqueueUniqueWork(
+                    DriveBackupWorker.WORK_NAME_ONDEMAND,
+                    ExistingWorkPolicy.REPLACE,
+                    request
+                )
+            } else {
+                Toast.makeText(context, "Drive permission granted but token unavailable. Please try again.", Toast.LENGTH_LONG).show()
+            }
         } else {
             Toast.makeText(context, "Drive permission is required to back up to Google Drive", Toast.LENGTH_LONG).show()
         }
@@ -128,28 +134,37 @@ fun IdentityScreen(
 
     val requestDriveBackup: () -> Unit = {
         coroutineScope.launch(Dispatchers.IO) {
-            val tokenResult = DriveTokenHelper.getAccessToken(context)
+            val authState = DriveTokenHelper.authorizeInForeground(context)
             withContext(Dispatchers.Main) {
-                if (tokenResult.isSuccess) {
-                    val constraints = Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                    val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
-                        .setConstraints(constraints)
-                        .addTag(DriveBackupWorker.WORK_TAG)
-                        .build()
-                    WorkManager.getInstance(context).enqueueUniqueWork(
-                        DriveBackupWorker.WORK_NAME_ONDEMAND,
-                        ExistingWorkPolicy.REPLACE,
-                        request
-                    )
-                    Toast.makeText(context, "Syncing to Google Drive...", Toast.LENGTH_SHORT).show()
-                } else {
-                    val exception = tokenResult.exceptionOrNull()
-                    if (exception is UserRecoverableAuthException) {
-                        exception.intent?.let { driveConsentLauncher.launch(it) }
-                    } else {
-                        Toast.makeText(context, "Drive access error: ${exception?.message}", Toast.LENGTH_LONG).show()
+                when (authState) {
+                    is DriveTokenHelper.DriveAuthState.HasToken -> {
+                        // Token already available — kick off backup worker immediately
+                        val constraints = Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build()
+                        val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
+                            .setConstraints(constraints)
+                            .addTag(DriveBackupWorker.WORK_TAG)
+                            .build()
+                        WorkManager.getInstance(context).enqueueUniqueWork(
+                            DriveBackupWorker.WORK_NAME_ONDEMAND,
+                            ExistingWorkPolicy.REPLACE,
+                            request
+                        )
+                        Toast.makeText(context, "Syncing to Google Drive...", Toast.LENGTH_SHORT).show()
+                    }
+                    is DriveTokenHelper.DriveAuthState.NeedsConsent -> {
+                        // Show Drive consent dialog — result handled by driveConsentLauncher
+                        try {
+                            driveConsentLauncher.launch(
+                                androidx.activity.result.IntentSenderRequest.Builder(authState.pendingIntent.intentSender).build()
+                            )
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Could not open Drive permission dialog: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    is DriveTokenHelper.DriveAuthState.Failed -> {
+                        Toast.makeText(context, "Drive access error: ${authState.reason}", Toast.LENGTH_LONG).show()
                     }
                 }
             }
@@ -167,21 +182,29 @@ fun IdentityScreen(
         showRestoreConfirmDialog = false
         isRestoring = true
         coroutineScope.launch(Dispatchers.IO) {
-            val tokenResult = DriveTokenHelper.getAccessToken(context)
-            if (tokenResult.isFailure) {
-                val exception = tokenResult.exceptionOrNull()
+            val authState = DriveTokenHelper.authorizeInForeground(context)
+            if (authState !is DriveTokenHelper.DriveAuthState.HasToken) {
                 withContext(Dispatchers.Main) {
                     isRestoring = false
-                    if (exception is UserRecoverableAuthException) {
-                        exception.intent?.let { driveConsentLauncher.launch(it) }
-                    } else {
-                        Toast.makeText(context, "Drive error: ${exception?.message}", Toast.LENGTH_LONG).show()
+                    when (authState) {
+                        is DriveTokenHelper.DriveAuthState.NeedsConsent -> {
+                            try {
+                                driveConsentLauncher.launch(
+                                    androidx.activity.result.IntentSenderRequest.Builder(authState.pendingIntent.intentSender).build()
+                                )
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Could not open Drive permission dialog: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        is DriveTokenHelper.DriveAuthState.Failed -> {
+                            Toast.makeText(context, "Drive error: ${authState.reason}", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
                 return@launch
             }
+            val token = authState.token
 
-            val token = tokenResult.getOrThrow()
             val downloadResult = DriveBackupClient.downloadBackup(token)
             if (downloadResult.isFailure) {
                 withContext(Dispatchers.Main) {
@@ -206,10 +229,12 @@ fun IdentityScreen(
                     currentAppPin = backupPin
                 )
 
+                if (importResult.isSuccess) {
+                    petViewModel.recalculateAndDownloadResourcesSuspend(context)
+                }
                 withContext(Dispatchers.Main) {
                     isRestoring = false
                     if (importResult.isSuccess) {
-                        petViewModel.recalculateAndDownloadResources(context)
                         Toast.makeText(context, "Sanctuary restored from Google Drive successfully!", Toast.LENGTH_LONG).show()
                     } else {
                         val exception = importResult.exceptionOrNull()
@@ -312,6 +337,9 @@ fun IdentityScreen(
                                 providedPin = restorePinInput,
                                 currentAppPin = restorePinInput
                             )
+                            if (importResult.isSuccess) {
+                                petViewModel.recalculateAndDownloadResourcesSuspend(context)
+                            }
                             withContext(Dispatchers.Main) {
                                 if (importResult.isSuccess) {
                                     showRestorePinPromptDialog = false
@@ -319,7 +347,6 @@ fun IdentityScreen(
                                     restorePinError = false
                                     file.delete()
                                     pendingRestoreTempFile = null
-                                    petViewModel.recalculateAndDownloadResources(context)
                                     Toast.makeText(context, "Sanctuary restored from Google Drive successfully!", Toast.LENGTH_LONG).show()
                                 } else {
                                     restorePinError = true

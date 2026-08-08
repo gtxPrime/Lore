@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -92,7 +93,18 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                     _billingStatus.value = "Connected"
                     Log.i(TAG, "✅ [LoreBilling] Billing setup finished successfully (OK)")
                     queryAvailableProducts()
-                    queryExistingPurchases()
+                    // Only verify subscription status if the user is signed in with Google.
+                    // Without a Google account, querying purchases returns empty and would
+                    // incorrectly reset any locally-cached premium entitlement to false.
+                    scope.launch {
+                        val isGoogleLoggedIn = settingsRepo.googleLoggedIn.first()
+                        if (isGoogleLoggedIn) {
+                            Log.i(TAG, "[LoreBilling] Google login confirmed — querying existing purchases")
+                            queryExistingPurchases()
+                        } else {
+                            Log.i(TAG, "[LoreBilling] User not signed in with Google — skipping entitlement query to preserve local premium state")
+                        }
+                    }
                 } else {
                     _billingStatus.value = "Setup Failed (${billingResult.responseCode})"
                     Log.e(TAG, "❌ [LoreBilling] Billing setup failed. Code=${billingResult.responseCode}, Msg=${billingResult.debugMessage}")
@@ -108,6 +120,20 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                 }
             }
         })
+    }
+
+    /**
+     * Call after the user successfully signs in with Google to immediately re-verify
+     * their subscription status from Google Play.
+     */
+    fun refreshIfLoggedIn() {
+        scope.launch {
+            val isGoogleLoggedIn = settingsRepo.googleLoggedIn.first()
+            if (isGoogleLoggedIn) {
+                Log.i(TAG, "[LoreBilling] Post-login refresh: querying existing purchases")
+                queryExistingPurchases()
+            }
+        }
     }
 
     /** Queries available products (Subscriptions & Lifetime IAP) from Google Play Console. */

@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.google.android.gms.auth.UserRecoverableAuthException
 import com.gxdevs.lore.data.SettingsRepository
 import kotlinx.coroutines.flow.first
 import java.io.File
@@ -14,7 +13,7 @@ import java.util.Locale
 
 /**
  * WorkManager worker that:
- *  1. Acquires a Drive access token via [DriveTokenHelper]
+ *  1. Acquires a Drive access token via [DriveTokenHelper.getAccessToken]
  *  2. Exports a fresh .lore backup via [BackupManager.exportData] to a temp file
  *  3. Uploads the temp file to Drive via [DriveBackupClient]
  *  4. Updates [SettingsRepository.gdriveLastSynced] with the current timestamp
@@ -22,6 +21,11 @@ import java.util.Locale
  * Scheduled in two ways from MainActivity:
  *  - PeriodicWorkRequest: once daily at ~midnight (KEEP policy, won't duplicate)
  *  - OneTimeWorkRequest: enqueued immediately when user turns on backup or taps Sync Now
+ *
+ * IMPORTANT: If Drive scope has not been consented ([DriveTokenHelper.NeedsAuthorizationException]),
+ * this worker returns Result.failure() â€” the user must open the app and use the
+ * "Sync Now" button in IdentityScreen to trigger the foreground consent dialog via
+ * DriveTokenHelper.authorizeInForeground().
  */
 class DriveBackupWorker(
     private val appContext: Context,
@@ -42,22 +46,26 @@ class DriveBackupWorker(
         val isLoggedIn = repo.googleLoggedIn.first()
         val isBackupEnabled = repo.gdriveBackupEnabled.first()
         if (!isPremium || !isLoggedIn || !isBackupEnabled) {
-            android.util.Log.d(WORK_TAG, "Skipping backup — isPremium=$isPremium, isLoggedIn=$isLoggedIn, isBackupEnabled=$isBackupEnabled")
+            android.util.Log.d(WORK_TAG, "Skipping backup - isPremium=$isPremium, isLoggedIn=$isLoggedIn, isBackupEnabled=$isBackupEnabled")
             return Result.success()
         }
 
-        android.util.Log.d(WORK_TAG, "Starting Drive backup…")
+        android.util.Log.d(WORK_TAG, "Starting Drive backup.")
 
-        // 1. Get Drive access token
+        // 1. Get Drive access token (background â€” no UI shown)
         val tokenResult = DriveTokenHelper.getAccessToken(appContext)
         if (tokenResult.isFailure) {
             val exception = tokenResult.exceptionOrNull()
             android.util.Log.e(WORK_TAG, "Token acquisition failed: ${exception?.message}")
-            if (exception is UserRecoverableAuthException) {
-                // Consent missing — user needs to grant Drive permission via UI consent screen first
-                return Result.failure()
+            return when (exception) {
+                is DriveTokenHelper.NeedsAuthorizationException -> {
+                    // Drive scope not yet consented â€” user must open app and tap Sync Now
+                    // to trigger DriveTokenHelper.authorizeInForeground() consent dialog
+                    android.util.Log.w(WORK_TAG, "Drive scope not authorized â€” user action required")
+                    Result.failure()
+                }
+                else -> Result.retry()
             }
-            return Result.retry()
         }
         val token = tokenResult.getOrThrow()
 
@@ -82,15 +90,14 @@ class DriveBackupWorker(
             }
 
             val fileBytes = tempFile.readBytes()
-            android.util.Log.d(WORK_TAG, "Backup exported: ${fileBytes.size} bytes, uploading to Drive…")
+            android.util.Log.d(WORK_TAG, "Backup exported: ${fileBytes.size} bytes, uploading to Drive.")
 
             // 3. Upload to Drive
             val uploadResult = DriveBackupClient.uploadBackup(token, fileBytes)
             if (uploadResult.isFailure) {
-                // If we got a 401, invalidate the cached token and retry
                 val msg = uploadResult.exceptionOrNull()?.message ?: ""
                 if (msg.contains("401")) {
-                    DriveTokenHelper.invalidateToken(appContext)
+                    android.util.Log.w(WORK_TAG, "Drive upload got 401 â€” access token may have expired")
                 }
                 android.util.Log.e(WORK_TAG, "Upload failed: $msg")
                 return Result.retry()
@@ -100,7 +107,7 @@ class DriveBackupWorker(
             val timeStr = SimpleDateFormat("MMM dd, yyyy | h:mm a", Locale.getDefault()).format(Date())
             repo.setGdriveLastSynced(timeStr)
 
-            android.util.Log.d(WORK_TAG, "? Drive backup complete at $timeStr")
+            android.util.Log.d(WORK_TAG, "Drive backup complete at $timeStr")
             Result.success()
         } catch (e: Exception) {
             android.util.Log.e(WORK_TAG, "Unexpected error: ${e.message}", e)

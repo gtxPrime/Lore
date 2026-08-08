@@ -109,6 +109,8 @@ fun PremiumScreen(onBack: () -> Unit) {
                 when (val res = com.gxdevs.lore.auth.GoogleAuthManager.signIn(act, settingsRepo)) {
                     is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Success -> {
                         Toast.makeText(context, "Signed in as ${res.displayName}", Toast.LENGTH_SHORT).show()
+                        // Re-verify subscription now that Google login is confirmed
+                        pm.refreshIfLoggedIn()
                         onSuccess()
                     }
                     is com.gxdevs.lore.auth.GoogleAuthManager.AuthResult.Failure -> {

@@ -172,7 +172,7 @@ fun SettingsScreen(
                 )
                 if (result.isSuccess) {
                     progressMessage = "Syncing resources... Please wait."
-                    petViewModel.recalculateAndDownloadResources(context)
+                    petViewModel.recalculateAndDownloadResourcesSuspend(context)
                     showProgressDialog.value = false
                     android.widget.Toast.makeText(context, "Data imported successfully", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
@@ -431,7 +431,7 @@ fun SettingsScreen(
                                 )
                                 if (result.isSuccess) {
                                     progressMessage = "Syncing resources... Please wait."
-                                    petViewModel.recalculateAndDownloadResources(context)
+                                    petViewModel.recalculateAndDownloadResourcesSuspend(context)
                                     showProgressDialog.value = false
                                     showBackupPinPromptDialog = false
                                     pendingImportUri = null
