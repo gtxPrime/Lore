@@ -30,6 +30,46 @@ class PetImageCache(private val context: Context) {
     private val ENC_KEY = "lore_26_px"
     private val ENC_PREFIX = "enc:"
 
+    companion object {
+        private const val ENC_KEY_STATIC = "lore_26_px"
+        private const val ENC_PREFIX_STATIC = "enc:"
+
+        /**
+         * Decrypts (if needed) and normalises a raw imageUrl from pets.json
+         * into a direct-download URL. Safe to call from any thread / composable.
+         */
+        fun resolveUrl(raw: String?): String {
+            if (raw.isNullOrBlank()) return ""
+            val decrypted = decryptStatic(raw)
+            return normalizeStatic(decrypted)
+        }
+
+        private fun decryptStatic(raw: String): String {
+            if (!raw.startsWith(ENC_PREFIX_STATIC)) return raw
+            return try {
+                val b64 = raw.removePrefix(ENC_PREFIX_STATIC)
+                val encoded  = Base64.decode(b64, Base64.DEFAULT)
+                val keyBytes = ENC_KEY_STATIC.toByteArray(Charsets.UTF_8)
+                val decrypted = ByteArray(encoded.size) { i ->
+                    (encoded[i].toInt() xor keyBytes[i % keyBytes.size].toInt()).toByte()
+                }
+                String(decrypted, Charsets.UTF_8)
+            } catch (e: Exception) {
+                android.util.Log.e("PetImageCache", "Static URL decryption failed: ${e.message}")
+                ""
+            }
+        }
+
+        private fun normalizeStatic(url: String): String = when {
+            url.contains("dropbox.com") -> url
+                .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+                .replace("&dl=0", "&dl=1")
+                .replace("?dl=0", "?dl=1")
+                .let { if (!it.contains("dl=1")) "$it&dl=1" else it }
+            else -> url
+        }
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     suspend fun getOrDownload(petId: String, stage: Int, imageUrl: String?): File? =

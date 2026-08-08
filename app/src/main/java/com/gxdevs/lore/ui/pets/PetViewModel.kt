@@ -706,11 +706,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun recalculateFromHistory() {
         viewModelScope.launch {
             recalculateFromHistorySuspend()
+            preloadAllPetImages()
         }
     }
 
     fun recalculateAndDownloadResources(context: Context = getApplication()) {
-        recalculateFromHistory()
+        viewModelScope.launch(Dispatchers.IO) {
+            recalculateAndDownloadResourcesSuspend(context)
+        }
+    }
+
+    suspend fun recalculateAndDownloadResourcesSuspend(context: Context = getApplication()) {
+        com.gxdevs.lore.pets.PetResourceManager.syncAndDownloadPetResources(context)
     }
 
     private suspend fun recalculateFromHistorySuspend() {

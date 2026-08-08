@@ -16,8 +16,8 @@ android {
         applicationId "com.gxdevs.lore"
         minSdk 24
         targetSdk 37
-        versionCode 20
-        versionName '1.1.9'
+        versionCode 28
+        versionName '1.2.7'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

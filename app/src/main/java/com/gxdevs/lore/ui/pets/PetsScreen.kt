@@ -882,6 +882,7 @@ fun PetsScreen(
 
 // --- Pet visual - emoji/shape (fallback) / image (cached with palette) ───────
 
+@OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
 @Composable
 fun PetStageVisual(
     pet: PetUiState,
@@ -892,14 +893,14 @@ fun PetStageVisual(
 ) {
     val size = if (isCenter) 140.dp else 100.dp
 
-    // Locked
+    // Locked pet — always show lock icon
     if (pet.stageIndex < 0) {
         Icon(Icons.Rounded.Lock, contentDescription = "Locked",
             modifier = Modifier.size(48.dp), tint = textSecondary.copy(alpha = 0.3f))
         return
     }
 
-    // Render bitmap if available and emoji is not forced (unclipped with 2.dp inner margin)
+    // ── Tier 1: local bitmap already decoded → render instantly ───────────────
     if (!forceEmoji && loadedImage?.imageBitmap != null) {
         Image(
             bitmap = loadedImage.imageBitmap,
@@ -912,19 +913,52 @@ fun PetStageVisual(
         return
     }
 
-    // Show spinner if downloading, else show emoji fallback
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
-        if (!forceEmoji && !pet.currentStageImageUrl.isNullOrEmpty() && loadedImage?.imageBitmap == null) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(36.dp),
-                color = moodColor.copy(alpha = 0.6f),
-                strokeWidth = 2.dp
+    val hasUrl = !forceEmoji && !pet.currentStageImageUrl.isNullOrEmpty()
+
+    if (hasUrl) {
+        // ── Tier 2: no local cache yet, but URL is known ───────────────────────
+        // Resolve the (possibly encrypted) URL to a direct download link.
+        val directUrl = remember(pet.currentStageImageUrl) {
+            com.gxdevs.lore.pets.PetImageCache.resolveUrl(pet.currentStageImageUrl)
+        }
+
+        val context = androidx.compose.ui.platform.LocalContext.current
+
+        // Background: also write to disk so the next launch is a cache-hit.
+        // This runs silently — Glide is already showing the image from the network.
+        LaunchedEffect(pet.petId, pet.stageIndex) {
+            try {
+                val cache = com.gxdevs.lore.pets.PetImageCache(context)
+                val file = cache.getOrDownload(
+                    pet.petId, pet.stageIndex, pet.currentStageImageUrl
+                )
+                if (file != null && file.exists() && file.length() > 100) {
+                    // Evict the in-process palette cache so the next Room-driven
+                    // recompose picks up the freshly written file.
+                    petImageMemoryCache.remove(file.absolutePath)
+                }
+            } catch (_: Exception) { /* non-fatal, Glide already showing image */ }
+        }
+
+        // Immediate render straight from the CDN/Dropbox URL via Glide.
+        // Glide handles its own network fetch + disk cache internally.
+        if (directUrl.isNotBlank()) {
+            com.bumptech.glide.integration.compose.GlideImage(
+                model            = directUrl,
+                contentDescription = pet.name,
+                modifier         = Modifier
+                    .size(size)
+                    .padding(2.dp),
+                contentScale     = ContentScale.Fit
             )
-        } else {
-            PetEmojiVisual(pet = pet, moodColor = moodColor, size = size)
+            return
         }
     }
+
+    // ── Tier 3: no URL at all → emoji visual ──────────────────────────────────
+    PetEmojiVisual(pet = pet, moodColor = moodColor, size = size)
 }
+
 
 @Composable
 fun PetEmojiVisual(pet: PetUiState, moodColor: Color, size: androidx.compose.ui.unit.Dp) {
