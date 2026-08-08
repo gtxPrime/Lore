@@ -350,12 +350,12 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
                     var encEntry = newEntry.copy(id = entryId, isEncrypted = true)
 
                     if (!finalAudioPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalAudioPath)) {
-                        MediaEncryptionManager.encryptAndCopyUri(app, finalAudioPath)?.let {
+                        MediaEncryptionManager.encryptAndCopyUri(app, finalAudioPath, "AUDIO")?.let {
                             encEntry = encEntry.copy(audioPath = it)
                         }
                     }
                     if (!finalVideoPath.isNullOrBlank() && !MediaEncryptionManager.isEncrypted(finalVideoPath)) {
-                        MediaEncryptionManager.encryptAndCopyUri(app, finalVideoPath)?.let {
+                        MediaEncryptionManager.encryptAndCopyUri(app, finalVideoPath, "VIDEO")?.let {
                             encEntry = encEntry.copy(videoPath = it)
                         }
                     }

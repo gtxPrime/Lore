@@ -126,8 +126,18 @@ fun HomeContent(
     }
     val coroutineScope = rememberCoroutineScope()
 
-    if (betaWelcomeState.value == false) {
-        BetaWelcomeDialog(
+    // Auto-dismiss welcome flag for Google-signed-in users (they already have a name)
+    LaunchedEffect(betaWelcomeState.value, googleLoggedIn) {
+        if (betaWelcomeState.value == false && googleLoggedIn) {
+            settingsRepo.setBetaWelcomeShown(true)
+        }
+    }
+
+    // Only show name prompt for first-time users who are NOT signed in with Google
+    if (betaWelcomeState.value == false && !googleLoggedIn) {
+        FirstTimeNameDialog(
+            initialName = displayName,
+            onSaveName = onSaveUserName,
             onComplete = { coroutineScope.launch { settingsRepo.setBetaWelcomeShown(true) } }
         )
     }
@@ -1760,58 +1770,64 @@ private fun BottomNavItem(
 }
 
 @Composable
-fun BetaWelcomeDialog(onComplete: () -> Unit) {
-    var step by remember { mutableIntStateOf(0) }
-
-    val titles = listOf(
-        "Welcome to Beta v3",
-        "The Core Concept",
-        "The Reliquary & Echo",
-        "Privacy First"
-    )
-    val bodies = listOf(
-        "This is a test beta version 3. For now, please test the currently available features in depth. Graphics are not finalized yet, so emojis are used instead of real artwork for companions.",
-        "Your journey shapes your companions. Write a journal, and the dominant mood will unlock an egg or add growth points to it.\n\nNote: Only the latest journal of the day counts towards growth. You cannot write multiple journals for each emotion to unlock all eggs at once!",
-        "\u2022 Reliquary: Seal a journal entry to be automatically unsealed after a set number of days. A message to your future self.\n\n\u2022 The Echo: Occasionally resurfaces entries from exactly a year ago to reflect on your past.",
-        "Your thoughts are private. In Settings, you can enable App Lock, setup a Decoy PIN (which displays a blank app state), prevent screenshots, and blur journal contents on your home screen."
-    )
-    val icons = listOf(
-        Icons.Rounded.Science,
-        Icons.Rounded.AutoAwesome,
-        Icons.Rounded.HistoryEdu,
-        Icons.Rounded.Shield
-    )
+fun FirstTimeNameDialog(
+    initialName: String,
+    onSaveName: (String) -> Unit,
+    onComplete: () -> Unit
+) {
+    var nameInput by remember { mutableStateOf(if (initialName != "Explorer" && initialName != "User") initialName else "") }
 
     AlertDialog(
-        onDismissRequest = { /* Require clicking buttons */ },
+        onDismissRequest = {
+            onSaveName(nameInput.trim().ifBlank { "Explorer" })
+            onComplete()
+        },
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icons[step], contentDescription = null, tint = primaryAccent, modifier = Modifier.size(24.dp))
+                Icon(Icons.Rounded.Person, contentDescription = null, tint = primaryAccent, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(titles[step], color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("Welcome to Lore", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             }
         },
         text = {
-            Text(bodies[step], color = textSecondary, fontSize = 14.sp, lineHeight = 20.sp)
+            Column {
+                Text(
+                    "What should we call you?",
+                    color = textSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = nameInput,
+                    onValueChange = { nameInput = it },
+                    placeholder = { Text("Enter your name", color = textSecondary.copy(alpha = 0.6f)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = primaryAccent,
+                        unfocusedBorderColor = borderColor,
+                        focusedTextColor = textPrimary,
+                        unfocusedTextColor = textPrimary
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (step < 3) step++ else onComplete()
+                    onSaveName(nameInput.trim().ifBlank { "Explorer" })
+                    onComplete()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = primaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = primaryAccent),
+                shape = RoundedCornerShape(14.dp)
             ) {
-                Text(if (step < 3) "Next" else "Let's Go", color = Color.White)
+                Text("Continue", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
-        dismissButton = {
-            if (step > 0) {
-                TextButton(onClick = { step-- }) {
-                    Text("Back", color = textSecondary)
-                }
-            }
-        },
-        containerColor = cardBackground
+        containerColor = cardBackground,
+        shape = RoundedCornerShape(24.dp)
     )
 }
 

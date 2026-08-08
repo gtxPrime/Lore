@@ -81,9 +81,15 @@ class SecurityManager(private val context: Context) {
      * Encrypt bytes from [inputStream] and write to [dest].
      * The caller is responsible for closing [inputStream].
      */
-    fun encryptStream(inputStream: InputStream, dest: File) {
+    fun encryptStream(
+        inputStream: InputStream,
+        dest: File,
+        totalSize: Long = -1L,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
         dest.parentFile?.mkdirs()
-        if (dest.exists()) dest.delete()
+        val tmpDest = File(dest.parentFile, "${dest.name}.tmp")
+        if (tmpDest.exists()) tmpDest.delete()
 
         val secretKey = getOrCreateSecretKey()
         val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -91,29 +97,79 @@ class SecurityManager(private val context: Context) {
 
         val iv = cipher.iv
 
-        dest.outputStream().use { fos ->
-            // 1. Write the length of IV (1 byte)
-            fos.write(iv.size)
-            // 2. Write the IV itself
-            fos.write(iv)
-            // 3. Encrypt data and write cipher text
-            CipherOutputStream(fos, cipher).use { cos ->
-                inputStream.copyTo(cos)
+        try {
+            tmpDest.outputStream().use { fos ->
+                // 1. Write the length of IV (1 byte)
+                fos.write(iv.size)
+                // 2. Write the IV itself
+                fos.write(iv)
+                // 3. Encrypt data and write cipher text
+                CipherOutputStream(fos, cipher).use { cos ->
+                    val buffer = ByteArray(64 * 1024)
+                    var bytesRead: Int
+                    var totalRead = 0L
+                    var lastPercent = -1
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        cos.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+                        if (totalSize > 0 && onProgress != null) {
+                            val pct = ((totalRead * 100) / totalSize).toInt().coerceIn(0, 100)
+                            if (pct != lastPercent) {
+                                lastPercent = pct
+                                onProgress(pct)
+                            }
+                        }
+                    }
+                }
             }
+            if (dest.exists()) dest.delete()
+            tmpDest.renameTo(dest)
+            onProgress?.invoke(100)
+        } catch (e: Exception) {
+            if (tmpDest.exists()) tmpDest.delete()
+            throw e
         }
     }
 
     /**
      * Decrypt [encryptedFile] and write the plaintext to [dest].
      */
-    fun decryptFile(encryptedFile: File, dest: File) {
+    fun decryptFile(
+        encryptedFile: File,
+        dest: File,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
         dest.parentFile?.mkdirs()
-        if (dest.exists()) dest.delete()
+        val totalSize = encryptedFile.length()
+        val tmpDest = File(dest.parentFile, "${dest.name}.tmp")
+        if (tmpDest.exists()) tmpDest.delete()
 
-        openDecryptedStream(encryptedFile).use { input ->
-            dest.outputStream().use { output ->
-                input.copyTo(output)
+        try {
+            openDecryptedStream(encryptedFile).use { input ->
+                tmpDest.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var bytesRead: Int
+                    var totalRead = 0L
+                    var lastPercent = -1
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+                        if (totalSize > 0 && onProgress != null) {
+                            val pct = ((totalRead * 100) / totalSize).toInt().coerceIn(0, 100)
+                            if (pct != lastPercent) {
+                                lastPercent = pct
+                                onProgress(pct)
+                            }
+                        }
+                    }
+                }
             }
+            if (dest.exists()) dest.delete()
+            tmpDest.renameTo(dest)
+            onProgress?.invoke(100)
+        } catch (e: Exception) {
+            if (tmpDest.exists()) tmpDest.delete()
+            throw e
         }
     }
 

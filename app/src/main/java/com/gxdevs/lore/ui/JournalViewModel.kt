@@ -175,7 +175,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             if (newEntry.isEncrypted &&
                 !newEntry.audioPath.isNullOrBlank() &&
                 !MediaEncryptionManager.isEncrypted(newEntry.audioPath)) {
-                val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.audioPath)
+                val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.audioPath, "AUDIO")
                 if (enc != null) finalEntry = finalEntry.copy(audioPath = enc)
             }
 
@@ -183,7 +183,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             if (newEntry.isEncrypted &&
                 !newEntry.videoPath.isNullOrBlank() &&
                 !MediaEncryptionManager.isEncrypted(newEntry.videoPath)) {
-                val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.videoPath)
+                val enc = MediaEncryptionManager.encryptAndCopyUri(context, newEntry.videoPath, "VIDEO")
                 if (enc != null) finalEntry = finalEntry.copy(videoPath = enc)
             }
 

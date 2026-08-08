@@ -48,6 +48,8 @@ import com.gxdevs.lore.data.SettingsRepository
 import com.gxdevs.lore.data.mood.MoodConstants
 import com.gxdevs.lore.ui.JournalViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URLDecoder
@@ -246,11 +248,16 @@ fun JournalDetailScreen(
                     Gson().fromJson<List<Map<String, Any>>>(jsonString, objectListType)
                         .also { list -> if (list.isEmpty() || list.any { !it.containsKey("uri") }) throw IllegalArgumentException() }
                 }.getOrNull()
-
-                if (asMaps != null) {
+                if (asMaps != null) {
                     asMaps.mapNotNull { map ->
                         val uriStr = map["uri"] as? String ?: return@mapNotNull null
-                        val fileType = (map["type"] as? String) ?: "IMAGE"
+                        var fileType = (map["type"] as? String) ?: "IMAGE"
+                        val lowerUri = uriStr.lowercase()
+                        if (fileType == "AUDIO" || fileType == "FILE" || fileType == "UNKNOWN") {
+                            if (lowerUri.endsWith(".mp4") || lowerUri.endsWith(".mkv") || lowerUri.endsWith(".webm") || lowerUri.contains("enc_video_")) {
+                                fileType = "VIDEO"
+                            }
+                        }
                         runCatching { ParsedAttachment(uriStr.toUri(), fileType) }.getOrNull()
                     }
                 } else {
@@ -259,20 +266,17 @@ fun JournalDetailScreen(
                     uriStrings.mapNotNull { uriStr ->
                         val uri = uriStr.toUri()
                         val path = uri.path ?: uriStr
-                        val fileType = if (MediaEncryptionManager.isEncrypted(path)) {
+                        val lowerUri = uriStr.lowercase()
+                        val fileType = if (lowerUri.endsWith(".mp4") || lowerUri.endsWith(".mkv") || lowerUri.endsWith(".webm") || lowerUri.contains("enc_video_")) {
+                            "VIDEO"
+                        } else if (MediaEncryptionManager.isEncrypted(path)) {
                             "UNKNOWN"
                         } else {
-                            val mimeType = if (uriStr.endsWith(".mp4", ignoreCase = true) || uriStr.endsWith(".mkv", ignoreCase = true) || uriStr.endsWith(".webm", ignoreCase = true)) {
-                                "video"
-                            } else if (uriStr.endsWith(".jpg", ignoreCase = true) || uriStr.endsWith(".jpeg", ignoreCase = true) || uriStr.endsWith(".png", ignoreCase = true) || uriStr.endsWith(".webp", ignoreCase = true)) {
+                            val mimeType = if (uriStr.endsWith(".jpg", ignoreCase = true) || uriStr.endsWith(".jpeg", ignoreCase = true) || uriStr.endsWith(".png", ignoreCase = true) || uriStr.endsWith(".webp", ignoreCase = true)) {
                                 "image"
                             } else null
 
-                            if (mimeType != null) {
-                                if (mimeType == "video") "VIDEO" else "IMAGE"
-                            } else {
-                                "UNKNOWN"
-                            }
+                            if (mimeType != null) "IMAGE" else "UNKNOWN"
                         }
                         runCatching { ParsedAttachment(uri, fileType) }.getOrNull()
                     }
@@ -281,45 +285,79 @@ fun JournalDetailScreen(
         } else emptyList()
     }
 
-
-
     val mediaTypes = remember(parsedAttachments) {
         parsedAttachments.associate { it.uri to it.type }
     }
 
-    // Pre-compute video flags: use stored type metadata instantly, sniff unknowns on IO thread.
-    // This avoids calling isVideoEncrypted() (file I/O) on the main/composition thread.
+    // Pre-compute video flags: use stored type metadata instantly, sniff on IO thread.
     var isVideoMap by remember(parsedAttachments) {
         mutableStateOf(
             parsedAttachments.associate { att ->
-                att.uri to when (att.type) {
-                    "VIDEO" -> true
-                    "IMAGE", "FILE", "AUDIO" -> false
-                    else -> false // UNKNOWN � will be resolved by the LaunchedEffect below
+                att.uri to when {
+                    att.type == "VIDEO" -> true
+                    att.uri.toString().endsWith(".mp4", ignoreCase = true) -> true
+                    att.type in listOf("IMAGE", "FILE", "AUDIO") -> false
+                    else -> false
                 }
             }
         )
     }
+
     LaunchedEffect(parsedAttachments) {
-        // Only sniff files whose type is not already known
+        // Sniff any files to verify if they are encrypted videos or unencrypted videos
         parsedAttachments.forEach { att ->
-            if (att.type !in listOf("VIDEO", "IMAGE", "FILE")) {
-                val uriStr = att.uri.toString()
-                val path = att.uri.path ?: uriStr
-                if (MediaEncryptionManager.isEncrypted(path)) {
-                    val detected = withContext(Dispatchers.IO) {
-                        MediaEncryptionManager.isVideoEncrypted(context, path)
-                    }
-                    isVideoMap = isVideoMap + (att.uri to detected)
-                } else {
-                    val mimeType = withContext(Dispatchers.IO) {
-                        try { context.contentResolver.getType(att.uri) } catch (_: Exception) { null }
-                    }
-                    val detected = mimeType?.startsWith("video") == true ||
-                        uriStr.endsWith(".mp4", ignoreCase = true)
-                    isVideoMap = isVideoMap + (att.uri to detected)
+            val uriStr = att.uri.toString()
+            val path = att.uri.path ?: uriStr
+            if (MediaEncryptionManager.isEncrypted(path)) {
+                val detected = withContext(Dispatchers.IO) {
+                    MediaEncryptionManager.isVideoEncrypted(context, path)
+                }
+                if (detected) {
+                    isVideoMap = isVideoMap + (att.uri to true)
+                }
+            } else {
+                val mimeType = withContext(Dispatchers.IO) {
+                    try { context.contentResolver.getType(att.uri) } catch (_: Exception) { null }
+                }
+                val detected = mimeType?.startsWith("video") == true ||
+                    uriStr.endsWith(".mp4", ignoreCase = true)
+                if (detected) {
+                    isVideoMap = isVideoMap + (att.uri to true)
                 }
             }
+        }
+    }
+
+    // Include entry.videoPath (from AfterJournalRecord video recording) in the media grid.
+    val videoPrimaryUri: android.net.Uri? = remember(entry.videoPath) {
+        val vp = entry.videoPath
+        if (!vp.isNullOrBlank() && vp != "null") vp.toUri() else null
+    }
+
+    // Visual media = IMAGE + VIDEO from attachments + standalone videoPath
+    val mediaUris = remember(parsedAttachments, videoPrimaryUri, isVideoMap) {
+        val attachmentMedia = parsedAttachments
+            .filter { att ->
+                val isVid = isVideoMap[att.uri] == true || att.type == "VIDEO" || att.uri.toString().endsWith(".mp4", ignoreCase = true)
+                val isExplicitAudio = (att.type == "AUDIO" || att.type == "FILE") && !isVid
+                !isExplicitAudio
+            }
+            .map { it.uri }
+        if (videoPrimaryUri != null) listOf(videoPrimaryUri) + attachmentMedia else attachmentMedia
+    }
+
+    // Audio from attachments (FILE or AUDIO type) for entries saved via AfterJournalViewModel
+    val attachmentAudioUri = remember(parsedAttachments, isVideoMap) {
+        parsedAttachments.firstOrNull { att ->
+            val isVid = isVideoMap[att.uri] == true || att.type == "VIDEO" || att.uri.toString().endsWith(".mp4", ignoreCase = true)
+            (att.type == "FILE" || att.type == "AUDIO") && !isVid
+        }?.uri
+    }
+
+    // Seed the video flag for the standalone videoPath so the play icon shows before IO sniff
+    LaunchedEffect(videoPrimaryUri) {
+        if (videoPrimaryUri != null) {
+            isVideoMap = isVideoMap + (videoPrimaryUri to true)
         }
     }
 
@@ -327,20 +365,42 @@ fun JournalDetailScreen(
         { uri: android.net.Uri -> isVideoMap[uri] ?: false }
     }
 
-    // Visual media = IMAGE + VIDEO only (FILE/AUDIO = audio, shown in audio pill instead)
-    val mediaUris = remember(parsedAttachments) {
-        parsedAttachments
-            .filter { it.type != "FILE" && it.type != "AUDIO" }
-            .map { it.uri }
-    }
-    // Audio from attachments (FILE or AUDIO type) for entries saved via AfterJournalViewModel
-    val attachmentAudioUri = remember(parsedAttachments) {
-        parsedAttachments.firstOrNull { it.type == "FILE" || it.type == "AUDIO" }?.uri
-    }
-
     val hasAudio        = (!entry.audioPath.isNullOrBlank() && entry.audioPath != "null") || attachmentAudioUri != null
-    val hasVideo        = !entry.videoPath.isNullOrBlank() && entry.videoPath != "null"
-    val totalMediaCount = mediaUris.size + (if (hasAudio) 1 else 0) + (if (hasVideo) 1 else 0)
+    val totalMediaCount = mediaUris.size + (if (hasAudio) 1 else 0)
+
+    // --- Eager pre-decryption: decrypt all full media files in parallel as soon as the
+    //     detail screen opens, so tapping any item opens it instantly (zero re-decryption).
+    //     Keyed by URI; falls back gracefully if not yet ready.
+    val decryptedFileMap = remember { androidx.compose.runtime.snapshots.SnapshotStateMap<android.net.Uri, File>() }
+
+    LaunchedEffect(entryId) {
+        decryptedFileMap.clear()
+        val allMediaUris = buildList {
+            addAll(mediaUris)
+            val audioUri = attachmentAudioUri ?: (entry.audioPath?.let {
+                if (it.isNotBlank() && it != "null") it.toUri() else null
+            })
+            if (audioUri != null) add(audioUri)
+        }
+        allMediaUris.map { uri ->
+            async(Dispatchers.IO) {
+                val uriStr = uri.toString()
+                val encPath: String? = when {
+                    MediaEncryptionManager.isEncrypted(uriStr) -> uri.path ?: uriStr
+                    uri.scheme == null && MediaEncryptionManager.isEncrypted(uri.path ?: "") -> uri.path
+                    else -> null
+                }
+                if (encPath != null) {
+                    val isVid = isVideoMap[uri] == true ||
+                        uriStr.endsWith(".mp4", ignoreCase = true) ||
+                        uriStr.contains("enc_video_")
+                    val ext = if (isVid) "mp4" else if (uriStr.contains("enc_audio_")) "m4a" else "jpg"
+                    val decFile = MediaEncryptionManager.getOrDecryptTempFile(context, encPath, ext)
+                    if (decFile != null) decryptedFileMap[uri] = decFile
+                }
+            }
+        }.awaitAll()
+    }
 
     // Header constants
     val topBarHeight = 64.dp
@@ -482,13 +542,17 @@ fun JournalDetailScreen(
                                 if (hasAudio) {
                                     val audioUri = attachmentAudioUri ?: entry.audioPath?.toUri()
                                     if (audioUri != null) {
-                                        AudioPlayerCard(uri = audioUri)
+                                        AudioPlayerCard(
+                                            uri = audioUri,
+                                            preDecryptedFile = decryptedFileMap[audioUri]
+                                        )
                                     }
                                 }
                                 if (mediaUris.isNotEmpty()) {
                                     DynamicMediaGrid(
                                         uris = mediaUris,
-                                        isVideo = isVideo
+                                        isVideo = isVideo,
+                                        decryptedFileMap = decryptedFileMap
                                     )
                                 }
                             }
@@ -592,19 +656,23 @@ fun JournalDetailScreen(
 
 // ─── Audio Player Card ──────────────────────────────────────────────────────
 @Composable
-private fun AudioPlayerCard(uri: android.net.Uri) {
+private fun AudioPlayerCard(
+    uri: android.net.Uri,
+    preDecryptedFile: File? = null
+) {
     val context = LocalContext.current
     val uriString = uri.toString()
     val isEncFile = MediaEncryptionManager.isEncrypted(uriString)
         || (uri.scheme == null && MediaEncryptionManager.isEncrypted(uri.path ?: uriString))
 
-    // For encrypted files, decrypt to a temp file first
-    var tempDecryptedFile by remember { mutableStateOf<File?>(null) }
+    // For encrypted files, use pre-decrypted file if available (instant); otherwise decrypt
+    var tempDecryptedFile by remember(preDecryptedFile) {
+        mutableStateOf(preDecryptedFile)
+    }
     var decryptError by remember { mutableStateOf(false) }
-    rememberCoroutineScope()
 
     LaunchedEffect(uriString) {
-        if (isEncFile) {
+        if (isEncFile && tempDecryptedFile == null) {
             val encPath = uri.path ?: uriString
             val decrypted = withContext(Dispatchers.IO) {
                 // Always decrypt audio with the m4a hint so the temp file has a proper extension
@@ -616,7 +684,8 @@ private fun AudioPlayerCard(uri: android.net.Uri) {
     }
 
     DisposableEffect(uriString) {
-        onDispose { tempDecryptedFile?.delete() }
+        // Only delete if we created the temp file (not if it came from the pre-decrypt cache)
+        onDispose { if (preDecryptedFile == null) tempDecryptedFile?.delete() }
     }
 
     // Only build the player once we have the right source
@@ -737,7 +806,8 @@ private fun AudioPlayerCard(uri: android.net.Uri) {
 @Composable
 private fun DynamicMediaGrid(
     uris: List<android.net.Uri>,
-    isVideo: (android.net.Uri) -> Boolean
+    isVideo: (android.net.Uri) -> Boolean,
+    decryptedFileMap: Map<android.net.Uri, File> = emptyMap()
 ) {
     if (uris.isEmpty()) return
     val firstMedia     = uris.first()
@@ -751,6 +821,11 @@ private fun DynamicMediaGrid(
             putExtra("media_uri", uri.toString())
             putExtra("is_video", isVideo(uri))
             putExtra("encryption_enabled", encryptMediaState.value)
+            // Pass the pre-decrypted file path so MediaViewerActivity opens it instantly
+            val preDecFile = decryptedFileMap[uri]
+            if (preDecFile != null && preDecFile.exists()) {
+                putExtra("decrypted_file_path", preDecFile.absolutePath)
+            }
         }
         MainActivity.bypassNextLock = true
         context.startActivity(intent)
@@ -833,36 +908,30 @@ private fun MediaThumbnail(
         else -> null
     }
 
-    // For encrypted files, decrypt to a temp file so Glide can load it.
+    // For encrypted files, decrypt to a persistent cached temp file so Glide can load it.
     // displayModel starts as the URI (or a File for schemaless paths) for instant non-null model.
     var displayModel: Any by remember(uriString) {
         mutableStateOf(if (uri.scheme == null && encPath == null) File(uri.path ?: uriString) else uri)
     }
-    var tempFile by remember(uriString) { mutableStateOf<File?>(null) }
     var isLoading by remember(uriString) { mutableStateOf(encPath != null) }
+    var decryptProgress by remember(uriString) { mutableIntStateOf(0) }
 
-    // Sniff type once on IO thread, then decrypt exactly once
+    // Sniff type once on IO thread, then decrypt lightweight thumbnail into dec_cache
     LaunchedEffect(uriString) {
         if (encPath != null) {
             isLoading = true
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
             val dec = withContext(Dispatchers.IO) {
-                // Determine video/audio/image by sniffing first, so we decrypt once
-                // with the right extension hint
-                val sniffedIsVideo = MediaEncryptionManager.isVideoEncrypted(context, encPath)
-                val extHint = if (sniffedIsVideo) "mp4" else "jpg"
-                MediaEncryptionManager.decryptToTemp(context, encPath, extHint)
+                MediaEncryptionManager.getOrDecryptThumbnail(context, encPath) { pct ->
+                    mainHandler.post { decryptProgress = pct }
+                }
             }
             if (dec != null) {
-                // Clean up old temp before switching
-                tempFile?.delete()
-                tempFile = dec
                 displayModel = dec
             }
             isLoading = false
         }
     }
-
-    DisposableEffect(uriString) { onDispose { tempFile?.delete() } }
 
     Box(modifier = modifier.clip(RoundedCornerShape(16.dp)).clickable { onClick() }) {
         GlideImage(
@@ -871,19 +940,29 @@ private fun MediaThumbnail(
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().background(Color(0xFFCDCCC7))
         )
-        // Shimmer/loading overlay while decrypting
+        // Decrypting progress overlay
         if (isLoading) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFFCDCCC7).copy(alpha = 0.7f)),
+                    .background(Color(0xFFCDCCC7).copy(alpha = 0.85f)),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = primaryAccent,
-                    strokeWidth = 2.dp
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = primaryAccent,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (decryptProgress > 0) "Decrypting\n$decryptProgress%" else "Decrypting...",
+                        color = primaryAccent,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
         if (isVideo && !isLoading) {

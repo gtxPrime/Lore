@@ -13,10 +13,12 @@ import androidx.core.app.NotificationCompat
 import com.gxdevs.lore.MainActivity
 import java.util.Calendar
 
-const val CHANNEL_DAILY     = "daily_reminder"
-const val CHANNEL_COMPANION = "companion_alerts"
-const val CHANNEL_RELIC     = "relic_alerts"
-const val NOTIF_DAILY_ID    = 1001
+const val CHANNEL_DAILY            = "daily_reminder"
+const val CHANNEL_COMPANION        = "companion_alerts"
+const val CHANNEL_RELIC            = "relic_alerts"
+const val CHANNEL_MEDIA_PROCESSING = "media_processing"
+const val NOTIF_DAILY_ID           = 1001
+const val NOTIF_MEDIA_PROCESSING_ID = 2001
 
 /** Creates all required notification channels. Call once from Application / MainActivity.onCreate. */
 fun createNotificationChannels(context: Context) {
@@ -36,6 +38,41 @@ fun createNotificationChannels(context: Context) {
             description = "Alerts for hidden relics and memory resurface events."
         }
     )
+    nm.createNotificationChannel(
+        NotificationChannel(CHANNEL_MEDIA_PROCESSING, "Media Encryption & Decryption", NotificationManager.IMPORTANCE_LOW).apply {
+            description = "Shows background progress when encrypting or decrypting media files."
+        }
+    )
+}
+
+/** Shows or updates an ongoing background progress notification for media encryption/decryption. */
+fun showMediaProgressNotification(context: Context, title: String, message: String, progress: Int) {
+    try {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val builder = NotificationCompat.Builder(context, CHANNEL_MEDIA_PROCESSING)
+            .setSmallIcon(com.gxdevs.lore.R.drawable.scroll)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+
+        if (progress in 0..99) {
+            builder.setProgress(100, progress, false)
+        } else {
+            builder.setProgress(0, 0, true)
+        }
+
+        nm.notify(NOTIF_MEDIA_PROCESSING_ID, builder.build())
+    } catch (_: Exception) {}
+}
+
+/** Cancels the ongoing background media processing notification. */
+fun cancelMediaProgressNotification(context: Context) {
+    try {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.cancel(NOTIF_MEDIA_PROCESSING_ID)
+    } catch (_: Exception) {}
 }
 
 /** Schedule (or reschedule) the daily writing reminder at the given time (default 10:00 PM). */

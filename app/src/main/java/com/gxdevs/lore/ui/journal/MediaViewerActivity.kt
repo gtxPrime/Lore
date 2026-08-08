@@ -1,4 +1,4 @@
-﻿package com.gxdevs.lore.ui.journal
+package com.gxdevs.lore.ui.journal
 
 import android.content.Context
 import android.content.Intent
@@ -89,6 +89,9 @@ class MediaViewerActivity : ComponentActivity() {
         val mediaUriStr = intent.getStringExtra("media_uri") ?: ""
         val isVideoExtra = intent.getBooleanExtra("is_video", false)
         val encryptionEnabled = intent.getBooleanExtra("encryption_enabled", false)
+        // Pre-decrypted file path passed from JournalDetailScreen — if valid, open instantly
+        val preDecryptedPath = intent.getStringExtra("decrypted_file_path")
+        val preDecryptedFile: File? = preDecryptedPath?.let { File(it).takeIf { f -> f.exists() && f.length() > 0 } }
 
         if (mediaUriStr.isEmpty()) {
             Toast.makeText(this, "No media to display.", Toast.LENGTH_SHORT).show()
@@ -97,11 +100,15 @@ class MediaViewerActivity : ComponentActivity() {
         }
 
         setContent {
-            var resolvedFile by remember { mutableStateOf<File?>(null) }
+            // If a pre-decrypted file was passed, seed resolvedFile immediately — no spinner shown
+            var resolvedFile by remember { mutableStateOf<File?>(preDecryptedFile) }
             var resolveError by remember { mutableStateOf(false) }
             var isVideo by remember { mutableStateOf(isVideoExtra) }
+            var decryptProgress by remember { mutableIntStateOf(0) }
 
             LaunchedEffect(mediaUriStr) {
+                // Skip decryption entirely if we already have a valid pre-decrypted file
+                if (resolvedFile != null) return@LaunchedEffect
                 withContext(Dispatchers.IO) {
                     try {
                         val uri = mediaUriStr.toUri()
@@ -111,6 +118,7 @@ class MediaViewerActivity : ComponentActivity() {
                         val isCurrentlyEncrypted = MediaEncryptionManager.isEncrypted(uriString) ||
                                 (uri.scheme == null && MediaEncryptionManager.isEncrypted(uri.path))
 
+                        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
                         var isVideoLoc = isVideoExtra
                         if (isCurrentlyEncrypted) {
                             val encPath = uri.path ?: uriString
@@ -125,7 +133,9 @@ class MediaViewerActivity : ComponentActivity() {
                                 }
                             }
                             val extHint = if (isVideoLoc) "mp4" else "jpg"
-                            val decrypted = MediaEncryptionManager.decryptToTemp(this@MediaViewerActivity, encPath, extHint)
+                            val decrypted = MediaEncryptionManager.getOrDecryptTempFile(this@MediaViewerActivity, encPath, extHint) { pct ->
+                                mainHandler.post { decryptProgress = pct }
+                            }
                             if (decrypted != null) {
                                 tempMediaFile = decrypted
                                 resolvedFile = decrypted
@@ -147,7 +157,7 @@ class MediaViewerActivity : ComponentActivity() {
                             }
 
                             // For plain file paths (no scheme, or file://), we can use
-                            // the file directly � no need to copy to a temp file.
+                            // the file directly — no need to copy to a temp file.
                             val directFile: File? = when (uri.scheme) {
                                 null -> File(mediaUriStr).takeIf { it.exists() }
                                 "file" -> File(uri.path ?: mediaUriStr).takeIf { it.exists() }
@@ -157,7 +167,7 @@ class MediaViewerActivity : ComponentActivity() {
                             if (directFile != null) {
                                 resolvedFile = directFile
                             } else {
-                                // content:// or other � copy to temp so ExoPlayer / Glide can access it
+                                // content:// or other — copy to temp so ExoPlayer / Glide can access it
                                 val mimeType = try { contentResolver.getType(uri) } catch (_: Exception) { null }
                                 val ext = when {
                                     isVideoLoc -> "mp4"
@@ -204,12 +214,21 @@ class MediaViewerActivity : ComponentActivity() {
                         }
                     }
                     resolvedFile == null -> {
-                        // Cohesive loader screen, matching Lore colors
+                        // Cohesive loader screen, matching Lore colors with progress
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = Color(0xFF606F49), strokeWidth = 3.dp)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = Color(0xFF606F49), strokeWidth = 3.dp)
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = if (decryptProgress > 0) "Decrypting media... $decryptProgress%" else "Decrypting media...",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                     else -> {
@@ -282,9 +301,12 @@ class MediaViewerActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         activityScope.cancel()
-        // Clean up temporary session files
+        // Clean up only non-cached temp files (pre-decrypted files from dec_cache are managed by MediaEncryptionManager)
         try {
-            tempMediaFile?.delete()
+            val preDecPath = intent.getStringExtra("decrypted_file_path")
+            if (tempMediaFile?.absolutePath != preDecPath) {
+                tempMediaFile?.delete()
+            }
         } catch (_: Exception) {}
     }
 }

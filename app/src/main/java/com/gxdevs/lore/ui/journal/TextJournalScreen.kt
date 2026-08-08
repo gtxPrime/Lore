@@ -618,6 +618,8 @@ fun TextJournalScreen(
     val allEntries by viewModel?.allEntries?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
     var selectedMedia by rememberSaveable(saver = SelectedMediaStateSaver) { mutableStateOf(listOf()) }
     var encryptingUris by remember { mutableStateOf(setOf<Uri>()) }
+    var encryptingProgressMap by remember { mutableStateOf(mapOf<Uri, Int>()) }
+    var originalUriMap by remember { mutableStateOf(mapOf<Uri, Uri>()) }
     
     LaunchedEffect(editId, allEntries) {
         if (editId != null && !initialized && allEntries.isNotEmpty()) {
@@ -866,10 +868,17 @@ fun TextJournalScreen(
                 coroutineScope.launch {
                     for (uri in allowedUris) {
                         val encPath = try {
-                            com.gxdevs.lore.utils.MediaEncryptionManager.encryptAndCopyUri(context, uri.toString())
+                            com.gxdevs.lore.utils.MediaEncryptionManager.encryptAndCopyUri(
+                                context,
+                                uri.toString()
+                            ) { pct ->
+                                encryptingProgressMap = encryptingProgressMap + (uri to pct)
+                            }
                         } catch (e: Exception) { null }
                         if (encPath != null) {
-                            selectedMedia = selectedMedia.map { if (it == uri) encPath.toUri() else it }
+                            val encUri = encPath.toUri()
+                            originalUriMap = originalUriMap + (encUri to uri)
+                            selectedMedia = selectedMedia.map { if (it == uri) encUri else it }
                         } else {
                             try {
                                 context.contentResolver.takePersistableUriPermission(
@@ -878,6 +887,7 @@ fun TextJournalScreen(
                             } catch (e: Exception) { e.printStackTrace() }
                         }
                         encryptingUris = encryptingUris - uri
+                        encryptingProgressMap = encryptingProgressMap - uri
                     }
                 }
             } else {
@@ -1565,6 +1575,8 @@ fun TextJournalScreen(
                                     (uri.scheme == null && com.gxdevs.lore.utils.MediaEncryptionManager.isEncrypted(uri.path ?: ""))
                                 val encPath = if (isEncFile) (uri.path ?: uriStr) else null
 
+                                val displayOriginalUri = originalUriMap[uri] ?: uri
+
                                 // For plain URIs: quick check from extension first
                                 val isVideoPlain = if (!isEncFile) {
                                     uriStr.endsWith(".mp4", ignoreCase = true) ||
@@ -1572,10 +1584,8 @@ fun TextJournalScreen(
                                         uriStr.endsWith(".webm", ignoreCase = true)
                                 } else false
 
-                                // Mutable state for video detection + thumbnail model (both updated on IO)
                                 var isVideo by remember(uriStr) { mutableStateOf(isVideoPlain) }
-                                var thumbModel: Any by remember(uriStr) { mutableStateOf<Any>(uri) }
-                                var thumbTempFile by remember(uriStr) { mutableStateOf<File?>(null) }
+                                var thumbModel: Any by remember(uriStr) { mutableStateOf<Any>(displayOriginalUri) }
 
                                 androidx.compose.runtime.LaunchedEffect(uriStr) {
                                     if (encPath != null) {
@@ -1586,10 +1596,9 @@ fun TextJournalScreen(
                                                 isVideo = detectedVideo
                                             }
                                             val extHint = if (detectedVideo) "mp4" else "jpg"
-                                            val dec = com.gxdevs.lore.utils.MediaEncryptionManager.decryptToTemp(context, encPath, extHint)
+                                            val dec = com.gxdevs.lore.utils.MediaEncryptionManager.getOrDecryptTempFile(context, encPath, extHint)
                                             if (dec != null) {
                                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                    thumbTempFile = dec
                                                     thumbModel = dec
                                                 }
                                             }
@@ -1605,9 +1614,6 @@ fun TextJournalScreen(
                                             }
                                         }
                                     }
-                                }
-                                androidx.compose.runtime.DisposableEffect(uriStr) {
-                                    onDispose { thumbTempFile?.delete() }
                                 }
 
                                 Box(modifier = Modifier
@@ -1639,20 +1645,33 @@ fun TextJournalScreen(
                                             .clip(RoundedCornerShape(12.dp)),
                                         contentScale = ContentScale.Crop
                                     )
-                                    // Shimmer/loading overlay while encrypting in the background
-                                    if (encryptingUris.contains(uri)) {
+                                    // Progress overlay while encrypting in background
+                                    val isEncrypting = encryptingUris.contains(uri) || encryptingProgressMap.containsKey(uri)
+                                    if (isEncrypting) {
+                                        val pct = encryptingProgressMap[uri] ?: 0
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(Color.Black.copy(alpha = 0.5f)),
+                                                .background(Color.Black.copy(alpha = 0.55f)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                color = primaryAccent,
-                                                strokeWidth = 2.dp
-                                            )
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    color = primaryAccent,
+                                                    strokeWidth = 2.dp
+                                                )
+                                                if (pct > 0) {
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "$pct%",
+                                                        color = Color.White,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                     // Video overlay icon

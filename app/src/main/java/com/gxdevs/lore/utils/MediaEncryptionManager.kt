@@ -31,6 +31,9 @@ object MediaEncryptionManager {
 
     /** Sniffs the decrypted stream of an encrypted file to check if it's a video. */
     fun isVideoEncrypted(context: Context, encPath: String): Boolean {
+        if (encPath.contains("enc_video_")) return true
+        if (encPath.contains("enc_audio_") || encPath.contains("enc_image_")) return false
+
         try {
             val file = File(encPath)
             if (!file.exists()) return false
@@ -45,7 +48,11 @@ object MediaEncryptionManager {
                 // Check for EBML (mkv/webm) signature: 1A 45 DF A3 at bytes 0..3
                 val isMkv = (header[0].toInt() and 0xFF) == 0x1A && (header[1].toInt() and 0xFF) == 0x45 && 
                             (header[2].toInt() and 0xFF) == 0xDF && (header[3].toInt() and 0xFF) == 0xA3
-                return isMp4 || isMkv
+                val isVideoBrand = if (isMp4 && read >= 12) {
+                    val brand = String(header, 8, 4, Charsets.ISO_8859_1)
+                    brand != "M4A " && brand != "M4B " && brand != "f4a " && brand != "f4b " && brand != "MSNV"
+                } else isMp4
+                return isVideoBrand || isMkv
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -61,19 +68,17 @@ object MediaEncryptionManager {
     fun sniffMediaType(header: ByteArray): String {
         val b = header
         val len = b.size
-        // MP4 / M4V / M4A: 'ftyp' at bytes 4–7
+        // MP4 / M4V / M4A / MOV: 'ftyp' at bytes 4-7
         if (len >= 8 &&
             b[4].toInt() and 0xFF == 0x66 && b[5].toInt() and 0xFF == 0x74 &&
             b[6].toInt() and 0xFF == 0x79 && b[7].toInt() and 0xFF == 0x70) {
-            // Inspect the 4-byte major brand at bytes 8–11 to distinguish audio from video.
-            // Audio brands: M4A , M4B , f4a , f4b , isom (used by Android MediaRecorder
-            //               for .m4a), mp42, MSNV (voice recorders).
-            // Everything else (avc1, mp41, M4V , f4v , etc.) is treated as video.
+            // Inspect the 4-byte major brand at bytes 8-11 to distinguish audio from video.
+            // Audio brands: M4A , M4B , f4a , f4b , MSNV (voice recorders).
+            // isom, mp41, mp42, avc1, M4V , f4v , qt  , etc. are VIDEO.
             if (len >= 12) {
                 val brand = String(b, 8, 4, Charsets.ISO_8859_1)
                 val isAudioBrand = brand == "M4A " || brand == "M4B " ||
                     brand == "f4a " || brand == "f4b " ||
-                    brand == "isom" || brand == "mp42" ||
                     brand == "MSNV"
                 return if (isAudioBrand) "AUDIO" else "VIDEO"
             }
@@ -126,21 +131,13 @@ object MediaEncryptionManager {
         } catch (_: Exception) { "IMAGE" }
     }
 
-    /** Extension to use in ZIP for a given sniffed media type. */
-    fun mediaTypeToExtension(mediaType: String, encFileName: String): String = when (mediaType) {
-        "VIDEO" -> {
-            // Prefer the filename prefix hint (enc_video_ ? mp4)
-            when {
-                encFileName.startsWith("enc_video_") -> "mp4"
-                else -> "mp4"
-            }
-        }
-        "AUDIO" -> {
-            when {
-                encFileName.startsWith("enc_audio_") -> "m4a"
-                else -> "m4a"
-            }
-        }
+    /** Extension to use in ZIP or cache for a given encrypted filename prefix or sniffed media type. */
+    fun mediaTypeToExtension(mediaType: String, encFileName: String): String = when {
+        encFileName.contains("enc_video_") -> "mp4"
+        encFileName.contains("enc_audio_") -> "m4a"
+        encFileName.contains("enc_image_") -> "jpg"
+        mediaType == "VIDEO" -> "mp4"
+        mediaType == "AUDIO" -> "m4a"
         else -> "jpg"
     }
 
@@ -149,23 +146,97 @@ object MediaEncryptionManager {
      * directory and encrypts it with SecurityManager. Returns the absolute path of
      * the new encrypted file, or null on failure.
      */
-    suspend fun encryptAndCopyUri(context: Context, uriStr: String): String? =
+    suspend fun encryptAndCopyUri(
+        context: Context,
+        uriStr: String,
+        typeHint: String? = null,
+        onProgress: ((Int) -> Unit)? = null
+    ): String? =
         withContext(Dispatchers.IO) {
             try {
                 val uri = uriStr.toUri()
-                val dest = File(encDir(context), "enc_${System.currentTimeMillis()}_${uriStr.hashCode()}$ENC_EXT")
+                
+                // Detect media type: VIDEO, AUDIO, or IMAGE
+                val mediaType = typeHint ?: run {
+                    val lower = uriStr.lowercase()
+                    val mimeType = try { context.contentResolver.getType(uri) } catch (_: Exception) { null }
+                    when {
+                        mimeType?.startsWith("video") == true || lower.endsWith(".mp4") || lower.endsWith(".mkv") || lower.endsWith(".webm") -> "VIDEO"
+                        mimeType?.startsWith("audio") == true || lower.endsWith(".m4a") || lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".aac") -> "AUDIO"
+                        else -> "IMAGE"
+                    }
+                }
+
+                val prefix = when (mediaType) {
+                    "VIDEO" -> "enc_video_"
+                    "AUDIO" -> "enc_audio_"
+                    else -> "enc_image_"
+                }
+
+                val dest = File(encDir(context), "${prefix}${System.currentTimeMillis()}_${Math.abs(uriStr.hashCode())}$ENC_EXT")
+
+                var totalSize = -1L
+                if (uri.scheme == "content") {
+                    try {
+                        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                            if (sizeIndex != -1 && cursor.moveToFirst()) {
+                                if (!cursor.isNull(sizeIndex)) {
+                                    totalSize = cursor.getLong(sizeIndex)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                    if (totalSize <= 0) {
+                        try {
+                            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use {
+                                totalSize = it.length
+                            }
+                        } catch (_: Exception) {}
+                    }
+                } else if (uri.scheme == "file" || uri.scheme == null) {
+                    val f = File(uri.path ?: uriStr)
+                    if (f.exists()) {
+                        totalSize = f.length()
+                    }
+                }
 
                 val inputStream = when (uri.scheme) {
                     "content" -> context.contentResolver.openInputStream(uri)
                     "file" -> File(uri.path ?: uriStr).inputStream()
                     else -> {
-                        // Plain absolute path (no scheme)
                         val f = File(uriStr)
                         if (f.exists()) f.inputStream() else null
                     }
                 } ?: return@withContext null
 
-                inputStream.use { SecurityManager(context).encryptStream(it, dest) }
+                val isLargeFile = totalSize > 2L * 1024L * 1024L
+                val fileName = try { uri.lastPathSegment ?: "media" } catch (_: Exception) { "media" }
+
+                onProgress?.invoke(1)
+                if (isLargeFile) {
+                    showMediaProgressNotification(context, "Encrypting Media", "Processing $fileName... 1%", 1)
+                }
+
+                try {
+                    inputStream.use { input ->
+                        SecurityManager(context).encryptStream(input, dest, totalSize) { pct ->
+                            onProgress?.invoke(pct)
+                            if (isLargeFile) {
+                                showMediaProgressNotification(context, "Encrypting Media", "Processing $fileName... $pct%", pct)
+                            }
+                        }
+                    }
+                    // Generate lightweight encrypted companion thumbnail for instant 2ms loading
+                    if (mediaType == "VIDEO" || mediaType == "IMAGE") {
+                        createAndEncryptThumbnail(context, uri, dest, mediaType == "VIDEO")
+                    }
+                } finally {
+                    if (isLargeFile) {
+                        cancelMediaProgressNotification(context)
+                    }
+                }
+
                 dest.absolutePath
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -173,22 +244,152 @@ object MediaEncryptionManager {
             }
         }
 
-    /**
-     * Decrypts an encrypted file to a temporary file in cacheDir/dec_tmp/.
-     * The caller must delete the returned temp file when done.
-     */
-    suspend fun decryptToTemp(context: Context, encPath: String, extension: String? = null): File? =
-        withContext(Dispatchers.IO) {
-            try {
-                val encFile = File(encPath)
-                if (!encFile.exists()) return@withContext null
-                val ext = extension ?: inferExtFromName()
-                SecurityManager(context).decryptToTemp(encFile, ext)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
+    /** Generates a small JPEG thumbnail (~15 KB) and encrypts it as a companion file thumb_<destName>. */
+    private fun createAndEncryptThumbnail(context: Context, uri: android.net.Uri, destEncFile: File, isVideo: Boolean) {
+        try {
+            val thumbFile = File(destEncFile.parentFile, "thumb_" + destEncFile.name)
+            val bitmap: android.graphics.Bitmap? = if (isVideo) {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    if (uri.scheme == "content" || uri.scheme == "file") {
+                        retriever.setDataSource(context, uri)
+                    } else {
+                        retriever.setDataSource(uri.path ?: uri.toString())
+                    }
+                    retriever.getFrameAtTime(500000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        ?: retriever.frameAtTime
+                } catch (_: Exception) { null }
+                finally {
+                    try { retriever.release() } catch (_: Exception) {}
+                }
+            } else {
+                try {
+                    val stream = when (uri.scheme) {
+                        "content" -> context.contentResolver.openInputStream(uri)
+                        "file" -> File(uri.path ?: uri.toString()).inputStream()
+                        else -> File(uri.toString()).inputStream()
+                    }
+                    stream?.use { input ->
+                        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                        android.graphics.BitmapFactory.decodeStream(input, null, options)
+                    }
+                } catch (_: Exception) { null }
             }
+
+            if (bitmap != null) {
+                val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 300, 300, true)
+                val baos = java.io.ByteArrayOutputStream()
+                scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, baos)
+                val bytes = baos.toByteArray()
+                java.io.ByteArrayInputStream(bytes).use { input ->
+                    SecurityManager(context).encryptStream(input, thumbFile)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+    }
+
+    /**
+     * Decrypts the companion thumbnail file (if available) in ~2ms for instant grid display.
+     * Falls back to getOrDecryptTempFile on the full file for legacy items without a companion thumbnail.
+     */
+    suspend fun getOrDecryptThumbnail(
+        context: Context,
+        encPath: String,
+        onProgress: ((Int) -> Unit)? = null
+    ): File? = withContext(Dispatchers.IO) {
+        try {
+            val mainFile = File(encPath)
+            if (!mainFile.exists()) return@withContext null
+            val thumbEncFile = File(mainFile.parentFile, "thumb_" + mainFile.name)
+            if (thumbEncFile.exists()) {
+                val thumbDec = getOrDecryptTempFile(context, thumbEncFile.absolutePath, "jpg")
+                if (thumbDec != null) {
+                    onProgress?.invoke(100)
+                    return@withContext thumbDec
+                }
+            }
+            // Fallback for legacy files
+            getOrDecryptTempFile(context, encPath, null, onProgress)
+        } catch (_: Exception) {
+            getOrDecryptTempFile(context, encPath, null, onProgress)
+        }
+    }
+
+    /**
+     * Decrypts an encrypted file to a persistent cached temp file in cacheDir/dec_cache/.
+     * If the cached temp file already exists and is valid, returns it immediately without re-decrypting.
+     */
+    suspend fun getOrDecryptTempFile(
+        context: Context,
+        encPath: String,
+        extension: String? = null,
+        onProgress: ((Int) -> Unit)? = null
+    ): File? = withContext(Dispatchers.IO) {
+        try {
+            val encFile = File(encPath)
+            if (!encFile.exists()) return@withContext null
+
+            val ext = extension ?: inferExtFromName(encFile.name)
+            val extSuffix = if (ext.isNotBlank()) ".$ext" else ""
+            val cacheDir = File(context.cacheDir, "dec_cache").also { it.mkdirs() }
+
+            // Hash the encPath to create a deterministic cached temp file name
+            val hash = java.security.MessageDigest.getInstance("MD5")
+                .digest(encPath.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+
+            val cacheFile = File(cacheDir, "dec_${hash}$extSuffix")
+
+            // Re-use cached decrypted file if it exists and is non-empty
+            if (cacheFile.exists() && cacheFile.length() > 0) {
+                onProgress?.invoke(100)
+                return@withContext cacheFile
+            }
+
+            val isLargeFile = encFile.length() > 2L * 1024L * 1024L
+            onProgress?.invoke(1)
+            if (isLargeFile) {
+                showMediaProgressNotification(context, "Decrypting Media", "Decrypting ${encFile.name}... 1%", 1)
+            }
+
+            try {
+                SecurityManager(context).decryptFile(encFile, cacheFile) { pct ->
+                    onProgress?.invoke(pct)
+                    if (isLargeFile) {
+                        showMediaProgressNotification(context, "Decrypting Media", "Decrypting ${encFile.name}... $pct%", pct)
+                    }
+                }
+            } finally {
+                if (isLargeFile) {
+                    cancelMediaProgressNotification(context)
+                }
+            }
+
+            if (cacheFile.exists() && cacheFile.length() > 0) cacheFile else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /** Guess the real extension from the encrypted file name pattern enc_video_ / enc_audio_ / enc_image_ */
+    private fun inferExtFromName(encFileName: String): String {
+        return when {
+            encFileName.contains("enc_video_") -> "mp4"
+            encFileName.contains("enc_audio_") -> "m4a"
+            encFileName.contains("enc_image_") -> "jpg"
+            else -> ""
+        }
+    }
+
+    /** Legacy wrapper for decryptToTemp that delegates to [getOrDecryptTempFile]. */
+    suspend fun decryptToTemp(
+        context: Context,
+        encPath: String,
+        extension: String? = null
+    ): File? = getOrDecryptTempFile(context, encPath, extension)
 
     /** Opens a decrypted InputStream for the given encrypted path. */
     fun openDecryptedStream(context: Context, encPath: String): java.io.InputStream? {
@@ -242,13 +443,13 @@ object MediaEncryptionManager {
 
             // audioPath
             if (!entry.audioPath.isNullOrBlank() && !isEncrypted(entry.audioPath)) {
-                val newPath = encryptAndCopyUri(context, entry.audioPath)
+                val newPath = encryptAndCopyUri(context, entry.audioPath, "AUDIO")
                 if (newPath != null) updated = updated.copy(audioPath = newPath)
             }
 
             // videoPath
             if (!entry.videoPath.isNullOrBlank() && !isEncrypted(entry.videoPath)) {
-                val newPath = encryptAndCopyUri(context, entry.videoPath)
+                val newPath = encryptAndCopyUri(context, entry.videoPath, "VIDEO")
                 if (newPath != null) updated = updated.copy(videoPath = newPath)
             }
 
@@ -339,16 +540,18 @@ object MediaEncryptionManager {
     }
 
     /**
-     * Cleans up all decryption temp files in cacheDir/dec_tmp that are older than
-     * [maxAgeMs] milliseconds. Call this on app startup.
+     * Cleans up decryption temp and cache files in cacheDir/dec_tmp and cacheDir/dec_cache
+     * that are older than [maxAgeMs] milliseconds. Call this on app startup.
      */
     fun cleanUpTempFiles(context: Context, maxAgeMs: Long = 24 * 60 * 60 * 1000L) {
         try {
-            val tmpDir = File(context.cacheDir, "dec_tmp")
-            if (!tmpDir.exists()) return
             val cutoff = System.currentTimeMillis() - maxAgeMs
-            tmpDir.listFiles()?.forEach { file ->
-                if (file.lastModified() < cutoff) file.delete()
+            listOf(File(context.cacheDir, "dec_tmp"), File(context.cacheDir, "dec_cache")).forEach { dir ->
+                if (dir.exists()) {
+                    dir.listFiles()?.forEach { file ->
+                        if (file.lastModified() < cutoff) file.delete()
+                    }
+                }
             }
         } catch (_: Exception) {}
     }
