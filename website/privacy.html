@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="google-site-verification" content="t1DfqRGEFVRjZQUemvd3jaUMWzrLq4bzo-hZa8Rcdio" />
+  <title>Privacy Policy — Lore by GX Devs</title>
+  <meta name="description" content="Privacy Policy for Lore - Living Inner Sanctuary Journal developed by GX Devs. Detailed information on local storage, data security, Google Drive backups, and deletion procedures." />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background-color: #EBE8E0;
+      color: #2e332a;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+      margin: 0;
+      padding: 0;
+    }
+    .wrapper {
+      max-width: 840px;
+      margin: 0 auto;
+      background: #EBE8E0;
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #4A5638 0%, #606F49 100%);
+      padding: 50px 24px 42px;
+      text-align: center;
+      color: #ffffff;
+    }
+    .badge {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 100px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #ebe8e0;
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      margin-bottom: 18px;
+      padding: 5px 18px;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      color: #ffffff;
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin: 0 0 8px 0;
+    }
+    .hero .subtitle {
+      color: #d9dfcd;
+      font-size: 15px;
+      margin: 0;
+    }
+    .hero .pill {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 100px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #d9dfcd;
+      display: inline-block;
+      font-size: 12px;
+      margin-top: 18px;
+      padding: 5px 16px;
+    }
+    .nav-bar {
+      background: #ffffff;
+      border-bottom: 1px solid #E0DCD1;
+      padding: 12px 24px;
+      text-align: center;
+    }
+    .nav-bar a {
+      color: #4A5638;
+      font-weight: 700;
+      margin: 0 12px;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .nav-bar a:hover {
+      text-decoration: underline;
+    }
+    .content {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 20px 0;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #E0DCD1;
+      margin-bottom: 20px;
+      padding: 26px;
+    }
+    .card-header-table {
+      width: 100%;
+      margin-bottom: 14px;
+    }
+    .icon-box {
+      background: #4A5638;
+      border-radius: 9px;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 700;
+      height: 38px;
+      line-height: 38px;
+      text-align: center;
+      width: 38px;
+    }
+    .icon-box.alt {
+      background: #606F49;
+    }
+    .card-title {
+      color: #2e332a;
+      font-size: 18px;
+      font-weight: 700;
+      padding-left: 12px;
+    }
+    .text-sage {
+      color: #606f49;
+      margin: 0 0 12px 0;
+    }
+    .highlight-box {
+      background: #EBE8E0;
+      border-left: 4px solid #4A5638;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+    }
+    .highlight-box.alt {
+      border-left-color: #606F49;
+    }
+    .list-container {
+      border-top: 1px solid #E0DCD1;
+    }
+    .list-item {
+      border-bottom: 1px solid #E0DCD1;
+      color: #606f49;
+      padding: 10px 0 10px 18px;
+    }
+    .list-item:last-child {
+      border-bottom: none;
+    }
+    .sub-card {
+      background: #EBE8E0;
+      border-radius: 9px;
+      border: 1px solid #E0DCD1;
+      margin-bottom: 12px;
+      padding: 14px;
+    }
+    .sub-card-title {
+      color: #2e332a;
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+    }
+    .sub-card-text {
+      color: #828779;
+      font-size: 13px;
+      margin: 0 0 4px 0;
+    }
+    .contact-card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 2px solid #4A5638;
+      margin-bottom: 20px;
+      padding: 32px;
+      text-align: center;
+    }
+    .btn-email {
+      background: #4A5638;
+      border-radius: 100px;
+      color: #ffffff;
+      display: inline-block;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 13px 36px;
+      text-decoration: none;
+      transition: background 0.2s ease;
+    }
+    .btn-email:hover {
+      background: #606F49;
+    }
+    .footer {
+      border-top: 1px solid #E0DCD1;
+      color: #828779;
+      font-size: 12px;
+      padding: 24px 0;
+      text-align: center;
+    }
+    .footer a {
+      color: #606f49;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="badge">Legal</div>
+    <h1>Privacy Policy</h1>
+    <div class="subtitle">Lore &nbsp;·&nbsp; Living Inner Sanctuary Journal by GX Devs</div>
+    <div class="pill">Last updated: August 2026</div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <div class="nav-bar">
+    <a href="index.html">Home</a> &nbsp;·&nbsp;
+    <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
+    <a href="mailto:gxdevsstudio@gmail.com">Contact Support</a>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box">i</div>
+          </td>
+          <td valign="middle" class="card-title">
+            Overview
+          </td>
+        </tr>
+      </table>
+      <p class="text-sage">
+        Lore ("we", "us", or "our") is a private personal journal and emotional companion app developed by GX Devs. This Privacy Policy explains what information is processed when you use Lore and how your privacy is protected.
+      </p>
+      <p class="text-sage">
+        Your private thoughts, voice recordings, and emotional reflections belong solely to you. Lore is designed around an on-device architecture: we do not upload, collect, or sell your journal entries or personal data.
+      </p>
+      <div class="highlight-box">
+        <p style="margin:0; font-size:14px; color:#2e332a;">
+          Package ID: <strong>com.gxdevs.lore</strong> &nbsp;·&nbsp; Platform: Android (Google Play)
+        </p>
+      </div>
+    </div>
+
+    <!-- ON-DEVICE STORAGE & AI -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box alt">S</div>
+          </td>
+          <td valign="middle" class="card-title">
+            100% On-Device Data &amp; AI Processing
+          </td>
+        </tr>
+      </table>
+      <p class="text-sage">
+        All core journaling features in Lore operate <strong style="color:#2e332a;">entirely offline and locally on your device</strong>. No text, audio, or sentiment data is ever transmitted to remote developer servers.
+      </p>
+      <div class="list-container">
+        <div class="list-item">
+          › <strong style="color:#2e332a;">Journal Text &amp; Audio Recordings</strong> — Stored exclusively in local encrypted database storage on your device.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">On-Device Emotion &amp; Sentiment AI</strong> — Sentiment scoring and language processing happen locally without cloud API dependencies.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">Companion Evolution &amp; Relics</strong> — Companion growth, stage unlocks, and achievements are saved locally.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">Offline Capability</strong> — You can use all core journaling and companion evolution features in Airplane Mode.
+        </div>
+      </div>
+    </div>
+
+    <!-- THIRD-PARTY SERVICES & GOOGLE DRIVE -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box">T</div>
+          </td>
+          <td valign="middle" class="card-title">
+            Third-Party Services &amp; Google Cloud Sync
+          </td>
+        </tr>
+      </table>
+      <p class="text-sage">
+        Lore integrates standard Google Play services for optional in-app purchases, authentication, and voluntary Google Drive backups.
+      </p>
+
+      <div class="sub-card">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td valign="top" width="44">
+              <div class="icon-box" style="width:36px; height:36px; line-height:36px; font-size:15px;">G</div>
+            </td>
+            <td valign="top" style="padding-left:12px;">
+              <div class="sub-card-title">Google Play In-App Billing</div>
+              <div class="sub-card-text">
+                Processes payments for optional Lore Premium subscriptions or digital items. Financial information is handled directly by Google Play.
+              </div>
+              <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color:#606f49; font-size:13px;">View Google Privacy Policy →</a>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="sub-card">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td valign="top" width="44">
+              <div class="icon-box alt" style="width:36px; height:36px; line-height:36px; font-size:15px;">A</div>
+            </td>
+            <td valign="top" style="padding-left:12px;">
+              <div class="sub-card-title">Google Identity Services</div>
+              <div class="sub-card-text">
+                Used optionally for account authentication. Only basic profile info (email, account name) is authenticated via Google.
+              </div>
+              <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color:#606f49; font-size:13px;">View Google Privacy Policy →</a>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="sub-card">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td valign="top" width="44">
+              <div class="icon-box" style="width:36px; height:36px; line-height:36px; font-size:15px;">D</div>
+            </td>
+            <td valign="top" style="padding-left:12px;">
+              <div class="sub-card-title">Google Drive Backup Sync</div>
+              <div class="sub-card-text">
+                Allows users to manually trigger encrypted backups of their journal database to their own Google Drive account. Lore accesses only app-created backup files (appDataFolder / drive.file) and does not access non-app Google Drive files.
+              </div>
+              <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color:#606f49; font-size:13px;">View Google Privacy Policy →</a>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="highlight-box alt">
+        <p style="margin:0; font-size:14px; color:#2e332a;">
+          Lore contains <strong>no third-party advertising SDKs or tracking networks</strong>.
+        </p>
+      </div>
+    </div>
+
+    <!-- APP PERMISSIONS -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box">P</div>
+          </td>
+          <td valign="middle" class="card-title">
+            App Permissions
+          </td>
+        </tr>
+      </table>
+      <p class="text-sage">Lore requests only the following permissions to enable user-initiated features:</p>
+      <div class="list-container">
+        <div class="list-item">
+          › <strong style="color:#2e332a;">RECORD_AUDIO</strong> — Required only when you record a voice journal entry. Audio is saved locally.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">USE_BIOMETRIC / USE_FINGERPRINT</strong> — Enables hardware biometric lock to secure your sanctuary.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">POST_NOTIFICATIONS</strong> — Used to send local scheduled reminders for daily reflection.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">BILLING</strong> — Enables Google Play in-app purchases for Lore Premium.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">READ_MEDIA_IMAGES / CAMERA</strong> — Required only when attaching custom photos to journal entries.
+        </div>
+      </div>
+    </div>
+
+    <!-- SECURITY FEATURES -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box alt">L</div>
+          </td>
+          <td valign="middle" class="card-title">
+            App Lock &amp; Privacy Controls
+          </td>
+        </tr>
+      </table>
+      <div class="list-container">
+        <div class="list-item">
+          › <strong style="color:#2e332a;">Biometric &amp; PIN Security</strong> — Lock Lore with a custom PIN or device biometrics.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">Decoy PIN Vault</strong> — Enter an alternate PIN to present a clean decoy workspace.
+        </div>
+        <div class="list-item">
+          › <strong style="color:#2e332a;">Screenshot Blackout</strong> — Prevents screen capture and obscures recent app switcher previews.
+        </div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT & DATA DELETION -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box">X</div>
+          </td>
+          <td valign="middle" class="card-title">
+            Account &amp; Data Deletion Instructions
+          </td>
+        </tr>
+      </table>
+      <p class="text-sage">
+        You have full control over your data. To request deletion of your account or associated data, follow these simple steps:
+      </p>
+      <div class="list-container" style="margin-bottom:14px;">
+        <div class="list-item">
+          <strong style="color:#2e332a;">1. Local Data &amp; Journals:</strong> Uninstalling Lore immediately deletes all local journal entries, audio recordings, settings, and companion progress from your device.
+        </div>
+        <div class="list-item">
+          <strong style="color:#2e332a;">2. Account &amp; Backup Deletion Request:</strong> Send an email to <a href="mailto:gxdevsstudio@gmail.com" style="color:#606f49; font-weight:700;">gxdevsstudio@gmail.com</a> with the subject <strong>"Account Deletion Request"</strong>. Include your registered account email. All associated records will be permanently deleted within 7 business days.
+        </div>
+      </div>
+      <div class="highlight-box">
+        <p style="margin:0; font-size:14px; color:#2e332a;">
+          Contact <strong>gxdevsstudio@gmail.com</strong> for any account deletion requests.
+        </p>
+      </div>
+    </div>
+
+    <!-- CHILDREN PRIVACY -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box alt">C</div>
+          </td>
+          <td valign="middle" class="card-title">
+            Children's Privacy
+          </td>
+        </tr>
+      </table>
+      <p class="text-sage" style="margin:0;">
+        Lore is intended for general audiences and is not directed at children under the age of 13. We do not knowingly collect personal information from children. All data created within the app remains exclusively on the local device.
+      </p>
+    </div>
+
+    <!-- CHANGES -->
+    <div class="card">
+      <table class="card-header-table" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td valign="middle" width="46">
+            <div class="icon-box">U</div>
+          </td>
+          <td valign="middle" class="card-title">
+            Changes to This Policy
+          </td>
+        </tr>
+      </table>
+      <p class="text-sage" style="margin:0;">
+        We may update this Privacy Policy from time to time. Any changes will be posted on this page with an updated revision date.
+      </p>
+    </div>
+
+    <!-- CONTACT -->
+    <div class="contact-card">
+      <h2 style="color:#2e332a; font-size:20px; font-weight:700; margin:0 0 8px 0;">Contact Us</h2>
+      <p style="color:#828779; margin:0 0 20px 0;">
+        Questions about this Privacy Policy or your privacy in Lore? We are happy to help.
+      </p>
+      <a href="mailto:gxdevsstudio@gmail.com" class="btn-email">gxdevsstudio@gmail.com</a>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      © 2026 GX Devs &nbsp;·&nbsp; Lore &nbsp;·&nbsp;
+      <a href="https://play.google.com/store/apps/details?id=com.gxdevs.lore" target="_blank" rel="noopener">View on Google Play</a>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>
