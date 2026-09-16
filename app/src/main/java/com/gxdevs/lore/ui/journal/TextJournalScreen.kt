@@ -130,7 +130,7 @@ val promptsList = listOf(
 
 enum class FormatType { BOLD, ITALIC, UNDERLINE, STRIKETHROUGH }
 enum class ListType   { OFF, NUMBER, BULLET }
-enum class AudioState { IDLE, RECORDING, PAUSED, RECORDED }
+enum class AudioState { IDLE, RECORDING, PAUSED, RECORDED, PLAYING }
 
 data class FormatRange(val type: FormatType, var start: Int, var end: Int)
 
@@ -512,9 +512,9 @@ fun AudioRecordingPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Status dot – pulsing accent when recording, solid when paused
+        // Status dot – pulsing accent when recording or playing, solid when paused
         val dotColor by animateColorAsState(
-            if (audioState == AudioState.RECORDING) primaryAccent else accentBackground,
+            if (audioState == AudioState.RECORDING || audioState == AudioState.PLAYING) primaryAccent else accentBackground,
             label = "dot"
         )
         Box(Modifier.size(8.dp).clip(CircleShape).background(dotColor))
@@ -530,11 +530,11 @@ fun AudioRecordingPill(
             modifier = Modifier.width(52.dp)
         ) {
             repeat(12) { idx ->
-                val frac = if (audioState == AudioState.RECORDING) {
+                val frac = if (audioState == AudioState.RECORDING || audioState == AudioState.PLAYING) {
                     val v = kotlin.math.sin((wavePhase + idx * 0.55f).toDouble()).toFloat()
                     0.25f + 0.75f * ((v + 1f) / 2f)
                 } else staticHeights[idx]
-                val barColor = if (audioState == AudioState.RECORDING)
+                val barColor = if (audioState == AudioState.RECORDING || audioState == AudioState.PLAYING)
                     primaryAccent.copy(alpha = 0.85f) else accentBackground.copy(alpha = 0.6f)
                 Box(
                     Modifier.width(2.dp)
@@ -568,11 +568,21 @@ fun AudioRecordingPill(
                     Icon(Icons.Rounded.Stop, null, tint = primaryAccent, modifier = Modifier.size(16.dp))
                 }
             }
+            AudioState.PLAYING -> {
+                IconButton(onClick = onPause, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Rounded.Pause,
+                        contentDescription = "Pause",
+                        tint = accentBackground,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
             else -> {
                 IconButton(onClick = onPlay, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Rounded.PlayArrow,
-                        null,
+                        contentDescription = "Play",
                         tint = primaryAccent,
                         modifier = Modifier.size(16.dp)
                     )
@@ -736,23 +746,37 @@ fun TextJournalScreen(
         audioState = AudioState.RECORDING
     }
 
+    fun pausePlayback() {
+        mediaPlayer.value?.pause()
+        audioState = AudioState.RECORDED
+    }
+
     fun playRecording() {
         val file = recordingFile ?: return
         if (!file.exists()) return
         try {
-            mediaPlayer.value?.runCatching { stop(); release() }
+            val existing = mediaPlayer.value
+            if (existing != null && audioState == AudioState.RECORDED) {
+                try {
+                    existing.start()
+                    audioState = AudioState.PLAYING
+                    return
+                } catch (_: Exception) {}
+            }
+            existing?.runCatching { stop(); release() }
             val player = MediaPlayer().apply {
                 setDataSource(file.absolutePath)
                 setOnPreparedListener {
                     it.start()
-                    audioState = AudioState.RECORDED
+                    audioState = AudioState.PLAYING
                 }
                 setOnCompletionListener { audioState = AudioState.RECORDED }
-                prepareAsync() // prevent main thread block which causes crashes
+                prepareAsync()
             }
             mediaPlayer.value = player
         } catch (e: Exception) {
             e.printStackTrace()
+            audioState = AudioState.RECORDED
         }
     }
 
@@ -815,6 +839,7 @@ fun TextJournalScreen(
             mediaRecorder.value = null
             mediaPlayer.value?.runCatching { stop(); release() }
             mediaPlayer.value = null
+            com.gxdevs.lore.utils.SanctuarySoundscapeHelper.stopSoundscape()
         }
     }
 
@@ -1020,16 +1045,60 @@ fun TextJournalScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(cardBackground)
-                            .border(1.dp, borderColor, CircleShape)
-                            .clickable(onClick = onBack),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close", tint = textSecondary, modifier = Modifier.size(20.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(cardBackground)
+                                .border(1.dp, borderColor, CircleShape)
+                                .clickable(onClick = onBack),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Close", tint = textSecondary, modifier = Modifier.size(20.dp))
+                        }
+
+                        // Ambient Soundscape Selector
+                        var currentSoundscape by remember { mutableStateOf(com.gxdevs.lore.utils.SanctuarySoundscapeHelper.getCurrentSoundscape()) }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(if (currentSoundscape != com.gxdevs.lore.utils.SanctuarySoundscapeHelper.SoundscapeType.NONE) primaryAccent else cardBackground)
+                                .border(1.dp, borderColor, RoundedCornerShape(22.dp))
+                                .clickable {
+                                    val types = com.gxdevs.lore.utils.SanctuarySoundscapeHelper.SoundscapeType.values()
+                                    val nextIndex = (currentSoundscape.ordinal + 1) % types.size
+                                    val nextType = types[nextIndex]
+                                    currentSoundscape = nextType
+                                    com.gxdevs.lore.utils.SanctuarySoundscapeHelper.startSoundscape(nextType)
+                                    if (nextType != com.gxdevs.lore.utils.SanctuarySoundscapeHelper.SoundscapeType.NONE) {
+                                        Toast.makeText(context, "Ambient: ${nextType.displayName}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Rounded.AutoAwesome,
+                                    contentDescription = "Soundscape",
+                                    tint = if (currentSoundscape != com.gxdevs.lore.utils.SanctuarySoundscapeHelper.SoundscapeType.NONE) Color.White else textSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                if (currentSoundscape != com.gxdevs.lore.utils.SanctuarySoundscapeHelper.SoundscapeType.NONE) {
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        currentSoundscape.displayName,
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     val canSave = textContent.isNotBlank() || title.isNotBlank()
@@ -1393,7 +1462,10 @@ fun TextJournalScreen(
                             audioState  = audioState,
                             durationSec = durationSec,
                             onPlay   = { playRecording() },
-                            onPause  = { pauseRecording() },
+                            onPause  = {
+                                if (audioState == AudioState.PLAYING) pausePlayback()
+                                else pauseRecording()
+                            },
                             onResume = { resumeRecording() },
                             onStop   = { stopRecording() },
                             onRemove = {
