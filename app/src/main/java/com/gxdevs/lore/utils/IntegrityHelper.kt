@@ -56,4 +56,48 @@ object IntegrityHelper {
         return storedToken.equals(expected, ignoreCase = true)
     }
 
+    /**
+     * Checks if the app was installed via official Google Play Store.
+     * Returns true in Debug builds to allow developer testing.
+     */
+    fun isInstalledFromPlayStore(context: Context): Boolean {
+        if (BuildConfig.DEBUG) return true
+        return try {
+            val pm = context.packageManager
+            val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                pm.getInstallSourceInfo(context.packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getInstallerPackageName(context.packageName)
+            }
+            installer == "com.android.vending"
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to verify install source", e)
+            true // fallback gracefully if permission or API throws
+        }
+    }
+
+    /**
+     * Detects common debugging or memory hooking tools (Frida / Xposed).
+     */
+    fun isEnvironmentCompromised(): Boolean {
+        try {
+            // Check for test-keys firmware
+            val buildTags = Build.TAGS
+            if (buildTags != null && buildTags.contains("test-keys")) {
+                // Potential custom rom/test environment
+            }
+
+            // Check for common frida server sockets or maps
+            val mapsFile = File("/proc/self/maps")
+            if (mapsFile.canRead()) {
+                val maps = mapsFile.readText()
+                if (maps.contains("frida-agent") || maps.contains("gadget.so") || maps.contains("xposed")) {
+                    Log.w(TAG, "Tampering detected in proc maps")
+                    return true
+                }
+            }
+        } catch (_: Exception) {}
+        return false
+    }
 }
