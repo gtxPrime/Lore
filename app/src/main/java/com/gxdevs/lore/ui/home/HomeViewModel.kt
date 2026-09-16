@@ -92,6 +92,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val prefs = getApplication<Application>().getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit { putString("user_name", name) }
         _localUserName.value = name
+        viewModelScope.launch {
+            settingsRepo.setGoogleAccountName(name)
+        }
     }
 }
 
