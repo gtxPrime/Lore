@@ -1243,8 +1243,7 @@ fun IdentityScreen(
                                 Button(
                                     onClick = {
                                         if (isRestoring || isSyncing) return@Button
-                                        // restore confirmation dialog deferred
-                                        showRestoreConfirmDialog = false
+                                        showRestoreConfirmDialog = true
                                     },
                                     enabled = !isRestoring && !isSyncing,
                                     modifier = Modifier.height(34.dp),
