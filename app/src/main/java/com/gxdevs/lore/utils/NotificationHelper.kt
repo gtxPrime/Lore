@@ -17,8 +17,10 @@ const val CHANNEL_DAILY            = "daily_reminder"
 const val CHANNEL_COMPANION        = "companion_alerts"
 const val CHANNEL_RELIC            = "relic_alerts"
 const val CHANNEL_MEDIA_PROCESSING = "media_processing"
+const val CHANNEL_DRIVE_BACKUP     = "drive_backup"
 const val NOTIF_DAILY_ID           = 1001
 const val NOTIF_MEDIA_PROCESSING_ID = 2001
+const val NOTIF_DRIVE_BACKUP_ID    = 3001
 
 /** Creates all required notification channels. Call once from Application / MainActivity.onCreate. */
 fun createNotificationChannels(context: Context) {
@@ -43,6 +45,96 @@ fun createNotificationChannels(context: Context) {
             description = "Shows background progress when encrypting or decrypting media files."
         }
     )
+    nm.createNotificationChannel(
+        NotificationChannel(CHANNEL_DRIVE_BACKUP, "Google Drive Backup & Sync", NotificationManager.IMPORTANCE_LOW).apply {
+            description = "Shows ongoing progress when backing up or syncing Sanctuary data to Google Drive."
+        }
+    )
+}
+
+/** Builds an ongoing Notification object for Google Drive backup (used by WorkManager setForeground). */
+fun buildDriveBackupNotification(context: Context, title: String, message: String, progress: Int = -1): android.app.Notification {
+    val builder = NotificationCompat.Builder(context, CHANNEL_DRIVE_BACKUP)
+        .setSmallIcon(com.gxdevs.lore.R.drawable.scroll)
+        .setContentTitle(title)
+        .setContentText(message)
+        .setOngoing(true)
+        .setOnlyAlertOnce(true)
+        .setPriority(NotificationCompat.PRIORITY_LOW)
+
+    if (progress in 0..99) {
+        builder.setProgress(100, progress, false)
+    } else {
+        builder.setProgress(0, 0, true)
+    }
+
+    return builder.build()
+}
+
+/** Shows or updates an ongoing background progress notification for Google Drive backup. */
+fun showDriveBackupNotification(context: Context, title: String, message: String, progress: Int = -1) {
+    try {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_DRIVE_BACKUP_ID, buildDriveBackupNotification(context, title, message, progress))
+    } catch (_: Exception) {}
+}
+
+/** Shows a completion notification when Google Drive backup succeeds. */
+fun showDriveBackupSuccessNotification(context: Context, timeStr: String) {
+    try {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val tapIntent = PendingIntent.getActivity(
+            context, 0,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("navigate_to", "identity")
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notif = NotificationCompat.Builder(context, CHANNEL_DRIVE_BACKUP)
+            .setSmallIcon(com.gxdevs.lore.R.drawable.scroll)
+            .setContentTitle("Google Drive Backup Complete")
+            .setContentText("Sanctuary data backed up successfully ($timeStr)")
+            .setAutoCancel(true)
+            .setOngoing(false)
+            .setContentIntent(tapIntent)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        nm.notify(NOTIF_DRIVE_BACKUP_ID, notif)
+    } catch (_: Exception) {}
+}
+
+/** Shows a failure notification when Google Drive backup fails. */
+fun showDriveBackupFailedNotification(context: Context, errorMsg: String) {
+    try {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val tapIntent = PendingIntent.getActivity(
+            context, 0,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("navigate_to", "identity")
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notif = NotificationCompat.Builder(context, CHANNEL_DRIVE_BACKUP)
+            .setSmallIcon(com.gxdevs.lore.R.drawable.scroll)
+            .setContentTitle("Google Drive Backup Failed")
+            .setContentText("Could not back up to Google Drive: $errorMsg")
+            .setAutoCancel(true)
+            .setOngoing(false)
+            .setContentIntent(tapIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        nm.notify(NOTIF_DRIVE_BACKUP_ID, notif)
+    } catch (_: Exception) {}
+}
+
+/** Cancels the ongoing Google Drive backup notification. */
+fun cancelDriveBackupNotification(context: Context) {
+    try {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.cancel(NOTIF_DRIVE_BACKUP_ID)
+    } catch (_: Exception) {}
 }
 
 /** Shows or updates an ongoing background progress notification for media encryption/decryption. */
