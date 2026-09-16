@@ -916,7 +916,7 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
             .shadow(
-                elevation = 28.dp,
+                elevation = 32.dp,
                 shape = RoundedCornerShape(32.dp),
                 spotColor = heroCardColor.copy(alpha = 0.80f),
                 ambientColor = heroCardColor.copy(alpha = 0.45f)
