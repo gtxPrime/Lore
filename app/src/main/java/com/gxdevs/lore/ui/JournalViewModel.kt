@@ -112,6 +112,8 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                         }
                     } catch (e: Exception) { e.printStackTrace() }
                 }
+                // Trigger on-demand Drive backup for deleted journal
+                com.gxdevs.lore.utils.DriveBackupWorker.scheduleBackupOnDataChange(getApplication())
             }
         }
     }
@@ -188,9 +190,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
             }
 
             repository.insertEntry(finalEntry)
-            try {
-                com.gxdevs.lore.ui.pets.PetViewModel(getApplication()).onJournalSaved()
-            } catch (e: Exception) { e.printStackTrace() }
+            com.gxdevs.lore.utils.DriveBackupWorker.scheduleBackupOnDataChange(getApplication())
         }
     }
 
@@ -236,6 +236,7 @@ class JournalViewModel(application: Application) : AndroidViewModel(application)
                     moodSnapshot = null
                 )
             )
+            com.gxdevs.lore.utils.DriveBackupWorker.scheduleBackupOnDataChange(getApplication())
         }
     }
 }
