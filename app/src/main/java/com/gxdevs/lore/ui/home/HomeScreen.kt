@@ -14,12 +14,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,7 +53,6 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalContext
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
@@ -71,7 +73,6 @@ import androidx.compose.ui.graphics.Brush
 import com.gxdevs.lore.ui.settings.SettingsScreen
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.bumptech.glide.integration.compose.GlideImage
 import com.gxdevs.lore.LocalNavAnimatedVisibilityScope
 import com.gxdevs.lore.LocalSharedTransitionScope
@@ -107,7 +108,8 @@ fun HomeContent(
     onNavigateToText: () -> Unit,
     onSaveUserName: (String) -> Unit,
     onEntryClick: (Long) -> Unit = {},
-    onNavigateToProfile: () -> Unit
+    onNavigateToProfile: () -> Unit,
+    onNavigateToPremium: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -215,7 +217,7 @@ fun HomeContent(
                             )
                         }
                         3 -> PetsScreen(onOpenJourney = { pet -> journeyPetForOverlay = pet })
-                        4 -> SettingsTabPlaceholder()
+                        4 -> SettingsTabPlaceholder(onNavigateToPremium = onNavigateToPremium)
                     }
                 }
             }
@@ -630,6 +632,7 @@ private fun TopAppBarSection(
             Column(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
+                    .padding(end = 112.dp)
                     .graphicsLayer { alpha = contentAlpha }
                     .combinedClickable(
                         onClick = {},
@@ -647,7 +650,9 @@ private fun TopAppBarSection(
                     color = textPrimary,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Serif
+                    fontFamily = FontFamily.Serif,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -914,7 +919,7 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
                 elevation = 24.dp,
                 shape = RoundedCornerShape(32.dp),
                 spotColor = heroCardColor.copy(alpha = 0.65f),
-                ambientColor = heroCardColor.copy(alpha = 0.30f)
+                ambientColor = heroCardColor.copy(alpha = 0.45f)
             )
             .clip(RoundedCornerShape(32.dp)),
         contentAlignment = Alignment.CenterStart
@@ -1031,15 +1036,15 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
             verticalArrangement = Arrangement.Center
         ) {
             if (topPet != null) {
-                // Stage badge
+                // Stage badge (compact height)
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(
                             Brush.linearGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.28f),
-                                    Color.White.copy(alpha = 0.14f)
+                                    Color.White.copy(alpha = 0.25f),
+                                    Color.White.copy(alpha = 0.12f)
                                 )
                             )
                         )
@@ -1047,33 +1052,33 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
                             1.dp,
                             Brush.linearGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.50f),
-                                    Color.White.copy(alpha = 0.20f)
+                                    Color.White.copy(alpha = 0.45f),
+                                    Color.White.copy(alpha = 0.18f)
                                 )
                             ),
-                            RoundedCornerShape(16.dp)
+                            RoundedCornerShape(10.dp)
                         )
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                        .padding(horizontal = 6.dp, vertical = 1.5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val icon = if (topPet.isFullyGrown) Icons.Rounded.AutoAwesome else Icons.Rounded.Egg
-                    Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(8.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        "STAGE ${topPet.stageIndex.coerceAtLeast(0)}",
+                        "STAGE ${topPet.stageIndex.coerceAtLeast(0) + 1}",
                         color = Color.White,
-                        fontSize = 10.sp,
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.2.sp
+                        letterSpacing = 0.6.sp
                     )
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = topPet.name,
+                    text = topPet.displayName,
                     color = Color.White,
-                    fontSize = if (topPet.name.length > 12) 22.sp else 28.sp,
+                    fontSize = if (topPet.displayName.length > 12) 22.sp else 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1204,7 +1209,6 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
                             fontWeight = FontWeight.ExtraBold
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        // Animated glowing double-arrow
                         Text(
                             text = "»",
                             color = Color.White.copy(alpha = arrowGlow),
@@ -1216,64 +1220,113 @@ private fun HeroCard(topPet: PetUiState?, onWriteJournal: () -> Unit = {}) {
             }
         }
 
-        // ── Ground contact shadow ────────────────────────────────────────────
-        Canvas(
-            modifier = Modifier
-                .size(width = 120.dp, height = 22.dp)
-                .align(Alignment.BottomEnd)
-                .padding(end = 28.dp)
-                .offset(y = (-14).dp)
-                .graphicsLayer { alpha = 0.30f }
-        ) {
-            drawOval(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color.Black.copy(alpha = 0.50f),
-                        Color.Black.copy(alpha = 0.15f),
-                        Color.Transparent
-                    ),
-                    center = center,
-                    radius = size.width / 1.9f
-                )
-            )
-        }
-
-        // ── Companion Character Artwork ──────────────────────────────────────
+        // ── Companion Character Artwork & Ground Contact Shadow ───────────────
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 10.dp)
-                .offset(y = floatOffsetY.dp)
-                .size(160.dp),
+                .fillMaxHeight()
+                .width(160.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (topPet != null) {
-                PetStageVisual(
-                    pet = topPet,
-                    moodColor = heroCardColor,
-                    isCenter = true,
-                    loadedImage = loadedImage
-                )
-            } else {
-                // Glowing egg for empty state
-                Canvas(modifier = Modifier.size(80.dp)) {
+            // Ground contact shadow — uses dynamic hero color for warm color-matched glow
+            Canvas(
+                modifier = Modifier
+                    .size(width = 160.dp, height = 40.dp)
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (-8).dp)
+            ) {
+                // Pass 1: Wide ambient soft bloom (color-tinted)
+                val bloomRadius = 60.dp.toPx()
+                withTransform({
+                    scale(scaleX = 1.0f, scaleY = 0.18f, pivot = center)
+                }) {
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.30f * orb1Pulse),
+                                heroCardColor.copy(alpha = 0.35f),
+                                Color.Black.copy(alpha = 0.18f),
                                 Color.Transparent
                             ),
                             center = center,
-                            radius = size.width / 1.4f
-                        )
+                            radius = bloomRadius
+                        ),
+                        radius = bloomRadius,
+                        center = center
                     )
                 }
-                Icon(
-                    Icons.Rounded.Egg,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.90f),
-                    modifier = Modifier.size(60.dp)
-                )
+
+                // Pass 2: Tighter dense core
+                val coreRadius = 38.dp.toPx()
+                withTransform({
+                    scale(scaleX = 1.0f, scaleY = 0.12f, pivot = center)
+                }) {
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.45f),
+                                Color.Black.copy(alpha = 0.18f),
+                                Color.Transparent
+                            ),
+                            center = center,
+                            radius = coreRadius
+                        ),
+                        radius = coreRadius,
+                        center = center
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = floatOffsetY.dp)
+            ) {
+                if (topPet != null) {
+                    PetStageVisual(
+                        pet = topPet,
+                        moodColor = heroCardColor,
+                        isCenter = true,
+                        loadedImage = loadedImage
+                    )
+                } else {
+                    // Multi-layer glowing aura behind egg
+                    Box(contentAlignment = Alignment.Center) {
+                        // Outer ambient aura — slow pulse, color-matched
+                        Canvas(modifier = Modifier.size(120.dp)) {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        heroBgColor.copy(alpha = 0.45f * orb2Pulse),
+                                        heroCardColor.copy(alpha = 0.18f * orb2Pulse),
+                                        Color.Transparent
+                                    ),
+                                    center = center,
+                                    radius = size.width / 1.8f
+                                )
+                            )
+                        }
+                        // Inner bright glow — faster pulse
+                        Canvas(modifier = Modifier.size(80.dp)) {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.50f * orb1Pulse),
+                                        heroBgColor.copy(alpha = 0.20f * orb1Pulse),
+                                        Color.Transparent
+                                    ),
+                                    center = center,
+                                    radius = size.width / 1.5f
+                                )
+                            )
+                        }
+                        Icon(
+                            Icons.Rounded.Egg,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.95f),
+                            modifier = Modifier.size(72.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -1549,10 +1602,12 @@ private fun MockTimelineEntry(
                             }
                             if (showLongPressHint) {
                                 Text(
-                                    text = "Long press to count towards growth",
+                                    text = "Hold to grow companion",
                                     color = textSecondary,
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -1621,7 +1676,8 @@ private fun BottomDockedArea(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 45.dp)
+                .widthIn(max = 380.dp)
+                .padding(horizontal = 24.dp)
                 .padding(bottom = 10.dp)
                 .then(morphModifier),
             contentAlignment = Alignment.BottomCenter
@@ -1801,7 +1857,8 @@ fun FirstTimeNameDialog(
                 OutlinedTextField(
                     value = nameInput,
                     onValueChange = { nameInput = it },
-                    placeholder = { Text("Enter your name", color = textSecondary.copy(alpha = 0.6f)) },
+                    placeholder = { Text("e.g. Phoenix", color = textSecondary.copy(alpha = 0.6f)) },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = primaryAccent,
@@ -1833,8 +1890,8 @@ fun FirstTimeNameDialog(
 
 
 @Composable
-fun SettingsTabPlaceholder() {
-    SettingsScreen()
+fun SettingsTabPlaceholder(onNavigateToPremium: () -> Unit = {}) {
+    SettingsScreen(onNavigateToPremium = onNavigateToPremium)
 }
 
 // ===================== VIEWMODEL CONNECTOR =====================
@@ -1843,7 +1900,8 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
     onNavigateToText: () -> Unit,
     onEntryClick: (Long) -> Unit = {},
-    onNavigateToProfile: () -> Unit
+    onNavigateToProfile: () -> Unit,
+    onNavigateToPremium: () -> Unit = {}
 ) {
     val userName by homeViewModel.userName.collectAsState()
     val entries by homeViewModel.filteredEntries.collectAsState()
@@ -1857,7 +1915,8 @@ fun HomeScreen(
         onNavigateToText = onNavigateToText,
         onSaveUserName = { homeViewModel.saveUserName(it) },
         onEntryClick = onEntryClick,
-        onNavigateToProfile = onNavigateToProfile
+        onNavigateToProfile = onNavigateToProfile,
+        onNavigateToPremium = onNavigateToPremium
     )
 }
 
