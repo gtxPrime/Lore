@@ -1,5 +1,7 @@
 package com.gxdevs.lore.ui.pets
 
+import android.util.Log
+import java.io.File
 import android.graphics.BitmapFactory
 import androidx.compose.animation.*
 import androidx.compose.animation.animateColorAsState
@@ -46,10 +48,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.palette.graphics.Palette
 import com.gxdevs.lore.data.mood.MoodConstants
 import kotlinx.coroutines.launch
-import java.io.File
 import kotlin.math.absoluteValue
 
-// GöÇGöÇGöÇ Design Tokens GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// â”€â”€â”€ Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 private val mainContainerBackground = Color(0xFFFAF8F5)
 private val appBackground           = Color(0xFFF3EEE6)
@@ -61,7 +62,7 @@ private val textSecondary           = Color(0xFF7A8370)
 private val borderColor             = Color(0xFFE5DFC9)
 private val tabSelectedColor        = Color(0xFF4A5638)
 
-// GöÇGöÇGöÇ Palette & Bitmap Cache GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// â”€â”€â”€ Palette & Bitmap Cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 data class LoadedPetImage(
     val imageBitmap: ImageBitmap?,
@@ -75,40 +76,49 @@ fun getOrLoadPetPalette(filePath: String?, fallbackMoodId: String): LoadedPetIma
     val fallbackColor = MoodConstants.colorOf[fallbackMoodId] ?: primaryAccent
     val fallbackBg    = MoodConstants.bgColorOf[fallbackMoodId] ?: accentBackground
 
-    if (filePath.isNullOrBlank() || !File(filePath).exists()) {
+    if (filePath.isNullOrBlank()) {
+        return LoadedPetImage(null, fallbackColor, fallbackBg)
+    }
+    val file = File(filePath)
+    if (!file.exists() || file.length() <= 100) {
         return LoadedPetImage(null, fallbackColor, fallbackBg)
     }
 
+    // Return cached image if already decoded into memory
+    val cached = petImageMemoryCache[filePath]
+    if (cached?.imageBitmap != null) {
+        return cached
+    }
+
     // Special handling for DARK mood (Luna / Shadow companion):
-    // Prevents small accent flowers/grass in Luna's stage artwork from randomly turning her card neon green, crimson, or royal blue
     if (fallbackMoodId.equals("dark", ignoreCase = true)) {
-        val lunaColor = Color(0xFF3B3E56) // Mystical midnight twilight slate
+        val lunaColor = Color(0xFF3B3E56)
         val lunaBg    = Color(0xFFDCE0EA)
         return petImageMemoryCache.getOrPut(filePath) {
             try {
+                Log.d("PetPalette", "Decoding dark pet image: $filePath")
                 val bmp = BitmapFactory.decodeFile(filePath)
                 LoadedPetImage(bmp?.asImageBitmap(), lunaColor, lunaBg)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("PetPalette", "Failed decoding dark pet image $filePath: ${e.message}")
                 LoadedPetImage(null, lunaColor, lunaBg)
             }
         }
     }
 
-    return petImageMemoryCache.getOrPut(filePath) {
-        try {
-            val bmp = BitmapFactory.decodeFile(filePath)
-            if (bmp != null) {
-                val palette = Palette.from(bmp).generate()
-                // Prefer vibrant swatch for rich character colors, falling back to dominant/muted
-                val swatch = palette.vibrantSwatch 
-                    ?: palette.dominantSwatch 
-                    ?: palette.lightVibrantSwatch 
-                    ?: palette.mutedSwatch
+    val loaded = try {
+        Log.d("PetPalette", "Decoding pet image: $filePath")
+        val bmp = BitmapFactory.decodeFile(filePath)
+        if (bmp != null) {
+            val palette = Palette.from(bmp).generate()
+            val swatch = palette.vibrantSwatch 
+                ?: palette.dominantSwatch 
+                ?: palette.lightVibrantSwatch 
+                ?: palette.mutedSwatch
 
-                if (swatch == null) {
-                    return@getOrPut LoadedPetImage(bmp.asImageBitmap(), fallbackColor, fallbackBg)
-                }
-
+            if (swatch == null) {
+                LoadedPetImage(bmp.asImageBitmap(), fallbackColor, fallbackBg)
+            } else {
                 val hsv = FloatArray(3)
                 android.graphics.Color.colorToHSV(swatch.rgb, hsv)
                 val saturation = hsv[1]
@@ -117,37 +127,40 @@ fun getOrLoadPetPalette(filePath: String?, fallbackMoodId: String): LoadedPetIma
                 val finalColor: Color
                 val finalBgColor: Color
 
-                // EXCEPTION FOR WHITE / DESATURATED PNGs:
-                // If the extracted color is white/gray (saturation < 0.12f or lightness > 0.85f with low saturation),
-                // use the emotion theme fallback so white pets get clean theme colors without random blue/green artifacts!
                 if (saturation < 0.12f || (saturation < 0.20f && lightness > 0.85f)) {
                     finalColor = fallbackColor
                     finalBgColor = fallbackBg
                 } else {
-                    // Tune HSV for a vibrant, rich card color with balanced brightness (never muddy or dark)
                     val cardHsv = hsv.clone()
-                    cardHsv[1] = cardHsv[1].coerceIn(0.35f, 0.75f) // Vibrant saturation
-                    cardHsv[2] = cardHsv[2].coerceAtLeast(0.68f)    // Bright, vibrant lightness!
+                    cardHsv[1] = cardHsv[1].coerceIn(0.35f, 0.75f)
+                    cardHsv[2] = cardHsv[2].coerceAtLeast(0.68f)
 
                     finalColor = Color(android.graphics.Color.HSVToColor(cardHsv))
 
                     val bgHsv = hsv.clone()
                     bgHsv[1] = (bgHsv[1] * 0.20f).coerceIn(0.10f, 0.28f)
-                    bgHsv[2] = 0.96f // Soft luminous pastel background
+                    bgHsv[2] = 0.96f
                     finalBgColor = Color(android.graphics.Color.HSVToColor(bgHsv))
                 }
 
                 LoadedPetImage(bmp.asImageBitmap(), finalColor, finalBgColor)
-            } else {
-                LoadedPetImage(null, fallbackColor, fallbackBg)
             }
-        } catch (_: Exception) {
+        } else {
             LoadedPetImage(null, fallbackColor, fallbackBg)
         }
+    } catch (e: Exception) {
+        Log.e("PetPalette", "Failed decoding pet image $filePath: ${e.message}")
+        LoadedPetImage(null, fallbackColor, fallbackBg)
     }
+
+    if (loaded.imageBitmap != null) {
+        petImageMemoryCache[filePath] = loaded
+    }
+    return loaded
 }
 
-// GöÇGöÇGöÇ Emoji per emotion per stage (fallback / DEMO_MODE) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+
+// â”€â”€â”€ Emoji per emotion per stage (fallback / DEMO_MODE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 private val petEmojis: Map<String, List<String>> = mapOf(
     "bright"  to listOf("\uD83E\uDD5A", "\uD83D\uDC9B", "\uD83D\uDC23", "\uD83D\uDC25", "\u2B50", "\u2600\uFE0F"),
     "calm"    to listOf("\uD83E\uDD5A", "\uD83D\uDC9A", "\uD83D\uDC23", "\uD83C\uDF3F", "\uD83C\uDF43", "\uD83C\uDF33"),
@@ -162,7 +175,7 @@ internal fun emojiFor(emotion: String, stageIndex: Int): String {
     return list.getOrElse(stageIndex.coerceAtLeast(0)) { list.last() }
 }
 
-// GöÇGöÇGöÇ Screen GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// â”€â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -257,7 +270,7 @@ fun PetsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text       = "Archive.",
+                        text       = "Companions.",
                         fontSize   = 32.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Serif,
@@ -274,7 +287,7 @@ fun PetsScreen(
                         .padding(horizontal = 24.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "GÜí DEMO CONTROLLER",
+                        text = "âš¡ DEMO STAGE CONTROLLER",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = primaryAccent.copy(alpha = 0.7f),
@@ -539,7 +552,7 @@ fun PetsScreen(
                                 .padding(horizontal = 14.dp, vertical = 5.dp)
                         ) {
                             Text(
-                                text       = if (targetPet.stageIndex < 0) "Locked" else "Stage ${targetPet.stageIndex + 1} GÇó ${targetPet.stageName}",
+                                text       = if (targetPet.stageIndex < 0) "Locked" else "Stage ${targetPet.stageIndex + 1} â€¢ ${targetPet.stageName}",
                                 fontSize   = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color      = targetMoodColor
@@ -611,7 +624,7 @@ fun PetsScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // --- "G£ª View Journey" Button ---
+                        // --- "âœ¦ View Journey" Button ---
                         val journeyShimmer = rememberInfiniteTransition(label = "journey_btn_shimmer")
                         val journeyShimmerX by journeyShimmer.animateFloat(
                             initialValue = -200f,
@@ -668,7 +681,7 @@ fun PetsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text       = "G£ª",
+                                    text       = "âœ¦",
                                     fontSize   = 14.sp,
                                     color      = Color.White,
                                     fontWeight = FontWeight.Bold
@@ -880,7 +893,7 @@ fun PetsScreen(
     }
 }
 
-// --- Pet visual - emoji/shape (fallback) / image (cached with palette) GöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// --- Pet visual - emoji/shape (fallback) / image (cached with palette) â”€â”€â”€â”€â”€â”€â”€
 
 @OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
 @Composable
@@ -892,15 +905,37 @@ fun PetStageVisual(
     loadedImage: LoadedPetImage? = null
 ) {
     val size = if (isCenter) 140.dp else 100.dp
+    val context = androidx.compose.ui.platform.LocalContext.current
 
-    // Locked pet GÇö always show lock icon
+    // Locked pet â€” always show lock icon
     if (pet.stageIndex < 0) {
         Icon(Icons.Rounded.Lock, contentDescription = "Locked",
             modifier = Modifier.size(48.dp), tint = textSecondary.copy(alpha = 0.3f))
         return
     }
 
-    // GöÇGöÇ Tier 1: local bitmap already decoded GåÆ render instantly GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+    val dbStage = (pet.stageIndex + 1).coerceAtLeast(1)
+
+    // Trigger background download and caching if image not yet stored
+    LaunchedEffect(pet.petId, pet.stageIndex, pet.currentStageImageUrl) {
+        if (!forceEmoji && !pet.currentStageImageUrl.isNullOrBlank()) {
+            try {
+                Log.d("PetStageVisual", "[Visual] Checking asset for ${pet.petId} (stageIndex=${pet.stageIndex}, dbStage=$dbStage)")
+                val cache = com.gxdevs.lore.pets.PetImageCache(context)
+                val file = cache.getOrDownload(
+                    pet.petId, dbStage, pet.currentStageImageUrl
+                )
+                if (file != null && file.exists() && file.length() > 100) {
+                    Log.d("PetStageVisual", "[Visual] Asset on disk ready: ${file.absolutePath}")
+                    petImageMemoryCache.remove(file.absolutePath)
+                }
+            } catch (e: Exception) {
+                Log.e("PetStageVisual", "[Visual] Error fetching asset for ${pet.petId}: ${e.message}", e)
+            }
+        }
+    }
+
+    // â”€â”€ Tier 1: Local bitmap already decoded in memory â†’ render instantly â”€â”€â”€â”€
     if (!forceEmoji && loadedImage?.imageBitmap != null) {
         Image(
             bitmap = loadedImage.imageBitmap,
@@ -913,51 +948,58 @@ fun PetStageVisual(
         return
     }
 
-    val hasUrl = !forceEmoji && !pet.currentStageImageUrl.isNullOrEmpty()
+    // â”€â”€ Tier 2: Check direct disk file if in-memory bitmap was null â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    val diskPath = pet.localImagePath
+        ?.takeIf { File(it).exists() && File(it).length() > 100 }
+        ?: File(context.filesDir, "pet_images/${pet.petId}_stage${dbStage}.png")
+            .takeIf { it.exists() && it.length() > 100 }?.absolutePath
 
-    if (hasUrl) {
-        // GöÇGöÇ Tier 2: no local cache yet, but URL is known GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
-        // Resolve the (possibly encrypted) URL to a direct download link.
-        val directUrl = remember(pet.currentStageImageUrl) {
-            com.gxdevs.lore.pets.PetImageCache.resolveUrl(pet.currentStageImageUrl)
+    if (!forceEmoji && diskPath != null) {
+        val diskImage = remember(diskPath) {
+            getOrLoadPetPalette(diskPath, pet.moodId)
         }
-
-        val context = androidx.compose.ui.platform.LocalContext.current
-
-        // Background: also write to disk so the next launch is a cache-hit.
-        // This runs silently GÇö Glide is already showing the image from the network.
-        LaunchedEffect(pet.petId, pet.stageIndex) {
-            try {
-                val cache = com.gxdevs.lore.pets.PetImageCache(context)
-                val file = cache.getOrDownload(
-                    pet.petId, pet.stageIndex, pet.currentStageImageUrl
-                )
-                if (file != null && file.exists() && file.length() > 100) {
-                    // Evict the in-process palette cache so the next Room-driven
-                    // recompose picks up the freshly written file.
-                    petImageMemoryCache.remove(file.absolutePath)
-                }
-            } catch (_: Exception) { /* non-fatal, Glide already showing image */ }
-        }
-
-        // Immediate render straight from the CDN/Dropbox URL via Glide.
-        // Glide handles its own network fetch + disk cache internally.
-        if (directUrl.isNotBlank()) {
-            com.bumptech.glide.integration.compose.GlideImage(
-                model            = directUrl,
+        if (diskImage.imageBitmap != null) {
+            Image(
+                bitmap = diskImage.imageBitmap,
                 contentDescription = pet.name,
-                modifier         = Modifier
+                modifier = Modifier
                     .size(size)
                     .padding(2.dp),
-                contentScale     = ContentScale.Fit
+                contentScale = ContentScale.Fit
             )
             return
         }
     }
 
-    // GöÇGöÇ Tier 3: no URL at all GåÆ emoji visual GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+    // â”€â”€ Tier 3: Glide direct URL rendering with background emoji fallback â”€â”€â”€â”€â”€
+    val hasUrl = !forceEmoji && !pet.currentStageImageUrl.isNullOrEmpty()
+    if (hasUrl) {
+        val directUrl = remember(pet.currentStageImageUrl) {
+            com.gxdevs.lore.pets.PetImageCache.resolveUrl(pet.currentStageImageUrl)
+        }
+
+        if (directUrl.isNotBlank()) {
+            Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
+                // Background fallback emoji so character box is NEVER blank while loading network image
+                PetEmojiVisual(pet = pet, moodColor = moodColor, size = size)
+
+                com.bumptech.glide.integration.compose.GlideImage(
+                    model = directUrl,
+                    contentDescription = pet.name,
+                    modifier = Modifier
+                        .size(size)
+                        .padding(2.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            return
+        }
+    }
+
+    // â”€â”€ Tier 4: Standard emoji visual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     PetEmojiVisual(pet = pet, moodColor = moodColor, size = size)
 }
+
 
 
 @Composable
