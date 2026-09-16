@@ -287,7 +287,7 @@ fun PetsScreen(
                         .padding(horizontal = 24.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "⚡ DEMO STAGE CONTROLLER",
+                        text = "⚡ DEMO CONTROLLER",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = primaryAccent.copy(alpha = 0.7f),
