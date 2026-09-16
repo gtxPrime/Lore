@@ -90,7 +90,8 @@ fun PremiumScreen(onBack: () -> Unit) {
     var showGoogleLoginDialog by remember { mutableStateOf(false) }
     var showCelebration       by remember { mutableStateOf(false) }
     var showRestoreDialog     by remember { mutableStateOf(false) }
-    var restoreStatus         by remember { mutableStateOf<RestoreStatus>(RestoreStatus.Idle) }
+    var restoreStatus by remember { mutableStateOf<RestoreStatus>(RestoreStatus.Idle) }
+    // restore status handled
 
     // Observe real purchase success (fires only after onPurchasesUpdated confirms a PURCHASED state)
     val purchaseSuccess by pm.purchaseSuccess.collectAsState()
@@ -98,8 +99,7 @@ fun PremiumScreen(onBack: () -> Unit) {
         if (purchaseSuccess) {
             isPurchasing = false
             // Only show celebration after genuine purchase confirmation
-            // celebration trigger
-            showCelebration = false
+            showCelebration = true
             pm.resetPurchaseSuccess()
         }
     }
