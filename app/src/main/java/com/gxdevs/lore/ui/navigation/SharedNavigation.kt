@@ -30,11 +30,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 // ==================== DESIGN SYSTEM COLORS ====================
-private val DeepSurface = Color(0xFF121212)
-private val DeepBorder = Color(0xFF2A2A2A)
-private val AccentMint = Color(0xFF7A7A7A)
-private val cardBackground = Color(0xFFEAE7DF)
-
+private val DeepSurface = Color(0xFF181E10)
+private val DeepBorder = Color(0xFF2E3820)
+private val AccentActive = Color(0xFF606F49)
+private val IconActive = Color(0xFFF4F1EA)
+private val IconInactive = Color(0xFF828779)
 
 // ==================== NAV SCREEN ENUM ====================
 enum class NavScreen {
@@ -108,7 +108,7 @@ private fun AnimatedNavItem(
     // Snappy icon size animation
     val iconSize by
             animateDpAsState(
-                    targetValue = if (selected) 26.dp else 22.dp,
+                    targetValue = if (selected) 24.dp else 22.dp,
                     animationSpec =
                             spring(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -120,9 +120,9 @@ private fun AnimatedNavItem(
     Box(
             modifier =
                     Modifier.height(40.dp)
-                            .width(42.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (selected) AccentMint else Color.Transparent)
+                            .width(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) AccentActive else Color.Transparent)
                             .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -133,7 +133,7 @@ private fun AnimatedNavItem(
         Icon(
                 painter = painterResource(id = iconResId),
                 contentDescription = contentDescription,
-                tint = if (selected) AccentMint else cardBackground,
+                tint = if (selected) IconActive else IconInactive,
                 modifier = Modifier.size(iconSize)
         )
     }
