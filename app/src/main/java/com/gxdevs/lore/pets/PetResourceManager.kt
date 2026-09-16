@@ -101,6 +101,8 @@ object PetResourceManager {
                 }
             }
 
+            Log.i(TAG, "[PetResourceSync] Calculated mood XP counts: $moodDayCounts (from ${entries.size} entries across ${entriesByDay.size} days)")
+
             MoodConstants.ALL_MOODS.forEach { mood ->
                 val key = mood.lowercase()
                 val count = moodDayCounts[key] ?: 0
@@ -110,12 +112,14 @@ object PetResourceManager {
             // 3. Pre-download all pet stage images in parallel
             val imageCache = PetImageCache(context)
             val defs = defDao.getAllDefinitionsSuspend()
+            Log.i(TAG, "[PetResourceSync] Starting parallel pre-download for ${defs.size} pet definitions...")
             coroutineScope {
                 val jobs = defs.flatMap { def ->
                     val stages = stageDao.getStagesForPet(def.petId)
                     stages.mapNotNull { stageDef ->
                         if (!stageDef.imageUrl.isNullOrBlank()) {
                             launch {
+                                Log.d(TAG, "[PetResourceSync] Pre-downloading ${def.petId} stage ${stageDef.stage}")
                                 imageCache.getOrDownload(def.petId, stageDef.stage, stageDef.imageUrl)
                             }
                         } else null
@@ -123,11 +127,12 @@ object PetResourceManager {
                 }
                 jobs.joinAll()
             }
-            Log.i(TAG, "Pet resource sync & downloads completed successfully!")
+            Log.i(TAG, "[PetResourceSync] Pet resource sync & downloads completed successfully!")
         } catch (e: Exception) {
-            Log.e(TAG, "Error syncing pet resources: ${e.message}", e)
+            Log.e(TAG, "[PetResourceSync] Error syncing pet resources: ${e.message}", e)
         }
     }
+
 
     private fun resolveDominantMood(emotionsJson: String?): String? {
         if (emotionsJson.isNullOrBlank()) return null
