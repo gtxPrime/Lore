@@ -55,6 +55,11 @@ import com.gxdevs.lore.R
 import com.gxdevs.lore.ui.pets.PetViewModel
 import com.gxdevs.lore.ui.profile.CompactPremiumBanner
 import com.gxdevs.lore.ui.profile.PremiumActiveBadge
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 private val mainContainerBackground = Color(0xFFF4F1EA)
 private val borderColor = Color(0xFFE0DCD1)
@@ -126,6 +131,38 @@ fun SettingsScreen(
     }
 
     var exportIncludeMedia by remember { mutableStateOf(false) }
+
+    // â”€â”€ Notification permission (Android 13+) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    var pendingNotifAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showNotifRationaleDialog by remember { mutableStateOf(false) }
+    var notifRationaleText by remember { mutableStateOf("") }
+
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) { pendingNotifAction?.invoke() }
+        pendingNotifAction = null
+    }
+
+    fun hasNotifPermission() =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Gate any notification-requiring feature behind a friendly rationale dialog.
+     * [rationale] is shown in the dialog to explain WHY the permission is needed.
+     * [onGranted] is called once permission is confirmed (or was already granted).
+     */
+    fun requireNotifPermission(rationale: String, onGranted: () -> Unit) {
+        if (hasNotifPermission()) {
+            onGranted()
+        } else {
+            pendingNotifAction = onGranted
+            notifRationaleText = rationale
+            showNotifRationaleDialog = true
+        }
+    }
+
     val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
@@ -307,12 +344,40 @@ fun SettingsScreen(
             }
         },
         onDailyReminderToggle    = { enabled ->
-            scope.launch { settingsRepo.setDailyReminder(enabled) }
-            if (enabled) scheduleDailyReminder(context, reminderHour, reminderMinute)
-            else cancelDailyReminder(context)
+            if (enabled) {
+                requireNotifPermission(
+                    "Lore needs notification permission to remind you to write your daily journal entry at the time you set."
+                ) {
+                    scope.launch { settingsRepo.setDailyReminder(true) }
+                    scheduleDailyReminder(context, reminderHour, reminderMinute)
+                }
+            } else {
+                scope.launch { settingsRepo.setDailyReminder(false) }
+                cancelDailyReminder(context)
+            }
         },
-        onCompanionAlertsToggle  = { scope.launch { settingsRepo.setCompanionAlerts(it) } },
-        onRelicAlertsToggle      = { scope.launch { settingsRepo.setRelicAlerts(it) } },
+        onCompanionAlertsToggle  = { enabled ->
+            if (enabled) {
+                requireNotifPermission(
+                    "Companion alerts notify you when your pet companion evolves to a new stage â€” so you never miss a magical moment."
+                ) {
+                    scope.launch { settingsRepo.setCompanionAlerts(true) }
+                }
+            } else {
+                scope.launch { settingsRepo.setCompanionAlerts(false) }
+            }
+        },
+        onRelicAlertsToggle      = { enabled ->
+            if (enabled) {
+                requireNotifPermission(
+                    "Relic alerts resurface meaningful past memories from your journal at the right moment."
+                ) {
+                    scope.launch { settingsRepo.setRelicAlerts(true) }
+                }
+            } else {
+                scope.launch { settingsRepo.setRelicAlerts(false) }
+            }
+        },
         onPastPromptsToggle      = { scope.launch { settingsRepo.setPastPrompts(it) } },
         onAutoSaveFrequencyChange = { scope.launch { settingsRepo.setAutoSaveFrequency(it) } },
         onReminderTimeChange     = { h, m ->
@@ -321,6 +386,8 @@ fun SettingsScreen(
         },
         onDeleteAll = { scope.launch {
             db.journalDao().deleteAllEntries()
+            db.petProgressDao().deleteAll()
+            settingsRepo.clearDailySelectedJournals()
             settingsRepo.setRealPin(null)
             settingsRepo.setDecoyPinValue(null)
             settingsRepo.setDecoyPin(false)
@@ -329,37 +396,49 @@ fun SettingsScreen(
             settingsRepo.setAppLockEnabled(false)
         }},
         onExportData = { includeMedia ->
-            exportIncludeMedia = includeMedia
-            MainActivity.bypassNextLock = true
-            exportLauncher.launch("lore_backup.lore")
+            requireNotifPermission(
+                "Lore uses a notification to show backup progress and confirm when your data has been exported successfully."
+            ) {
+                exportIncludeMedia = includeMedia
+                MainActivity.bypassNextLock = true
+                exportLauncher.launch("lore_backup.lore")
+            }
         },
         onImportData = { mergeMode ->
-            importMergeMode = mergeMode
-            MainActivity.bypassNextLock = true
-            importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+            requireNotifPermission(
+                "Lore uses a notification to track import progress and alert you when your data has been restored."
+            ) {
+                importMergeMode = mergeMode
+                MainActivity.bypassNextLock = true
+                importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+            }
         },
         onBlurJournalsToggle = { enabled ->
             scope.launch { settingsRepo.setBlurJournals(enabled) }
         },
         encryptMedia      = encryptMedia,
         onEncryptMediaToggle = { enabled ->
-            scope.launch {
-                if (enabled) {
-                    if (backupEncryptionKey.isNullOrBlank()) {
-                        showSetBackupKeyDialog = true
-                    } else {
-                        showOldMediaWarningDialog = true
+            if (enabled) {
+                requireNotifPermission(
+                    "Lore shows a progress notification while encrypting or decrypting your media files in the background â€” so you always know when it's done."
+                ) {
+                    scope.launch {
+                        if (backupEncryptionKey.isNullOrBlank()) {
+                            showSetBackupKeyDialog = true
+                        } else {
+                            showOldMediaWarningDialog = true
+                        }
                     }
-                } else {
-                    settingsRepo.setEncryptMedia(false)
                 }
+            } else {
+                scope.launch { settingsRepo.setEncryptMedia(false) }
             }
         },
         autoLockDelay = autoLockDelay,
         onAutoLockDelayChange = { scope.launch { settingsRepo.setAutoLockDelay(it) } }
     )
 
-        // GöÇGöÇ Backup PIN animated banner (slides up from bottom) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+        // â”€â”€ Backup PIN animated banner (slides up from bottom) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         BackupPinBanner(
             visible   = showBackupPinBanner,
             onSetPin  = { showBackupPinBanner = false; triggerPinSetup = true },
@@ -367,7 +446,82 @@ fun SettingsScreen(
             modifier  = Modifier.align(Alignment.BottomCenter)
         )
 
-        // GöÇGöÇGöÇ Dialogs for Encrypted Backup / Set 6-Digit Encryption Key GöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+        // â”€â”€ Notification permission rationale dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if (showNotifRationaleDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showNotifRationaleDialog = false
+                    pendingNotifAction = null
+                },
+                containerColor = cardBackground,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                title = null,
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(accentBackground),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.NotificationsActive,
+                                contentDescription = null,
+                                tint = primaryAccent,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            "Allow Notifications",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = textPrimary,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            notifRationaleText,
+                            fontSize = 13.sp,
+                            color = textSecondary,
+                            lineHeight = 19.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showNotifRationaleDialog = false
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                pendingNotifAction?.invoke()
+                                pendingNotifAction = null
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryAccent),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Grant Permission", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showNotifRationaleDialog = false
+                            pendingNotifAction = null
+                        }
+                    ) {
+                        Text("Not Now", color = textSecondary)
+                    }
+                }
+            )
+        }
+
+        // â”€â”€â”€ Dialogs for Encrypted Backup / Set 6-Digit Encryption Key â”€â”€â”€â”€â”€â”€â”€
         var backupPinInput by remember { mutableStateOf("") }
         var backupPinError by remember { mutableStateOf(false) }
 
@@ -759,7 +913,7 @@ fun SettingsScreenUI(
         )
     }
 
-    // GöÇGöÇ Delete dialog GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+    // â”€â”€ Delete dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     val deleteTextInput = remember { mutableStateOf("") }
     val showDeleteConfirmDialog = remember { mutableStateOf(false) }
 
@@ -840,7 +994,7 @@ fun SettingsScreenUI(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // GöÇGöÇ Lore Sanctuary Banner / Active Badge GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+        // â”€â”€ Lore Sanctuary Banner / Active Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (!isPremium) {
             CompactPremiumBanner(onClick = onNavigateToPremium)
         } else {
@@ -848,12 +1002,12 @@ fun SettingsScreenUI(
         }
         Spacer(modifier = Modifier.height(22.dp))
 
-        // PRIVACY & SECURITY GÇö hidden in decoy mode so the intruder cannot find or change PINs
+        // PRIVACY & SECURITY â€” hidden in decoy mode so the intruder cannot find or change PINs
         if (!isDecoyMode) SettingsSection(
             title = "PRIVACY & SECURITY",
             icon  = Icons.Outlined.Lock
         ) {
-            // GöÇGöÇ App Lock toggle GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+            // â”€â”€ App Lock toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             val pinMode = !useBiometric || !biometricAvailable
             val lockSub = when {
                 !appLockEnabled   -> "Tap to enable app lock."
@@ -875,7 +1029,7 @@ fun SettingsScreenUI(
                 }
             )
 
-            // GöÇGöÇ Lock method selector (only when biometric is available) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+            // â”€â”€ Lock method selector (only when biometric is available) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             AnimatedVisibility(
                 visible = appLockEnabled && biometricAvailable,
                 enter = expandVertically(tween(220)),
@@ -932,7 +1086,7 @@ fun SettingsScreenUI(
                 }
             }
 
-            // GöÇGöÇ Custom PIN section (visible when PIN mode is active) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+            // â”€â”€ Custom PIN section (visible when PIN mode is active) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             AnimatedVisibility(
                 visible = appLockEnabled && pinMode,
                 enter = expandVertically(tween(250)),
@@ -1167,7 +1321,7 @@ fun SettingsScreenUI(
             }
 
 
-            // GöÇGöÇ Screenshot Protection GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+            // â”€â”€ Screenshot Protection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             SettingsSwitchItem(
                 icon     = Icons.Outlined.Shield,
                 title    = "Screenshot Protection",
@@ -1184,7 +1338,7 @@ fun SettingsScreenUI(
                 }
             )
             
-            // GöÇGöÇ Blur Journals GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+            // â”€â”€ Blur Journals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             SettingsSwitchItem(
                 icon     = Icons.Outlined.VisibilityOff,
                 title    = "Blur Journals on Home",
@@ -1193,7 +1347,7 @@ fun SettingsScreenUI(
                 onCheckedChange = onBlurJournalsToggle
             )
 
-            // GöÇGöÇ Encrypt Media GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+            // â”€â”€ Encrypt Media â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             SettingsSwitchItem(
                 icon     = Icons.Outlined.EnhancedEncryption,
                 title    = "Encrypt Media",
@@ -1228,7 +1382,7 @@ fun SettingsScreenUI(
                 checked = dailyReminder,
                 onCheckedChange = onDailyReminderToggle
             )
-            // GöÇGöÇ Reminder time picker (shown only when reminder is on) GöÇGöÇGöÇGöÇGöÇGöÇ
+            // â”€â”€ Reminder time picker (shown only when reminder is on) â”€â”€â”€â”€â”€â”€
             AnimatedVisibility(
                 visible = dailyReminder,
                 enter = expandVertically(tween(220)),
@@ -1254,7 +1408,7 @@ fun SettingsScreenUI(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // GöÇGöÇ Hour stepper GöÇGöÇ
+                        // â”€â”€ Hour stepper â”€â”€
                         TimeStepperBlock(
                             label = "Hour",
                             value = "%02d".format(if (reminderHour == 0) 12 else if (reminderHour > 12) reminderHour - 12 else reminderHour),
@@ -1269,7 +1423,7 @@ fun SettingsScreenUI(
                         )
                         Text(":", color = textPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp))
-                        // GöÇGöÇ Minute stepper GöÇGöÇ
+                        // â”€â”€ Minute stepper â”€â”€
                         TimeStepperBlock(
                             label = "Min",
                             value = "%02d".format(reminderMinute),
@@ -1283,7 +1437,7 @@ fun SettingsScreenUI(
                             }
                         )
                         Spacer(Modifier.width(16.dp))
-                        // GöÇGöÇ AM/PM toggle GöÇGöÇ
+                        // â”€â”€ AM/PM toggle â”€â”€
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             val isAm = reminderHour < 12
                             Box(
@@ -1332,7 +1486,7 @@ fun SettingsScreenUI(
             if (showWidgetComingSoon) {
                 AlertDialog(
                     onDismissRequest = { showWidgetComingSoon = false },
-                    title = { Text("Home Screen Widgets =ƒô¦", color = textPrimary, fontWeight = FontWeight.Bold) },
+                    title = { Text("Home Screen Widgets ðŸ“±", color = textPrimary, fontWeight = FontWeight.Bold) },
                     text = {
                         Text("Keep your spirit companion and current journaling streak right on your home screen with customizable Glance widgets.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
                     },
@@ -1355,7 +1509,7 @@ fun SettingsScreenUI(
             SettingsActionItem(
                 icon = Icons.Outlined.Widgets,
                 title = "Home Screen Widgets",
-                subtitle = "Coming Soon GÇó Display pet & streak on your home screen.",
+                subtitle = "Coming Soon â€¢ Display pet & streak on your home screen.",
                 onClick = { showWidgetComingSoon = true }
             )
             
@@ -1432,9 +1586,9 @@ fun SettingsScreenUI(
         if (showExportJourneyComingSoon) {
             AlertDialog(
                 onDismissRequest = { showExportJourneyComingSoon = false },
-                title = { Text("Export Journal Journey =ƒôñ", color = textPrimary, fontWeight = FontWeight.Bold) },
+                title = { Text("Export Journal Journey ðŸ“¤", color = textPrimary, fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("Export your entire sanctuary timeline GÇö including mood charts, pet evolution stages, and formatted journal entries into a beautiful PDF book.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
+                    Text("Export your entire sanctuary timeline â€” including mood charts, pet evolution stages, and formatted journal entries into a beautiful PDF book.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
                 },
                 confirmButton = {
                     TextButton(onClick = { showExportJourneyComingSoon = false }) {
@@ -1445,7 +1599,7 @@ fun SettingsScreenUI(
             )
         }
 
-        // SANCTUARY VAULT GÇö hidden in decoy mode to prevent backup/export of real data
+        // SANCTUARY VAULT â€” hidden in decoy mode to prevent backup/export of real data
         if (!isDecoyMode) SettingsSection(
             title = "SANCTUARY VAULT",
             icon = Icons.Outlined.Lock
@@ -1453,7 +1607,7 @@ fun SettingsScreenUI(
             SettingsActionItem(
                 icon = Icons.Outlined.Book,
                 title = "Export Journal Journey (PDF)",
-                subtitle = "Coming Soon GÇó Download complete mood & pet evolution story.",
+                subtitle = "Coming Soon â€¢ Download complete mood & pet evolution story.",
                 onClick = { showExportJourneyComingSoon = true }
             )
             SettingsActionItem(
@@ -1485,7 +1639,7 @@ fun SettingsScreenUI(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // DANGER ZONE GÇö hidden in decoy mode so real data cannot be deleted
+        // DANGER ZONE â€” hidden in decoy mode so real data cannot be deleted
         if (!isDecoyMode) Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1594,7 +1748,7 @@ fun SettingsSection(
     }
 }
 
-// GöÇGöÇGöÇ Time stepper for notification time picker GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// â”€â”€â”€ Time stepper for notification time picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @Composable
 private fun TimeStepperBlock(
     label: String,
@@ -1779,7 +1933,7 @@ fun SettingsActionItem(
     }
 }
 
-// GöÇGöÇGöÇ Small tappable PIN action card GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// â”€â”€â”€ Small tappable PIN action card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @Composable
 fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
@@ -1807,7 +1961,7 @@ fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: (
     }
 }
 
-// GöÇGöÇGöÇ Keypad-style PIN Setup Dialog GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// â”€â”€â”€ Keypad-style PIN Setup Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @Composable
 fun PinSetupDialog(
     title: String,
@@ -2160,7 +2314,7 @@ fun SettingsPremiumUpgradeCard(onNavigateToPremium: () -> Unit) {
             Spacer(Modifier.height(8.dp))
 
             Text(
-                "Cancel anytime -+ No hidden fees -+ Secured by Google Play",
+                "Cancel anytime Â· No hidden fees Â· Secured by Google Play",
                 fontSize = 10.sp,
                 color = Color(0xFF7A8870),
                 textAlign = TextAlign.Center,
