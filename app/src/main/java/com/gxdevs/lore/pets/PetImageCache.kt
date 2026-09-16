@@ -27,11 +27,8 @@ class PetImageCache(private val context: Context) {
         File(context.filesDir, "pet_images").also { it.mkdirs() }
     }
 
-    private val ENC_KEY = "lore_26_px"
-    private val ENC_PREFIX = "enc:"
-
     companion object {
-        private const val ENC_KEY_STATIC = "lore_26_px"
+        private val KEYS_TO_TRY = listOf("nurtale_26_px", "lore_26_px")
         private const val ENC_PREFIX_STATIC = "enc:"
 
         /**
@@ -41,23 +38,35 @@ class PetImageCache(private val context: Context) {
         fun resolveUrl(raw: String?): String {
             if (raw.isNullOrBlank()) return ""
             val decrypted = decryptStatic(raw)
-            return normalizeStatic(decrypted)
+            val normalized = normalizeStatic(decrypted)
+            android.util.Log.d("PetImageCache", "[Resolve] raw='$raw' -> decrypted='$decrypted' -> normalized='$normalized'")
+            return normalized
         }
 
         private fun decryptStatic(raw: String): String {
             if (!raw.startsWith(ENC_PREFIX_STATIC)) return raw
-            return try {
-                val b64 = raw.removePrefix(ENC_PREFIX_STATIC)
-                val encoded  = Base64.decode(b64, Base64.DEFAULT)
-                val keyBytes = ENC_KEY_STATIC.toByteArray(Charsets.UTF_8)
-                val decrypted = ByteArray(encoded.size) { i ->
-                    (encoded[i].toInt() xor keyBytes[i % keyBytes.size].toInt()).toByte()
-                }
-                String(decrypted, Charsets.UTF_8)
+            val b64 = raw.removePrefix(ENC_PREFIX_STATIC)
+            val encoded = try {
+                Base64.decode(b64, Base64.DEFAULT)
             } catch (e: Exception) {
-                android.util.Log.e("PetImageCache", "Static URL decryption failed: ${e.message}")
-                ""
+                android.util.Log.e("PetImageCache", "Base64 decode failed for static URL: ${e.message}")
+                return ""
             }
+
+            for (keyStr in KEYS_TO_TRY) {
+                try {
+                    val keyBytes = keyStr.toByteArray(Charsets.UTF_8)
+                    val decrypted = ByteArray(encoded.size) { i ->
+                        (encoded[i].toInt() xor keyBytes[i % keyBytes.size].toInt()).toByte()
+                    }
+                    val result = String(decrypted, Charsets.UTF_8)
+                    if (result.startsWith("http://") || result.startsWith("https://")) {
+                        return result
+                    }
+                } catch (_: Exception) {}
+            }
+            android.util.Log.e("PetImageCache", "All decryption keys failed for raw URL: $raw")
+            return ""
         }
 
         private fun normalizeStatic(url: String): String = when {
@@ -125,19 +134,7 @@ class PetImageCache(private val context: Context) {
     // ── Decryption ────────────────────────────────────────────────────────────
 
     private fun decryptUrl(raw: String): String {
-        if (!raw.startsWith(ENC_PREFIX)) return raw
-        return try {
-            val b64 = raw.removePrefix(ENC_PREFIX)
-            val encoded = Base64.decode(b64, Base64.DEFAULT)
-            val keyBytes = ENC_KEY.toByteArray(Charsets.UTF_8)
-            val decrypted = ByteArray(encoded.size) { i ->
-                (encoded[i].toInt() xor keyBytes[i % keyBytes.size].toInt()).toByte()
-            }
-            String(decrypted, Charsets.UTF_8)
-        } catch (e: Exception) {
-            Log.e(tag, "URL decryption failed: ${e.message}")
-            ""
-        }
+        return decryptStatic(raw)
     }
 
     // ── URL normalisation ─────────────────────────────────────────────────────
@@ -151,38 +148,65 @@ class PetImageCache(private val context: Context) {
         else -> url
     }
 
-    // ── Download with Retries ──────────────────────────────────────────────────
+    // ── Download with Retries & Redirect Handling ────────────────────────────
 
     private fun downloadToFile(urlString: String, dest: File): Boolean {
+        var currentUrl = urlString
         var retries = 3
         while (retries > 0) {
             try {
-                val conn = URL(urlString).openConnection() as HttpURLConnection
-                conn.connectTimeout          = 10_000
-                conn.readTimeout             = 20_000
-                conn.requestMethod           = "GET"
-                conn.instanceFollowRedirects = true
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                conn.setRequestProperty("Accept", "image/png,image/*;q=0.9,*/*;q=0.8")
+                var attempts = 0
+                while (attempts < 5) {
+                    Log.d(tag, "[Download] Connecting (attempt ${attempts + 1}): $currentUrl")
+                    val conn = URL(currentUrl).openConnection() as HttpURLConnection
+                    conn.connectTimeout          = 15_000
+                    conn.readTimeout             = 20_000
+                    conn.requestMethod           = "GET"
+                    conn.instanceFollowRedirects = false // Manual handle for cross-domain redirects (e.g. Dropbox -> S3)
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Lore/1.0)")
+                    conn.setRequestProperty("Accept", "image/png,image/*;q=0.9,*/*;q=0.8")
 
-                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                    conn.inputStream.use { input ->
-                        dest.outputStream().use { output ->
-                            input.copyTo(output)
+                    val code = conn.responseCode
+                    Log.d(tag, "[Download] Response code: $code for $currentUrl")
+
+                    if (code == HttpURLConnection.HTTP_OK) {
+                        conn.inputStream.use { input ->
+                            dest.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
                         }
-                    }
-                    conn.disconnect()
-                    if (dest.exists() && dest.length() > 100) {
-                        return true
+                        conn.disconnect()
+                        if (dest.exists() && dest.length() > 100) {
+                            Log.i(tag, "[Download] Success! Saved ${dest.length()} bytes to ${dest.name}")
+                            return true
+                        } else {
+                            Log.w(tag, "[Download] File saved but empty/too small (${dest.length()} bytes)")
+                        }
+                    } else if (code in 301..308) {
+                        val location = conn.getHeaderField("Location")
+                        conn.disconnect()
+                        if (location.isNullOrBlank()) {
+                            Log.e(tag, "[Download] Redirect code $code received but Location header missing!")
+                            break
+                        }
+                        Log.d(tag, "[Download] Redirecting ($code) -> $location")
+                        currentUrl = location
+                        attempts++
+                    } else {
+                        Log.w(tag, "[Download] HTTP error $code for $currentUrl")
+                        conn.disconnect()
+                        break
                     }
                 }
-                conn.disconnect()
             } catch (e: Exception) {
-                Log.w(tag, "Download retry ($retries left) for $urlString: ${e.message}")
+                Log.w(tag, "[Download] Exception (retries left=$retries) for $currentUrl: ${e.message}", e)
             }
             retries--
         }
-        if (dest.exists()) dest.delete()
+        if (dest.exists()) {
+            dest.delete()
+        }
+        Log.e(tag, "[Download] Failed all download attempts for $urlString")
         return false
     }
 }
