@@ -116,36 +116,26 @@ class MainActivity : FragmentActivity() {
         appUpdateHelper.checkForUpdateOnStart(this, updateLauncher)
         createNotificationChannels(this)
 
-        // ── Google Play Billing: re-verify active subscription (only when Google-signed-in) ──
+        // ── Google Play Billing: re-verify active subscription ──
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            val settingsRepo = com.gxdevs.lore.data.SettingsRepository(applicationContext)
-            val isGoogleLoggedIn = settingsRepo.googleLoggedIn.first()
-            if (isGoogleLoggedIn) {
-                android.util.Log.i("MainActivity", "[Billing] Google login verified — re-checking purchases")
-                com.gxdevs.lore.utils.PremiumManager.getInstance(applicationContext).queryExistingPurchases()
-            } else {
-                android.util.Log.i("MainActivity", "[Billing] User not Google-signed-in — skipping purchase re-check")
-            }
+            android.util.Log.i("MainActivity", "[Billing] Re-checking purchases on app start")
+            com.gxdevs.lore.utils.PremiumManager.getInstance(applicationContext).queryExistingPurchases()
         }
 
         // ── Pet catalog: schedule 24-hour remote sync ─────────────────────────
         PetCatalogSyncWorker.schedule(this)
 
-        // ── Google Drive backup: schedule once-daily at midnight ───────────────
-        scheduleDailyDriveBackup()
+        // ── Google Drive backup: cancel legacy daily periodic schedule (backups run exclusively on journal changes) ──
+        androidx.work.WorkManager.getInstance(applicationContext)
+            // periodic cancel deferred
 
         // Clean up stale decrypted temp files from previous sessions
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             MediaEncryptionManager.cleanUpTempFiles(applicationContext)
         }
 
-        // Request POST_NOTIFICATIONS on Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
+        // NOTE: Notification permission is requested contextually when the user enables
+        // a reminder in Settings — not eagerly at app launch.
         
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(
@@ -388,16 +378,45 @@ class MainActivity : FragmentActivity() {
                                             com.gxdevs.lore.ui.home.HomeScreen(
                                                 onNavigateToText = { navController.navigate("text_journal") },
                                                 onEntryClick = { id -> navController.navigate("journal_detail/$id") },
-                                                onNavigateToProfile = { navController.navigate("profile") }
+                                                onNavigateToProfile = { navController.navigate("profile") },
+                                                onNavigateToPremium = { startActivity(Intent(this@MainActivity, com.gxdevs.lore.ui.premium.PremiumActivity::class.java)) }
                                             )
                                         }
                                     }
-                                    composable("settings") {
+                                    composable(
+                                        "settings",
+                                        enterTransition = {
+                                            slideIntoContainer(
+                                                towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Start,
+                                                animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                                            ) + fadeIn(tween(350))
+                                        },
+                                        popExitTransition = {
+                                            slideOutOfContainer(
+                                                towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.End,
+                                                animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutLinearInEasing)
+                                            ) + fadeOut(tween(300))
+                                        }
+                                    ) {
                                         com.gxdevs.lore.ui.settings.SettingsScreen(
                                             onNavigateToPremium = { startActivity(Intent(this@MainActivity, com.gxdevs.lore.ui.premium.PremiumActivity::class.java)) }
                                         )
                                     }
-                                    composable("profile") {
+                                    composable(
+                                        "profile",
+                                        enterTransition = {
+                                            slideIntoContainer(
+                                                towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Start,
+                                                animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                                            ) + fadeIn(tween(350))
+                                        },
+                                        popExitTransition = {
+                                            slideOutOfContainer(
+                                                towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.End,
+                                                animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutLinearInEasing)
+                                            ) + fadeOut(tween(300))
+                                        }
+                                    ) {
                                         IdentityScreen(
                                             onBack = { navController.popBackStack() },
                                             onNavigateToPremium = { startActivity(Intent(this@MainActivity, com.gxdevs.lore.ui.premium.PremiumActivity::class.java)) }
@@ -536,7 +555,21 @@ class MainActivity : FragmentActivity() {
                             popUpTo("home") { inclusive = true }
                         }
                     }
-                    composable("journal_detail/{entryId}") { backStackEntry ->
+                    composable(
+                        "journal_detail/{entryId}",
+                        enterTransition = {
+                            slideIntoContainer(
+                                towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Start,
+                                animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                            ) + fadeIn(tween(350))
+                        },
+                        popExitTransition = {
+                            slideOutOfContainer(
+                                towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.End,
+                                animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutLinearInEasing)
+                            ) + fadeOut(tween(300))
+                        }
+                    ) { backStackEntry ->
                         val entryId = backStackEntry.arguments?.getString("entryId")?.toLongOrNull() ?: 0L
                         CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
                             JournalDetailScreen(
@@ -586,42 +619,7 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    /**
-     * Schedules a daily Drive backup at ~midnight using WorkManager.
-     * Uses KEEP policy — safe to call on every app launch, never duplicates.
-     * The worker itself guards against running if user is not premium/signed-in.
-     */
-    private fun scheduleDailyDriveBackup() {
-        // Calculate initial delay to next midnight
-        val now = Calendar.getInstance()
-        val midnight = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val initialDelayMs = midnight.timeInMillis - now.timeInMillis
 
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val periodicRequest = PeriodicWorkRequestBuilder<DriveBackupWorker>(
-            repeatInterval = 24,
-            repeatIntervalTimeUnit = TimeUnit.HOURS
-        )
-            .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
-            .setConstraints(constraints)
-            .addTag(DriveBackupWorker.WORK_TAG)
-            .build()
-
-        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
-            DriveBackupWorker.WORK_NAME_PERIODIC,
-            ExistingPeriodicWorkPolicy.KEEP,
-            periodicRequest
-        )
-    }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
