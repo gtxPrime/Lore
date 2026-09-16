@@ -2,6 +2,7 @@ package com.gxdevs.lore.utils
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.gxdevs.lore.data.AppDatabase
@@ -449,9 +450,16 @@ object BackupManager {
             val listType = object : TypeToken<List<JournalEntry>>() {}.type
             val importedEntries: List<JournalEntry> = gson.fromJson(entriesJson, listType)
 
-            if (!mergeMode) dao.deleteAllEntries()
+            Log.i("BackupManager", "[Import] Parsed ${importedEntries.size} journal entries from backup (mergeMode=$mergeMode)")
+
+            if (!mergeMode) {
+                Log.w("BackupManager", "[Import] Overwrite mode active -> Wiping existing journals and pet_progress tables...")
+                dao.deleteAllEntries()
+                db.petProgressDao().deleteAll()
+            }
 
             for (journalEntry in importedEntries) {
+
                 var newEntry = journalEntry
 
                 // -- Remap zip_path references to local file paths ----------
