@@ -54,16 +54,7 @@ object DriveTokenHelper {
     suspend fun getAccessToken(context: Context): Result<String> =
         withContext(Dispatchers.IO) {
             try {
-                val repo  = SettingsRepository(context)
-                val email = repo.googleAccountEmail.first()
-
-                if (email.isNullOrBlank()) {
-                    return@withContext Result.failure(
-                        IllegalStateException("No Google account signed in. Please sign in to Google first.")
-                    )
-                }
-
-                Log.d(TAG, "Requesting Drive authorization token for email=$email (background)")
+                Log.d(TAG, "Requesting Drive authorization token (background)")
 
                 val authRequest = AuthorizationRequest.builder()
                     .setRequestedScopes(listOf(DRIVE_APPDATA_SCOPE))
@@ -114,16 +105,7 @@ object DriveTokenHelper {
     suspend fun authorizeInForeground(context: Context): DriveAuthState =
         withContext(Dispatchers.IO) {
             try {
-                val repo  = SettingsRepository(context)
-                val email = repo.googleAccountEmail.first()
-
-                if (email.isNullOrBlank()) {
-                    return@withContext DriveAuthState.Failed(
-                        "No Google account signed in. Please sign in first."
-                    )
-                }
-
-                Log.d(TAG, "Requesting Drive authorization (foreground) for email=$email")
+                Log.d(TAG, "Requesting Drive authorization (foreground)")
 
                 val authRequest = AuthorizationRequest.builder()
                     .setRequestedScopes(listOf(DRIVE_APPDATA_SCOPE))
@@ -191,6 +173,19 @@ object DriveTokenHelper {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract token from authorization result: ${e.message}", e)
             null
+        }
+    }
+
+    /**
+     * Clears a cached OAuth token from Google Play Services local cache.
+     * Useful when a token returns HTTP 403 or invalid project error.
+     */
+    fun clearToken(context: Context, token: String) {
+        try {
+            com.google.android.gms.auth.GoogleAuthUtil.clearToken(context.applicationContext, token)
+            Log.d(TAG, "Cleared cached OAuth token from Google Play Services")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to clear token: ${e.message}")
         }
     }
 }
