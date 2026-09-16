@@ -138,7 +138,7 @@ fun IdentityScreen(
             withContext(Dispatchers.Main) {
                 when (authState) {
                     is DriveTokenHelper.DriveAuthState.HasToken -> {
-                        // Token already available â€” kick off backup worker immediately
+                        // Token already available GÇö kick off backup worker immediately
                         val constraints = Constraints.Builder()
                             .setRequiredNetworkType(NetworkType.CONNECTED)
                             .build()
@@ -154,7 +154,7 @@ fun IdentityScreen(
                         Toast.makeText(context, "Syncing to Google Drive...", Toast.LENGTH_SHORT).show()
                     }
                     is DriveTokenHelper.DriveAuthState.NeedsConsent -> {
-                        // Show Drive consent dialog â€” result handled by driveConsentLauncher
+                        // Show Drive consent dialog GÇö result handled by driveConsentLauncher
                         try {
                             driveConsentLauncher.launch(
                                 androidx.activity.result.IntentSenderRequest.Builder(authState.pendingIntent.intentSender).build()
@@ -534,7 +534,7 @@ fun IdentityScreen(
                             if (isSigningIn) return@Button
                             val activity = context.findActivity()
                             if (activity == null) {
-                                android.util.Log.e("CredentialAuth", "Cannot find Activity from context â€” aborting sign-in")
+                                android.util.Log.e("CredentialAuth", "Cannot find Activity from context GÇö aborting sign-in")
                                 Toast.makeText(context, "Sign-in unavailable in this context", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
@@ -592,7 +592,7 @@ fun IdentityScreen(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = if (isSigningIn) "Signing inâ€¦" else "Continue with Google",
+                                text = if (isSigningIn) "Signing inGÇª" else "Continue with Google",
                                 color = Color(0xFF1F1F1F),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -602,7 +602,7 @@ fun IdentityScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // â”€â”€â”€ Lore Sanctuary entry point (Upgrade Banner if Free, Active Badge if Premium) â”€â”€â”€
+                    // GöÇGöÇGöÇ Lore Sanctuary entry point (Upgrade Banner if Free, Active Badge if Premium) GöÇGöÇGöÇ
                     if (!isPremium) {
                         CompactPremiumBanner(onClick = onNavigateToPremium)
                     } else {
@@ -671,7 +671,7 @@ fun IdentityScreen(
                     }
 
                     Text(
-                        text = "Identity",
+                        text = "Identity & Cloud",
                         color = textPrimary,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
@@ -868,7 +868,7 @@ fun IdentityScreen(
 
                 // --- Google Drive Backup section ---
                 Text(
-                    text = "â€¢ SECURE BACKUP",
+                    text = "GÇó SECURE BACKUP",
                     color = if (isPremium) textSecondary else textSecondary.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -928,7 +928,7 @@ fun IdentityScreen(
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        text = if (isPremium) "ðŸ”’ End-to-End Encrypted" else "ðŸ”’ Premium feature",
+                                        text = if (isPremium) "=ƒöÆ End-to-End Encrypted" else "=ƒöÆ Premium feature",
                                         color = Color.White.copy(alpha = 0.4f),
                                         fontSize = 11.sp
                                     )
@@ -1255,7 +1255,7 @@ fun IdentityScreen(
 
                 // --- Subscription Section ---
                 Text(
-                    text = "â€¢ SUBSCRIPTION",
+                    text = "GÇó SUBSCRIPTION",
                     color = textSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -1266,7 +1266,7 @@ fun IdentityScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (isPremium) {
-                    // â”€â”€ PREMIUM ACTIVE CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    // GöÇGöÇ PREMIUM ACTIVE CARD GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1308,7 +1308,7 @@ fun IdentityScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "â€¢ ACTIVE MEMBERSHIP",
+                                    text = "GÇó ACTIVE MEMBERSHIP",
                                     color = Color(0xFF8FA876),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1323,7 +1323,7 @@ fun IdentityScreen(
                                     .padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
                                 Text(
-                                    text = "PRO âœ“",
+                                    text = "PRO G£ô",
                                     color = Color(0xFFFFE599),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold
@@ -1335,7 +1335,7 @@ fun IdentityScreen(
 
                         // Perks list
                         val perks = listOf(
-                            Icons.Rounded.Pets to "3Ã— faster companion growth",
+                            Icons.Rounded.Pets to "3+ù faster companion growth",
                             Icons.Rounded.Mic to "Unlimited voice journaling",
                             Icons.Rounded.Shield to "End-to-end encrypted backups",
                             Icons.Rounded.Star to "Exclusive relic & spirit unlocks",
@@ -1378,7 +1378,7 @@ fun IdentityScreen(
                                             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                     )
                                 } catch (_: Exception) {
-                                    Toast.makeText(context, "Opening subscription managerâ€¦", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Opening subscription managerGÇª", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier
@@ -1406,7 +1406,7 @@ fun IdentityScreen(
                         }
                     }
                 } else {
-                    // â”€â”€ FREE / WANDERER CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    // GöÇGöÇ FREE / WANDERER CARD GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1443,7 +1443,7 @@ fun IdentityScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "â€¢ FREE PLAN",
+                                    text = "GÇó FREE PLAN",
                                     color = Color.White.copy(alpha = 0.4f),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1456,11 +1456,11 @@ fun IdentityScreen(
 
                         // Locked perks (what they're missing)
                         val lockedPerks = listOf(
-                            "3Ã— faster companion growth" to false,
+                            "3+ù faster companion growth" to false,
                             "Unlimited voice journaling" to false,
                             "Encrypted cloud backups" to false,
                             "Exclusive relic & spirit unlocks" to false,
-                            "Basic journaling â€” always free" to true
+                            "Basic journaling GÇö always free" to true
                         )
                         lockedPerks.forEach { (label, included) ->
                             Row(
@@ -1486,7 +1486,7 @@ fun IdentityScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Upgrade button â€” opens PremiumActivity
+                        // Upgrade button GÇö opens PremiumActivity
                         Button(
                             onClick = {
                                 onNavigateToPremium()
@@ -1691,7 +1691,7 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
                 color = Color.White
             )
             Text(
-                "Active Membership Â· All features unlocked",
+                "Active Membership -+ All features unlocked",
                 fontSize = 11.sp,
                 color = Color.White.copy(alpha = 0.85f)
             )
@@ -1702,7 +1702,7 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.4f))
         ) {
             Text(
-                "PRO âœ“",
+                "PRO G£ô",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color(0xFFFFE599),
@@ -1713,4 +1713,3 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
         Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
     }
 }
-
