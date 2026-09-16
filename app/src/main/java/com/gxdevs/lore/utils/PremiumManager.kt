@@ -93,18 +93,7 @@ class PremiumManager private constructor(private val context: Context) : Purchas
                     _billingStatus.value = "Connected"
                     Log.i(TAG, "✅ [LoreBilling] Billing setup finished successfully (OK)")
                     queryAvailableProducts()
-                    // Only verify subscription status if the user is signed in with Google.
-                    // Without a Google account, querying purchases returns empty and would
-                    // incorrectly reset any locally-cached premium entitlement to false.
-                    scope.launch {
-                        val isGoogleLoggedIn = settingsRepo.googleLoggedIn.first()
-                        if (isGoogleLoggedIn) {
-                            Log.i(TAG, "[LoreBilling] Google login confirmed — querying existing purchases")
-                            queryExistingPurchases()
-                        } else {
-                            Log.i(TAG, "[LoreBilling] User not signed in with Google — skipping entitlement query to preserve local premium state")
-                        }
-                    }
+                    queryExistingPurchases()
                 } else {
                     _billingStatus.value = "Setup Failed (${billingResult.responseCode})"
                     Log.e(TAG, "❌ [LoreBilling] Billing setup failed. Code=${billingResult.responseCode}, Msg=${billingResult.debugMessage}")
@@ -122,18 +111,9 @@ class PremiumManager private constructor(private val context: Context) : Purchas
         })
     }
 
-    /**
-     * Call after the user successfully signs in with Google to immediately re-verify
-     * their subscription status from Google Play.
-     */
+    /** Re-verify subscription status from Google Play. */
     fun refreshIfLoggedIn() {
-        scope.launch {
-            val isGoogleLoggedIn = settingsRepo.googleLoggedIn.first()
-            if (isGoogleLoggedIn) {
-                Log.i(TAG, "[LoreBilling] Post-login refresh: querying existing purchases")
-                queryExistingPurchases()
-            }
-        }
+        queryExistingPurchases()
     }
 
     /** Queries available products (Subscriptions & Lifetime IAP) from Google Play Console. */
@@ -370,8 +350,7 @@ class PremiumManager private constructor(private val context: Context) : Purchas
         Log.i(TAG, "💎 [LoreBilling] Updating entitlement state: unlocked=$unlocked, plan=$planTitle")
         _isPremium.value = unlocked
         scope.launch {
-            settingsRepo.setPremiumUnlocked(unlocked)
-            settingsRepo.setSubscriptionPlan(if (unlocked) planTitle else "FREE")
+            settingsRepo.setPremiumUnlocked(unlocked, if (unlocked) planTitle else "FREE")
         }
     }
 }
