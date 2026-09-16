@@ -183,13 +183,69 @@ fun JournalDetailScreen(
         )
     }
 
-    // If entry is null, show loading
+    // If entry is null, show loading or not found state
     if (entry == null) {
+        var isTimedOut by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            delay(2500)
+            isTimedOut = true
+        }
+
         Box(
-            modifier = Modifier.fillMaxSize().background(primaryAccent),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(mainContainerBackground),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator(color = mainContainerBackground)
+            if (allEntries.isNotEmpty() || isTimedOut) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(32.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(cardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.SearchOff,
+                            contentDescription = null,
+                            tint = textSecondary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Reflection Not Found",
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "This journal entry may have been moved or removed from your Lore.",
+                        fontSize = 14.sp,
+                        color = textSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = onBack,
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryAccent),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.ArrowBackIosNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Return to Sanctuary", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            } else {
+                CircularProgressIndicator(color = primaryAccent)
+            }
         }
         return
     }
@@ -654,146 +710,17 @@ fun JournalDetailScreen(
 }
 
 
-// ─── Audio Player Card ──────────────────────────────────────────────────────
+// ─── Audio Player Card (Waveform Enhanced) ──────────────────────────────────
 @Composable
 private fun AudioPlayerCard(
     uri: android.net.Uri,
     preDecryptedFile: File? = null
 ) {
-    val context = LocalContext.current
-    val uriString = uri.toString()
-    val isEncFile = MediaEncryptionManager.isEncrypted(uriString)
-        || (uri.scheme == null && MediaEncryptionManager.isEncrypted(uri.path ?: uriString))
-
-    // For encrypted files, use pre-decrypted file if available (instant); otherwise decrypt
-    var tempDecryptedFile by remember(preDecryptedFile) {
-        mutableStateOf(preDecryptedFile)
-    }
-    var decryptError by remember { mutableStateOf(false) }
-
-    LaunchedEffect(uriString) {
-        if (isEncFile && tempDecryptedFile == null) {
-            val encPath = uri.path ?: uriString
-            val decrypted = withContext(Dispatchers.IO) {
-                // Always decrypt audio with the m4a hint so the temp file has a proper extension
-                MediaEncryptionManager.decryptToTemp(context, encPath, "m4a")
-            }
-            if (decrypted != null) tempDecryptedFile = decrypted
-            else decryptError = true
-        }
-    }
-
-    DisposableEffect(uriString) {
-        // Only delete if we created the temp file (not if it came from the pre-decrypt cache)
-        onDispose { if (preDecryptedFile == null) tempDecryptedFile?.delete() }
-    }
-
-    // Only build the player once we have the right source
-    val playableUri: android.net.Uri? = when {
-        !isEncFile                        -> uri
-        tempDecryptedFile != null         -> tempDecryptedFile!!.toUri()
-        else                              -> null // still decrypting
-    }
-
-    var isPlaying    by remember { mutableStateOf(false) }
-    var currentMs    by remember { mutableLongStateOf(0L) }
-    var durationMs   by remember { mutableLongStateOf(0L) }
-
-    val player = remember(playableUri) {
-        if (playableUri == null) return@remember null
-        android.media.MediaPlayer().apply {
-            runCatching {
-                val path = tempDecryptedFile?.absolutePath
-                if (path != null) {
-                    setDataSource(path)
-                } else if (playableUri.scheme == null) {
-                    setDataSource(playableUri.path ?: playableUri.toString())
-                } else {
-                    setDataSource(context, playableUri)
-                }
-                setOnPreparedListener { mp -> durationMs = mp.duration.toLong() }
-                setOnCompletionListener { isPlaying = false; seekTo(0); currentMs = 0L }
-                prepareAsync()
-            }
-        }
-    }
-    DisposableEffect(playableUri) { onDispose { player?.runCatching { stop(); release() } } }
-
-    // Tick progress while playing
-    LaunchedEffect(isPlaying) {
-        while (isPlaying) {
-            currentMs = player?.runCatching { currentPosition.toLong() }?.getOrDefault(0L) ?: 0L
-            delay(200)
-        }
-    }
-
-    val progress = if (durationMs > 0) currentMs.toFloat() / durationMs else 0f
-    fun formatMs(ms: Long): String {
-        val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60)
-    }
-    rememberInfiniteTransition(label = "wave")
-    remember { listOf(0.3f, 0.7f, 0.5f, 0.9f, 0.4f, 0.8f, 0.35f, 0.6f, 0.5f, 0.85f, 0.4f, 0.7f) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(mainContainerBackground)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Play/Pause button
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(if (decryptError) Color(0xFFC75D4E) else primaryAccent)
-                .clickable(enabled = player != null && !decryptError) {
-                    if (isPlaying) { player?.pause(); isPlaying = false }
-                    else           { player?.start(); isPlaying = true  }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                decryptError -> Icon(Icons.Rounded.ErrorOutline, "Error", tint = Color.White, modifier = Modifier.size(22.dp))
-                player == null -> CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                else -> Icon(
-                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Audio Memo", color = textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif)
-
-            // Seek slider
-            Slider(
-                value = progress,
-                onValueChange = { v ->
-                    val seekTo = (v * durationMs).toLong()
-                    player?.runCatching { seekTo(seekTo.toInt()) }
-                    currentMs = seekTo
-                },
-                modifier = Modifier.fillMaxWidth().height(20.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = primaryAccent,
-                    activeTrackColor = primaryAccent,
-                    inactiveTrackColor = textSecondary.copy(alpha = 0.3f)
-                )
-            )
-
-            // Time labels
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatMs(currentMs), color = textSecondary, fontSize = 10.sp)
-                Text(formatMs(durationMs), color = textSecondary, fontSize = 10.sp)
-            }
-        }
-    }
+    val audioPath = preDecryptedFile?.absolutePath ?: (uri.path ?: uri.toString())
+    com.gxdevs.lore.ui.components.AudioWaveformPlayer(
+        audioPath = audioPath,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 // --- Dynamic Media Grid ---
