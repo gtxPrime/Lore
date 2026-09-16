@@ -196,7 +196,7 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
                 }
 
                 // ── Compute final top mood ────────────────────────────────────
-                val topEntry    = finalScores.maxByOrNull { it.value }!!
+                val topEntry    = finalScores.maxByOrNull { it.value }
                 val sortedVals  = finalScores.values.sortedDescending()
                 val gap         = (sortedVals.getOrElse(0) { 0f } - sortedVals.getOrElse(1) { 0f })
                 val rawConf     = (gap / 100f).coerceIn(0f, 1f)
@@ -207,7 +207,7 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
                 val finalConfidence = (rawConf * 0.55f + sentimentResult.compound * 0.15f +
                                        modelConfBonus + langBonus).coerceIn(0.10f, 0.97f)
 
-                val topMood = topEntry.key
+                val topMood = topEntry?.key ?: MoodConstants.CALM
 
                 // Build UI state
                 val uiState = MoodAnalysisUiState(
@@ -300,6 +300,7 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
                     val existing = journalDao.getEntryById(moodEditId)
                     if (existing != null) {
                         journalDao.insertEntry(existing.copy(emotions = emotionsJson))
+                        com.gxdevs.lore.utils.DriveBackupWorker.scheduleBackupOnDataChange(getApplication())
                     }
                     return@withContext
                 }
@@ -382,12 +383,9 @@ class AfterJournalViewModel(application: Application) : AndroidViewModel(applica
                     )
                 }
 
-                // Recalculate pet progress and trigger level-up celebration check
-                try {
-                    com.gxdevs.lore.ui.pets.PetViewModel(getApplication()).onJournalSaved()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+
+                // Trigger on-demand Drive backup for newly created journal
+                com.gxdevs.lore.utils.DriveBackupWorker.scheduleBackupOnDataChange(getApplication())
             }
             withContext(Dispatchers.Main) {
                 onComplete?.invoke()
