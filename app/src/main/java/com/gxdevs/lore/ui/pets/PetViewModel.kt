@@ -192,6 +192,11 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
 
+        Log.d("PetViewModel", "[State] Emitting ${pets.size} pets (isDemo=${demo.isDemo}, override=${demo.stageOverride}, defs=${dbState.defs.size})")
+        pets.forEach { p ->
+            Log.d("PetViewModel", "   -> Pet [${p.petId}] name=${p.name} stageIdx=${p.stageIndex} localPath=${p.localImagePath} imgUrl=${p.currentStageImageUrl}")
+        }
+
         PetsScreenState(
             pets = pets,
             isLoading = false,
@@ -204,20 +209,22 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
+            Log.i("PetViewModel", "[Init] Starting pet catalog check, recalculation and asset preloading...")
             val repo = com.gxdevs.lore.pets.PetCatalogRepository(application)
             repo.seedFromAssetsIfEmpty()
             recalculateFromHistorySuspend()
-            // Preload ALL 25 pet stage images in parallel so all pets load instantly!
             preloadAllPetImages()
         }
 
         viewModelScope.launch {
             val settingsRepo = com.gxdevs.lore.data.SettingsRepository(application)
             settingsRepo.dailySelectedJournals.collect {
+                Log.d("PetViewModel", "[Init] dailySelectedJournals changed -> recalculating history...")
                 recalculateFromHistorySuspend()
             }
         }
     }
+
 
     // --- Demo Mode Actions -----------------------------------------------------------------------
 
@@ -786,6 +793,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        Log.i("PetViewModel", "[Recalculate] Found ${entries.size} total journal entries across ${entriesByDay.size} days. Calculated counts: $moodDayCounts")
+
         MoodConstants.ALL_MOODS.forEach { mood ->
             val key   = mood.lowercase()
             val count = moodDayCounts[key] ?: 0
@@ -794,8 +803,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
         val repo = com.gxdevs.lore.pets.PetCatalogRepository(context)
         repo.seedFromAssetsIfEmpty()
-        repo.syncIfDue()
+        val syncRes = repo.syncIfDue()
+        Log.d("PetViewModel", "[Recalculate] Pet catalog sync result: $syncRes")
     }
+
 
     // --- Private helpers ---------------------
 
