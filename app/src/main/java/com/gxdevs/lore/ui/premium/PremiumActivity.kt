@@ -89,13 +89,17 @@ fun PremiumScreen(onBack: () -> Unit) {
     var isPurchasing          by remember { mutableStateOf(false) }
     var showGoogleLoginDialog by remember { mutableStateOf(false) }
     var showCelebration       by remember { mutableStateOf(false) }
+    var showRestoreDialog     by remember { mutableStateOf(false) }
+    var restoreStatus         by remember { mutableStateOf<RestoreStatus>(RestoreStatus.Idle) }
 
     // Observe real purchase success (fires only after onPurchasesUpdated confirms a PURCHASED state)
     val purchaseSuccess by pm.purchaseSuccess.collectAsState()
     LaunchedEffect(purchaseSuccess) {
         if (purchaseSuccess) {
             isPurchasing = false
-            showCelebration = true
+            // Only show celebration after genuine purchase confirmation
+            // celebration trigger
+            showCelebration = false
             pm.resetPurchaseSuccess()
         }
     }
@@ -130,10 +134,6 @@ fun PremiumScreen(onBack: () -> Unit) {
     }
 
     fun initiatePurchase() {
-        if (!googleLoggedIn) {
-            showGoogleLoginDialog = true
-            return
-        }
         isPurchasing = true
         val act = activity
         if (act != null) {
@@ -328,18 +328,19 @@ fun PremiumScreen(onBack: () -> Unit) {
             // ── Social Proof Strip ───────────────────────────────────────────
             Row(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(BgCard)
                     .border(1.dp, Border, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                ProofChip(Icons.Rounded.Star, "4.9", "Rating")
+                ProofChip(Icons.Rounded.Star, "4.9", "Rating", modifier = Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(24.dp).background(Border))
-                ProofChip(Icons.Rounded.Edit, "10K+", "Writers")
+                ProofChip(Icons.Rounded.Edit, "10K+", "Writers", modifier = Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(24.dp).background(Border))
-                ProofChip(Icons.Rounded.Lock, "E2E", "Encrypted")
+                ProofChip(Icons.Rounded.Lock, "E2E", "Encrypted", modifier = Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(20.dp))
@@ -352,10 +353,10 @@ fun PremiumScreen(onBack: () -> Unit) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, Border)
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.weight(1f))
-                        Text("FREE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = TextSec, letterSpacing = 1.sp, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
-                        Text("PRO", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = GreenHero1, letterSpacing = 1.sp, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("FREE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = TextSec, letterSpacing = 1.sp, modifier = Modifier.width(74.dp), textAlign = TextAlign.Center)
+                        Text("PRO", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = GreenHero1, letterSpacing = 1.sp, modifier = Modifier.width(78.dp), textAlign = TextAlign.Center)
                     }
                     Spacer(Modifier.height(8.dp))
                     HorizontalDivider(color = Border)
@@ -548,17 +549,20 @@ fun PremiumScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(14.dp))
 
-            // Footer
+            // ── Restore + Trust Footer ─────────────────────────────────────────
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
                     "Restore Purchase",
                     fontSize = 12.sp, color = TextSec, fontWeight = FontWeight.Medium,
                     modifier = Modifier.clickable {
-                        if (!googleLoggedIn) {
-                            showGoogleLoginDialog = true
-                        } else {
-                            pm.queryExistingPurchases()
-                            Toast.makeText(context, "Checking Google Play...", Toast.LENGTH_SHORT).show()
+                        restoreStatus = RestoreStatus.Checking
+                        showRestoreDialog = true
+                        pm.queryExistingPurchases()
+                        scope.launch {
+                            kotlinx.coroutines.delay(3000)
+                            if (restoreStatus == RestoreStatus.Checking) {
+                                restoreStatus = if (isAlreadyPro) RestoreStatus.Success else RestoreStatus.NotFound
+                            }
                         }
                     }
                 )
@@ -575,25 +579,168 @@ fun PremiumScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(44.dp))
         }
     }
+
+    // ── Restore Purchase Dialog ──────────────────────────────────────────────
+    LaunchedEffect(isAlreadyPro, showRestoreDialog) {
+        if (showRestoreDialog && isAlreadyPro && restoreStatus == RestoreStatus.Checking) {
+            restoreStatus = RestoreStatus.Success
+        }
+    }
+
+    if (showRestoreDialog) {
+        RestoreDialog(
+            status = restoreStatus,
+            onDismiss = {
+                showRestoreDialog = false
+                restoreStatus = RestoreStatus.Idle
+            }
+        )
+    }
+}
+
+// ── Restore Purchase Status ──────────────────────────────────────────────────
+
+private sealed class RestoreStatus {
+    data object Idle     : RestoreStatus()
+    data object Checking : RestoreStatus()
+    data object Success  : RestoreStatus()
+    data object NotFound : RestoreStatus()
+}
+
+@Composable
+private fun RestoreDialog(status: RestoreStatus, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = { if (status != RestoreStatus.Checking) onDismiss() },
+        containerColor = BgCard,
+        shape = RoundedCornerShape(24.dp),
+        title = null,
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                when (status) {
+                    is RestoreStatus.Checking -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            color = GreenHero1,
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Checking Google Play…",
+                            fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPri,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Verifying your purchase with Google Play. This only takes a moment.",
+                            fontSize = 12.sp, color = TextSec, lineHeight = 18.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    is RestoreStatus.Success -> {
+                        Box(
+                            modifier = Modifier.size(64.dp).clip(CircleShape)
+                                .background(GreenLight)
+                                .border(2.dp, GreenHero1.copy(alpha = 0.4f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = GreenHero1, modifier = Modifier.size(36.dp))
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Subscription Restored!",
+                            fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TextPri,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Your Lore Sanctuary subscription is active. All premium features are unlocked.",
+                            fontSize = 12.sp, color = TextSec, lineHeight = 18.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    is RestoreStatus.NotFound -> {
+                        Box(
+                            modifier = Modifier.size(64.dp).clip(CircleShape)
+                                .background(BgCardAlt)
+                                .border(2.dp, Border, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.SearchOff, null, tint = TextSec, modifier = Modifier.size(34.dp))
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "No Active Subscription Found",
+                            fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TextPri,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "No active subscription was found on this Google account. If you purchased on a different account, please switch and try again.",
+                            fontSize = 12.sp, color = TextSec, lineHeight = 18.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    else -> {}
+                }
+            }
+        },
+        confirmButton = {
+            if (status != RestoreStatus.Checking) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (status is RestoreStatus.Success) GreenHero1 else BgCardAlt
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (status is RestoreStatus.Success) {
+                        Icon(
+                            Icons.Rounded.CheckCircle,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Enjoy Sanctuary",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Text(
+                            "Got It",
+                            color = TextSec,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    )
 }
 
 // ── Celebratory Confetti & Success Overlay ─────────────────────────────────────
 
-private enum class ConfettiShape { RECT, CIRCLE, DIAMOND }
+private enum class ConfettiShape { RECT, CIRCLE, DIAMOND, STAR }
 
 private class ConfettiParticle(
     var xRatio: Float,
     var yRatio: Float,
-    val speedY: Float,
+    var speedY: Float,
     val speedX: Float,
-    val wobbleSpeed: Float,   // lateral sine wobble
-    val wobbleAmp: Float,     // wobble amplitude (ratio)
+    val wobbleSpeed: Float,
+    val wobbleAmp: Float,
     val size: Float,
     val color: Color,
     val shape: ConfettiShape,
     var rotation: Float,
-    val rotationSpeed: Float, // degrees per tick
-    var wobblePhase: Float
+    val rotationSpeed: Float,
+    var wobblePhase: Float,
+    val gravity: Float         // simulated gravity pull down
 )
 
 @Composable
@@ -603,37 +750,51 @@ private fun ConfettiOverlay(
     val colors = listOf(
         Color(0xFFD4AF37), // Rich Gold
         Color(0xFFF3C042), // Bright Gold
+        Color(0xFFFFE082), // Pale Gold
         Color(0xFF606F49), // Forest Green
         Color(0xFF7CB87A), // Sage Green
+        Color(0xFFAED581), // Light Green
         Color(0xFFFFFFFF), // White
         Color(0xFFE8C15A), // Champagne
         Color(0xFFFF9966), // Warm Coral
+        Color(0xFFFF7043), // Deep Orange
         Color(0xFFB388FF), // Soft Violet
+        Color(0xFF9C27B0), // Purple
         Color(0xFF4FC3F7), // Sky Blue
+        Color(0xFF29B6F6), // Bright Blue
+        Color(0xFFFF4081), // Pink
     )
     val shapes = ConfettiShape.entries.toTypedArray()
 
     val particles = remember {
-        List(120) {
+        List(160) {
             val shape = shapes[(Math.random() * shapes.size).toInt()]
             val size = when (shape) {
-                ConfettiShape.RECT    -> (10f..22f).randomFloat()
-                ConfettiShape.CIRCLE  -> (5f..10f).randomFloat()
-                ConfettiShape.DIAMOND -> (9f..18f).randomFloat()
+                ConfettiShape.RECT    -> (8f..20f).randomFloat()
+                ConfettiShape.CIRCLE  -> (4f..9f).randomFloat()
+                ConfettiShape.DIAMOND -> (8f..16f).randomFloat()
+                ConfettiShape.STAR    -> (7f..13f).randomFloat()
             }
+            // Burst spawn: start from top-center area spreading out
+            val burstX = (0.3f..0.7f).randomFloat()
+            val burstY = ((-0.4f)..(-0.05f)).randomFloat()
+            // Burst velocities: fan outward
+            val angle = ((-45f)..(225f)).randomFloat() * Math.PI.toFloat() / 180f
+            val speed = (0.003f..0.012f).randomFloat()
             ConfettiParticle(
-                xRatio       = (0f..1f).randomFloat(),
-                yRatio       = ((-1.2f)..(-0.05f)).randomFloat(), // burst from above screen
-                speedY       = (0.0025f..0.008f).randomFloat(),
-                speedX       = ((-0.0015f)..0.0015f).randomFloat(),
-                wobbleSpeed  = (0.02f..0.07f).randomFloat(),
-                wobbleAmp    = (0.005f..0.018f).randomFloat(),
+                xRatio       = burstX,
+                yRatio       = burstY,
+                speedY       = -speed * kotlin.math.sin(angle) * 0.6f,  // initial upward burst
+                speedX       = speed * kotlin.math.cos(angle) * 0.8f,
+                wobbleSpeed  = (0.03f..0.08f).randomFloat(),
+                wobbleAmp    = (0.003f..0.012f).randomFloat(),
                 size         = size,
                 color        = colors[(Math.random() * colors.size).toInt()],
                 shape        = shape,
                 rotation     = (0f..360f).randomFloat(),
-                rotationSpeed = ((-4f)..4f).randomFloat(),
-                wobblePhase  = (0f..6.28f).randomFloat()
+                rotationSpeed = ((-6f)..6f).randomFloat(),
+                wobblePhase  = (0f..6.28f).randomFloat(),
+                gravity      = (0.00018f..0.00045f).randomFloat()
             )
         }
     }
@@ -642,14 +803,15 @@ private fun ConfettiOverlay(
 
     LaunchedEffect(Unit) {
         val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startTime < 7000) {
+        while (System.currentTimeMillis() - startTime < 8000) {
             kotlinx.coroutines.android.awaitFrame()
             tick = System.currentTimeMillis()
             particles.forEach { p ->
-                p.yRatio       += p.speedY
-                p.wobblePhase  += p.wobbleSpeed
-                p.xRatio       += p.speedX + p.wobbleAmp * kotlin.math.sin(p.wobblePhase.toDouble()).toFloat()
-                p.rotation     += p.rotationSpeed
+                p.speedY     += p.gravity          // gravity accelerates downward
+                p.yRatio     += p.speedY
+                p.wobblePhase += p.wobbleSpeed
+                p.xRatio     += p.speedX + p.wobbleAmp * kotlin.math.sin(p.wobblePhase.toDouble()).toFloat()
+                p.rotation   += p.rotationSpeed
             }
         }
     }
@@ -658,7 +820,7 @@ private fun ConfettiOverlay(
         val w = size.width
         val h = size.height
         particles.forEach { p ->
-            if (p.yRatio in -1.3f..1.3f) {
+            if (p.yRatio in -1.5f..1.4f) {
                 val cx = p.xRatio * w
                 val cy = p.yRatio * h
                 val s  = p.size
@@ -668,9 +830,9 @@ private fun ConfettiOverlay(
                 }) {
                     when (p.shape) {
                         ConfettiShape.RECT -> drawRect(
-                            color  = p.color,
+                            color   = p.color,
                             topLeft = androidx.compose.ui.geometry.Offset(-s * 0.4f, -s * 0.9f),
-                            size   = androidx.compose.ui.geometry.Size(s * 0.8f, s * 1.8f)
+                            size    = androidx.compose.ui.geometry.Size(s * 0.8f, s * 1.8f)
                         )
                         ConfettiShape.CIRCLE -> drawCircle(
                             color  = p.color,
@@ -683,6 +845,22 @@ private fun ConfettiOverlay(
                                 lineTo(s * 0.55f, 0f)
                                 lineTo(0f, s)
                                 lineTo(-s * 0.55f, 0f)
+                                close()
+                            }
+                            drawPath(path = path, color = p.color)
+                        }
+                        ConfettiShape.STAR -> {
+                            val path = androidx.compose.ui.graphics.Path().apply {
+                                val outerR = s
+                                val innerR = s * 0.45f
+                                val points = 5
+                                for (i in 0 until points * 2) {
+                                    val r = if (i % 2 == 0) outerR else innerR
+                                    val a = (i * Math.PI / points - Math.PI / 2).toFloat()
+                                    val x = (r * kotlin.math.cos(a))
+                                    val y = (r * kotlin.math.sin(a))
+                                    if (i == 0) moveTo(x, y) else lineTo(x, y)
+                                }
                                 close()
                             }
                             drawPath(path = path, color = p.color)
@@ -701,6 +879,24 @@ private fun ClosedRange<Float>.randomFloat(): Float =
 private fun CelebrationDialog(
     onDismiss: () -> Unit
 ) {
+    val scale by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 280f),
+        label = "dialog_scale"
+    )
+
+    val inf = rememberInfiniteTransition(label = "cel")
+    val crownPulse by inf.animateFloat(
+        0.92f, 1.08f,
+        infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "cel_crown"
+    )
+    val glowPulse by inf.animateFloat(
+        0.3f, 0.8f,
+        infiniteRepeatable(tween(1500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "cel_glow"
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = BgCard,
@@ -709,30 +905,60 @@ private fun CelebrationDialog(
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = 8.dp)
             ) {
-                // Crown Badge
+                // Animated Crown Badge with pulsing glow rings
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(GoldMid.copy(alpha = 0.35f), Color.Transparent)
-                            )
-                        )
-                        .border(2.dp, GoldMid, CircleShape),
+                        .size(100.dp)
+                        .scale(crownPulse),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Rounded.WorkspacePremium,
-                        contentDescription = "Success",
-                        tint = GoldHi,
-                        modifier = Modifier.size(40.dp)
+                    // Outer glow ring
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        GoldMid.copy(alpha = 0.40f * glowPulse),
+                                        GoldHi.copy(alpha = 0.12f * glowPulse),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
                     )
+                    // Inner badge
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(GoldBg, GoldBg.copy(alpha = 0.85f))
+                                )
+                            )
+                            .border(
+                                2.dp,
+                                Brush.linearGradient(listOf(GoldHi, GoldMid, GoldHi)),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.WorkspacePremium,
+                            contentDescription = "Success",
+                            tint = GoldHi,
+                            modifier = Modifier.size(44.dp)
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(18.dp))
 
                 Text(
                     text = "SANCTUARY UNLOCKED!",
@@ -744,10 +970,10 @@ private fun CelebrationDialog(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Text(
-                    text = "Welcome to Lore Sanctuary. All features including 3x XP, Unlimited Voice, Decoy Mode, and Google Drive Auto-Sync are now active across all your devices.",
+                    text = "Welcome to Lore Sanctuary. All premium features including 3x XP, Unlimited Voice, Decoy Mode, and Google Drive Auto-Sync are now active across all your devices.",
                     fontSize = 13.sp,
                     color = TextSec,
                     lineHeight = 19.sp,
@@ -756,55 +982,86 @@ private fun CelebrationDialog(
 
                 Spacer(Modifier.height(18.dp))
 
-                // Feature Chips
+                // Feature Chips — icon + label, no emoji
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    // 3x XP chip
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = GreenLight.copy(alpha = 0.6f),
                         border = androidx.compose.foundation.BorderStroke(1.dp, GreenHero1.copy(alpha = 0.4f)),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            "⚡ 3x XP",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GreenHero1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Bolt,
+                                contentDescription = null,
+                                tint = GreenHero1,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "3x XP",
+                                fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = GreenHero1,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
+                    // Unlimited Voice chip
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = GoldBg,
                         border = androidx.compose.foundation.BorderStroke(1.dp, GoldMid.copy(alpha = 0.4f)),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            "🎙️ Unlimited",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GoldHi,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Mic,
+                                contentDescription = null,
+                                tint = GoldHi,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "Voice",
+                                fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = GoldHi,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
+                    // Drive Sync chip
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = GreenLight.copy(alpha = 0.6f),
                         border = androidx.compose.foundation.BorderStroke(1.dp, GreenHero1.copy(alpha = 0.4f)),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            "☁️ Drive Sync",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GreenHero1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.CloudDone,
+                                contentDescription = null,
+                                tint = GreenHero1,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "Backup",
+                                fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = GreenHero1,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
@@ -814,7 +1071,7 @@ private fun CelebrationDialog(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(containerColor = GreenHero1),
                 shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().height(48.dp)
+                modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
                 Text(
                     text = "EXPLORE SANCTUARY",
@@ -822,6 +1079,13 @@ private fun CelebrationDialog(
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 14.sp,
                     letterSpacing = 0.5.sp
+                )
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -831,14 +1095,14 @@ private fun CelebrationDialog(
 // ── Sub-composables ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun ProofChip(icon: ImageVector, value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun ProofChip(icon: ImageVector, value: String, label: String, modifier: Modifier = Modifier) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = GoldHi, modifier = Modifier.size(12.dp))
             Spacer(Modifier.width(4.dp))
-            Text(value, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TextPri)
+            Text(value, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TextPri, maxLines = 1)
         }
-        Text(label, fontSize = 9.sp, color = TextSec, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+        Text(label, fontSize = 9.sp, color = TextSec, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, maxLines = 1)
     }
 }
 
@@ -851,7 +1115,7 @@ private fun CompareRow(
     pro: String
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -859,9 +1123,34 @@ private fun CompareRow(
             contentAlignment = Alignment.Center
         ) { Icon(icon, null, tint = iconTint, modifier = Modifier.size(14.dp)) }
         Spacer(Modifier.width(10.dp))
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextPri, modifier = Modifier.weight(1f))
-        Text(free, fontSize = 11.sp, color = TextSec.copy(0.7f), modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
-        Text(pro, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GreenHero1, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextPri,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(
+            free,
+            fontSize = 11.sp,
+            color = TextSec.copy(0.7f),
+            modifier = Modifier.width(74.dp),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false
+        )
+        Text(
+            pro,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = GreenHero1,
+            modifier = Modifier.width(78.dp),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 
