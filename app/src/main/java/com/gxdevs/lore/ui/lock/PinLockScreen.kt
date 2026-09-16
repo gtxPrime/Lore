@@ -1,11 +1,17 @@
 package com.gxdevs.lore.ui.lock
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -18,11 +24,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gxdevs.lore.ui.components.HapticFeedbackHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private val bg = Color(0xFF0E1108)
 private val surface = Color(0xFF181E10)
@@ -33,6 +43,8 @@ private val errorCol = Color(0xFFC06352)
 private val keyBg = Color(0xFF1E2717)
 private val keyBorder = Color(0xFF2E3820)
 
+private const val KEY_DELETE = "DEL"
+
 @Composable
 fun PinLockScreen(
     onUnlockNormal: () -> Unit,
@@ -40,13 +52,15 @@ fun PinLockScreen(
     realPin: String?,
     decoyPinValue: String?
 ) {
+    val context = LocalContext.current
     var input by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
-    var shake by remember { mutableStateOf(false) }
+    val shakeOffset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
     fun handleDigit(d: String) {
         if (input.length >= 4) return
+        HapticFeedbackHelper.lightClick(context)
         isError = false
         val newInput = input + d
         input = newInput
@@ -54,13 +68,33 @@ fun PinLockScreen(
             scope.launch {
                 delay(120)
                 when (newInput) {
-                    realPin -> onUnlockNormal()
-                    decoyPinValue -> onUnlockDecoy()
+                    realPin -> {
+                        HapticFeedbackHelper.selectionClick(context)
+                        onUnlockNormal()
+                    }
+                    decoyPinValue -> {
+                        HapticFeedbackHelper.selectionClick(context)
+                        onUnlockDecoy()
+                    }
                     else -> {
                         isError = true
-                        shake = true
-                        delay(500)
-                        shake = false
+                        HapticFeedbackHelper.heavyImpact(context)
+                        shakeOffset.animateTo(
+                            targetValue = 0f,
+                            animationSpec = keyframes {
+                                durationMillis = 400
+                                0f at 0
+                                (-20f) at 50
+                                20f at 100
+                                (-15f) at 150
+                                15f at 200
+                                (-10f) at 250
+                                10f at 300
+                                (-5f) at 350
+                                0f at 400
+                            }
+                        )
+                        delay(250)
                         input = ""
                     }
                 }
@@ -98,18 +132,12 @@ fun PinLockScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // PIN dot indicators
-            val shakeAnim by animateFloatAsState(
-                targetValue = if (shake) 1f else 0f,
-                animationSpec = tween(50), label = "shake"
-            )
+            // PIN dot indicators with fluid keyframe shake
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.offset {
-                    val currentShakeX =
-                        shakeAnim * 8 * if ((System.currentTimeMillis() / 100).toInt() % 2 == 0) 1 else -1
-                    androidx.compose.ui.unit.IntOffset(
-                        x = currentShakeX.dp.roundToPx(),
+                    IntOffset(
+                        x = shakeOffset.value.dp.roundToPx(),
                         y = 0
                     )
                 }
@@ -147,16 +175,18 @@ fun PinLockScreen(
                 listOf("1", "2", "3"),
                 listOf("4", "5", "6"),
                 listOf("7", "8", "9"),
-                listOf("", "0", "?")
+                listOf("", "0", KEY_DELETE)
             )
             keys.forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     row.forEach { key ->
                         when (key) {
                             "" -> Spacer(Modifier.size(76.dp))
-                            "?" -> PinKey(label = key, isSpecial = true, onClick = {
+                            KEY_DELETE -> PinKey(label = key, isSpecial = true, onClick = {
                                 if (input.isNotEmpty()) {
-                                    input = input.dropLast(1); isError = false
+                                    HapticFeedbackHelper.lightClick(context)
+                                    input = input.dropLast(1)
+                                    isError = false
                                 }
                             })
 
@@ -172,14 +202,16 @@ fun PinLockScreen(
 
 @Composable
 private fun PinKey(label: String, isSpecial: Boolean = false, onClick: () -> Unit) {
-    var pressed by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
     val scale by animateFloatAsState(
-        if (pressed) 0.88f else 1f,
-        animationSpec = tween(80),
+        targetValue = if (isPressed) 0.88f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         label = "scale"
     )
     val bgColor by animateColorAsState(
-        if (pressed) accent.copy(alpha = 0.2f) else keyBg,
+        targetValue = if (isPressed) accent.copy(alpha = 0.35f) else keyBg,
         animationSpec = tween(80), label = "bg"
     )
 
@@ -189,16 +221,18 @@ private fun PinKey(label: String, isSpecial: Boolean = false, onClick: () -> Uni
             .scale(scale)
             .clip(CircleShape)
             .background(bgColor)
-            .border(1.dp, keyBorder, CircleShape)
-            .clickable {
-                onClick()
-            },
+            .border(1.dp, if (isPressed) accent else keyBorder, CircleShape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
-        if (label == "?") {
+        if (label == KEY_DELETE) {
             Icon(
                 Icons.AutoMirrored.Rounded.Backspace,
-                null,
+                contentDescription = "Delete",
                 tint = subText,
                 modifier = Modifier.size(22.dp)
             )
