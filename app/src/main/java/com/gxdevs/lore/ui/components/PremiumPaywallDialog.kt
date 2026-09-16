@@ -424,18 +424,19 @@ fun PremiumPaywallScreen(
             // ── Social Proof Row ──────────────────────────────────────────────
             Row(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(BgCardAlt)
                     .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                SocialProofChip(icon = Icons.Rounded.Star, value = "4.9", label = "Rating")
+                SocialProofChip(icon = Icons.Rounded.Star, value = "4.9", label = "Rating", modifier = Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(24.dp).background(BorderSubtle))
-                SocialProofChip(icon = Icons.Rounded.Edit, value = "10K+", label = "Writers")
+                SocialProofChip(icon = Icons.Rounded.Edit, value = "10K+", label = "Writers", modifier = Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(24.dp).background(BorderSubtle))
-                SocialProofChip(icon = Icons.Rounded.Lock, value = "E2E", label = "Encrypted")
+                SocialProofChip(icon = Icons.Rounded.Lock, value = "E2E", label = "Encrypted", modifier = Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(24.dp))
@@ -744,14 +745,14 @@ fun PremiumPaywallScreen(
 // ── Sub-composables ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SocialProofChip(icon: ImageVector, value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun SocialProofChip(icon: ImageVector, value: String, label: String, modifier: Modifier = Modifier) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(4.dp))
-            Text(value, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+            Text(value, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary, maxLines = 1)
         }
-        Text(label, fontSize = 9.sp, color = TextSecondary, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+        Text(label, fontSize = 9.sp, color = TextSecondary, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, maxLines = 1)
     }
 }
 
@@ -790,13 +791,16 @@ private fun FeatureShowcaseItem(
                 freeLabel,
                 fontSize = 10.sp,
                 color = TextSecondary.copy(alpha = 0.6f),
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
             )
             Text(
                 premiumLabel,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = AccentGreen
+                color = AccentGreen,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }
