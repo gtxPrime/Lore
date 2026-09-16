@@ -359,7 +359,7 @@ fun SettingsScreen(
         onAutoLockDelayChange = { scope.launch { settingsRepo.setAutoLockDelay(it) } }
     )
 
-        // â”€â”€ Backup PIN animated banner (slides up from bottom) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // GöÇGöÇ Backup PIN animated banner (slides up from bottom) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
         BackupPinBanner(
             visible   = showBackupPinBanner,
             onSetPin  = { showBackupPinBanner = false; triggerPinSetup = true },
@@ -367,7 +367,7 @@ fun SettingsScreen(
             modifier  = Modifier.align(Alignment.BottomCenter)
         )
 
-        // â”€â”€â”€ Dialogs for Encrypted Backup / Set 6-Digit Encryption Key â”€â”€â”€â”€â”€â”€â”€
+        // GöÇGöÇGöÇ Dialogs for Encrypted Backup / Set 6-Digit Encryption Key GöÇGöÇGöÇGöÇGöÇGöÇGöÇ
         var backupPinInput by remember { mutableStateOf("") }
         var backupPinError by remember { mutableStateOf(false) }
 
@@ -759,7 +759,7 @@ fun SettingsScreenUI(
         )
     }
 
-    // â”€â”€ Delete dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // GöÇGöÇ Delete dialog GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
     val deleteTextInput = remember { mutableStateOf("") }
     val showDeleteConfirmDialog = remember { mutableStateOf(false) }
 
@@ -840,7 +840,7 @@ fun SettingsScreenUI(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // â”€â”€ Lore Sanctuary Banner / Active Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // GöÇGöÇ Lore Sanctuary Banner / Active Badge GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
         if (!isPremium) {
             CompactPremiumBanner(onClick = onNavigateToPremium)
         } else {
@@ -848,12 +848,12 @@ fun SettingsScreenUI(
         }
         Spacer(modifier = Modifier.height(22.dp))
 
-        // PRIVACY & SECURITY â€” hidden in decoy mode so the intruder cannot find or change PINs
+        // PRIVACY & SECURITY GÇö hidden in decoy mode so the intruder cannot find or change PINs
         if (!isDecoyMode) SettingsSection(
             title = "PRIVACY & SECURITY",
             icon  = Icons.Outlined.Lock
         ) {
-            // â”€â”€ App Lock toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // GöÇGöÇ App Lock toggle GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
             val pinMode = !useBiometric || !biometricAvailable
             val lockSub = when {
                 !appLockEnabled   -> "Tap to enable app lock."
@@ -875,7 +875,7 @@ fun SettingsScreenUI(
                 }
             )
 
-            // â”€â”€ Lock method selector (only when biometric is available) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // GöÇGöÇ Lock method selector (only when biometric is available) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
             AnimatedVisibility(
                 visible = appLockEnabled && biometricAvailable,
                 enter = expandVertically(tween(220)),
@@ -932,7 +932,7 @@ fun SettingsScreenUI(
                 }
             }
 
-            // â”€â”€ Custom PIN section (visible when PIN mode is active) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // GöÇGöÇ Custom PIN section (visible when PIN mode is active) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
             AnimatedVisibility(
                 visible = appLockEnabled && pinMode,
                 enter = expandVertically(tween(250)),
@@ -1167,7 +1167,7 @@ fun SettingsScreenUI(
             }
 
 
-            // â”€â”€ Screenshot Protection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // GöÇGöÇ Screenshot Protection GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
             SettingsSwitchItem(
                 icon     = Icons.Outlined.Shield,
                 title    = "Screenshot Protection",
@@ -1184,7 +1184,7 @@ fun SettingsScreenUI(
                 }
             )
             
-            // â”€â”€ Blur Journals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // GöÇGöÇ Blur Journals GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
             SettingsSwitchItem(
                 icon     = Icons.Outlined.VisibilityOff,
                 title    = "Blur Journals on Home",
@@ -1193,7 +1193,7 @@ fun SettingsScreenUI(
                 onCheckedChange = onBlurJournalsToggle
             )
 
-            // â”€â”€ Encrypt Media â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // GöÇGöÇ Encrypt Media GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
             SettingsSwitchItem(
                 icon     = Icons.Outlined.EnhancedEncryption,
                 title    = "Encrypt Media",
@@ -1228,7 +1228,7 @@ fun SettingsScreenUI(
                 checked = dailyReminder,
                 onCheckedChange = onDailyReminderToggle
             )
-            // â”€â”€ Reminder time picker (shown only when reminder is on) â”€â”€â”€â”€â”€â”€
+            // GöÇGöÇ Reminder time picker (shown only when reminder is on) GöÇGöÇGöÇGöÇGöÇGöÇ
             AnimatedVisibility(
                 visible = dailyReminder,
                 enter = expandVertically(tween(220)),
@@ -1254,7 +1254,7 @@ fun SettingsScreenUI(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // â”€â”€ Hour stepper â”€â”€
+                        // GöÇGöÇ Hour stepper GöÇGöÇ
                         TimeStepperBlock(
                             label = "Hour",
                             value = "%02d".format(if (reminderHour == 0) 12 else if (reminderHour > 12) reminderHour - 12 else reminderHour),
@@ -1269,7 +1269,7 @@ fun SettingsScreenUI(
                         )
                         Text(":", color = textPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp))
-                        // â”€â”€ Minute stepper â”€â”€
+                        // GöÇGöÇ Minute stepper GöÇGöÇ
                         TimeStepperBlock(
                             label = "Min",
                             value = "%02d".format(reminderMinute),
@@ -1283,7 +1283,7 @@ fun SettingsScreenUI(
                             }
                         )
                         Spacer(Modifier.width(16.dp))
-                        // â”€â”€ AM/PM toggle â”€â”€
+                        // GöÇGöÇ AM/PM toggle GöÇGöÇ
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             val isAm = reminderHour < 12
                             Box(
@@ -1332,7 +1332,7 @@ fun SettingsScreenUI(
             if (showWidgetComingSoon) {
                 AlertDialog(
                     onDismissRequest = { showWidgetComingSoon = false },
-                    title = { Text("Home Screen Widgets ðŸ“±", color = textPrimary, fontWeight = FontWeight.Bold) },
+                    title = { Text("Home Screen Widgets =ƒô¦", color = textPrimary, fontWeight = FontWeight.Bold) },
                     text = {
                         Text("Keep your spirit companion and current journaling streak right on your home screen with customizable Glance widgets.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
                     },
@@ -1355,7 +1355,7 @@ fun SettingsScreenUI(
             SettingsActionItem(
                 icon = Icons.Outlined.Widgets,
                 title = "Home Screen Widgets",
-                subtitle = "Coming Soon â€¢ Display pet & streak on your home screen.",
+                subtitle = "Coming Soon GÇó Display pet & streak on your home screen.",
                 onClick = { showWidgetComingSoon = true }
             )
             
@@ -1432,9 +1432,9 @@ fun SettingsScreenUI(
         if (showExportJourneyComingSoon) {
             AlertDialog(
                 onDismissRequest = { showExportJourneyComingSoon = false },
-                title = { Text("Export Journal Journey ðŸ“¤", color = textPrimary, fontWeight = FontWeight.Bold) },
+                title = { Text("Export Journal Journey =ƒôñ", color = textPrimary, fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("Export your entire sanctuary timeline â€” including mood charts, pet evolution stages, and formatted journal entries into a beautiful PDF book.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
+                    Text("Export your entire sanctuary timeline GÇö including mood charts, pet evolution stages, and formatted journal entries into a beautiful PDF book.\n\nComing Soon for Lore Sanctuary members!", color = textSecondary)
                 },
                 confirmButton = {
                     TextButton(onClick = { showExportJourneyComingSoon = false }) {
@@ -1445,7 +1445,7 @@ fun SettingsScreenUI(
             )
         }
 
-        // SANCTUARY VAULT â€” hidden in decoy mode to prevent backup/export of real data
+        // SANCTUARY VAULT GÇö hidden in decoy mode to prevent backup/export of real data
         if (!isDecoyMode) SettingsSection(
             title = "SANCTUARY VAULT",
             icon = Icons.Outlined.Lock
@@ -1453,7 +1453,7 @@ fun SettingsScreenUI(
             SettingsActionItem(
                 icon = Icons.Outlined.Book,
                 title = "Export Journal Journey (PDF)",
-                subtitle = "Coming Soon â€¢ Download complete mood & pet evolution story.",
+                subtitle = "Coming Soon GÇó Download complete mood & pet evolution story.",
                 onClick = { showExportJourneyComingSoon = true }
             )
             SettingsActionItem(
@@ -1485,7 +1485,7 @@ fun SettingsScreenUI(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // DANGER ZONE â€” hidden in decoy mode so real data cannot be deleted
+        // DANGER ZONE GÇö hidden in decoy mode so real data cannot be deleted
         if (!isDecoyMode) Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1594,7 +1594,7 @@ fun SettingsSection(
     }
 }
 
-// â”€â”€â”€ Time stepper for notification time picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GöÇGöÇGöÇ Time stepper for notification time picker GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 @Composable
 private fun TimeStepperBlock(
     label: String,
@@ -1779,7 +1779,7 @@ fun SettingsActionItem(
     }
 }
 
-// â”€â”€â”€ Small tappable PIN action card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GöÇGöÇGöÇ Small tappable PIN action card GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 @Composable
 fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
@@ -1807,7 +1807,7 @@ fun PinActionCard(icon: ImageVector, title: String, subtitle: String, onClick: (
     }
 }
 
-// â”€â”€â”€ Keypad-style PIN Setup Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GöÇGöÇGöÇ Keypad-style PIN Setup Dialog GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 @Composable
 fun PinSetupDialog(
     title: String,
@@ -2160,7 +2160,7 @@ fun SettingsPremiumUpgradeCard(onNavigateToPremium: () -> Unit) {
             Spacer(Modifier.height(8.dp))
 
             Text(
-                "Cancel anytime Â· No hidden fees Â· Secured by Google Play",
+                "Cancel anytime -+ No hidden fees -+ Secured by Google Play",
                 fontSize = 10.sp,
                 color = Color(0xFF7A8870),
                 textAlign = TextAlign.Center,
