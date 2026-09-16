@@ -85,8 +85,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_GDRIVE_INCLUDE_MEDIA    = booleanPreferencesKey("gdrive_include_media")
         val KEY_GDRIVE_BACKUP_ENABLED   = booleanPreferencesKey("gdrive_backup_enabled")
         val KEY_GDRIVE_LAST_SYNCED      = stringPreferencesKey("gdrive_last_synced")
-        // Pending change tracking deferred
-        // val KEY_GDRIVE_HAS_PENDING_CHANGES = booleanPreferencesKey("gdrive_has_pending_changes")
+        val KEY_GDRIVE_HAS_PENDING_CHANGES = booleanPreferencesKey("gdrive_has_pending_changes")
         val KEY_GDRIVE_LAST_CHANGE_TIME = longPreferencesKey("gdrive_last_change_time")
         val KEY_GDRIVE_LAST_SYNC_TIME   = longPreferencesKey("gdrive_last_sync_time")
         val KEY_SUBSCRIPTION_PLAN       = stringPreferencesKey("subscription_plan")
@@ -375,8 +374,7 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
-    /* suspend fun notifyDataChanged() */
-    private fun _unusedNotify() {
+    suspend fun notifyDataChanged() {
         context.dataStore.edit { prefs ->
             prefs[KEY_GDRIVE_HAS_PENDING_CHANGES] = true
             prefs[KEY_GDRIVE_LAST_CHANGE_TIME] = System.currentTimeMillis()
