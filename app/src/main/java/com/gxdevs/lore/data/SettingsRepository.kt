@@ -70,6 +70,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_DAILY_SELECTED_JOURNALS = stringPreferencesKey("daily_selected_journals")
         val KEY_HAS_LONG_PRESSED_JOURNAL = booleanPreferencesKey("has_long_pressed_journal")
         val KEY_IS_PREMIUM_UNLOCKED     = booleanPreferencesKey("is_premium_unlocked")
+        val KEY_PREMIUM_INTEGRITY_TOKEN = stringPreferencesKey("premium_integrity_token")
         // Lock method
         val KEY_USE_BIOMETRIC           = booleanPreferencesKey("use_biometric")
         // Daily reminder time (default: 10:00 AM)
@@ -84,6 +85,10 @@ class SettingsRepository(private val context: Context) {
         val KEY_GDRIVE_INCLUDE_MEDIA    = booleanPreferencesKey("gdrive_include_media")
         val KEY_GDRIVE_BACKUP_ENABLED   = booleanPreferencesKey("gdrive_backup_enabled")
         val KEY_GDRIVE_LAST_SYNCED      = stringPreferencesKey("gdrive_last_synced")
+        // Pending change tracking deferred
+        // val KEY_GDRIVE_HAS_PENDING_CHANGES = booleanPreferencesKey("gdrive_has_pending_changes")
+        val KEY_GDRIVE_LAST_CHANGE_TIME = longPreferencesKey("gdrive_last_change_time")
+        val KEY_GDRIVE_LAST_SYNC_TIME   = longPreferencesKey("gdrive_last_sync_time")
         val KEY_SUBSCRIPTION_PLAN       = stringPreferencesKey("subscription_plan")
         // Encrypt Media
         val KEY_ENCRYPT_MEDIA           = booleanPreferencesKey("encrypt_media")
@@ -183,10 +188,19 @@ class SettingsRepository(private val context: Context) {
     val gdriveLastSynced: Flow<String?> = context.dataStore.data
         .map { it[KEY_GDRIVE_LAST_SYNCED] }
 
+    val gdriveHasPendingChanges: Flow<Boolean> = context.dataStore.data
+        .map { it[KEY_GDRIVE_HAS_PENDING_CHANGES] ?: false }
+
+    val gdriveLastChangeTime: Flow<Long> = context.dataStore.data
+        .map { it[KEY_GDRIVE_LAST_CHANGE_TIME] ?: 0L }
+
     val subscriptionPlan: Flow<String?> = context.dataStore.data
         .map { prefs ->
             val unlocked = prefs[KEY_IS_PREMIUM_UNLOCKED] ?: false
-            if (unlocked) (prefs[KEY_SUBSCRIPTION_PLAN] ?: "LORE SANCTUARY (PRO)") else "FREE"
+            val plan = prefs[KEY_SUBSCRIPTION_PLAN] ?: "LORE SANCTUARY (PRO)"
+            val token = prefs[KEY_PREMIUM_INTEGRITY_TOKEN]
+            val isValid = unlocked && com.gxdevs.lore.utils.IntegrityHelper.isEntitlementTokenValid(context, plan, token)
+            if (isValid) plan else "FREE"
         }
 
     val encryptMedia: Flow<Boolean> = context.dataStore.data
@@ -319,6 +333,12 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[KEY_HAS_LONG_PRESSED_JOURNAL] = true }
     }
 
+    suspend fun clearDailySelectedJournals() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_DAILY_SELECTED_JOURNALS)
+        }
+    }
+
     suspend fun setGoogleLoggedIn(loggedIn: Boolean) {
         context.dataStore.edit { it[KEY_GOOGLE_LOGGED_IN] = loggedIn }
     }
@@ -355,6 +375,22 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    /* suspend fun notifyDataChanged() */
+    private fun _unusedNotify() {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_GDRIVE_HAS_PENDING_CHANGES] = true
+            prefs[KEY_GDRIVE_LAST_CHANGE_TIME] = System.currentTimeMillis()
+        }
+    }
+
+    suspend fun markGdriveSyncComplete(timeStr: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_GDRIVE_HAS_PENDING_CHANGES] = false
+            prefs[KEY_GDRIVE_LAST_SYNC_TIME] = System.currentTimeMillis()
+            prefs[KEY_GDRIVE_LAST_SYNCED] = timeStr
+        }
+    }
+
     suspend fun setSubscriptionPlan(plan: String) {
         context.dataStore.edit { it[KEY_SUBSCRIPTION_PLAN] = plan }
     }
@@ -367,10 +403,26 @@ class SettingsRepository(private val context: Context) {
     }
 
     val isPremiumUnlocked: Flow<Boolean> = context.dataStore.data
-        .map { prefs -> prefs[KEY_IS_PREMIUM_UNLOCKED] ?: false }
+        .map { prefs ->
+            val unlocked = prefs[KEY_IS_PREMIUM_UNLOCKED] ?: false
+            if (!unlocked) return@map false
+            val plan = prefs[KEY_SUBSCRIPTION_PLAN] ?: "LORE SANCTUARY (PRO)"
+            val token = prefs[KEY_PREMIUM_INTEGRITY_TOKEN]
+            com.gxdevs.lore.utils.IntegrityHelper.isEntitlementTokenValid(context, plan, token)
+        }
 
-    suspend fun setPremiumUnlocked(unlocked: Boolean) {
-        context.dataStore.edit { it[KEY_IS_PREMIUM_UNLOCKED] = unlocked }
+    suspend fun setPremiumUnlocked(unlocked: Boolean, plan: String = "LORE SANCTUARY (PRO)") {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_IS_PREMIUM_UNLOCKED] = unlocked
+            if (unlocked) {
+                val token = com.gxdevs.lore.utils.IntegrityHelper.generateEntitlementToken(context, plan)
+                prefs[KEY_PREMIUM_INTEGRITY_TOKEN] = token
+                prefs[KEY_SUBSCRIPTION_PLAN] = plan
+            } else {
+                prefs.remove(KEY_PREMIUM_INTEGRITY_TOKEN)
+                prefs[KEY_SUBSCRIPTION_PLAN] = "FREE"
+            }
+        }
     }
 
     suspend fun setEncryptMedia(enabled: Boolean) {
@@ -394,6 +446,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun clearGoogleAuth() {
         context.dataStore.edit { prefs ->
             prefs[KEY_GOOGLE_LOGGED_IN] = false
+            prefs[KEY_GDRIVE_BACKUP_ENABLED] = false
             prefs.remove(KEY_GOOGLE_ACCOUNT_NAME)
             prefs.remove(KEY_GOOGLE_ACCOUNT_EMAIL)
             prefs.remove(KEY_GOOGLE_ACCOUNT_PHOTO)
