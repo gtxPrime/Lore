@@ -45,9 +45,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.release
+        }
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -57,6 +61,7 @@ android {
     }
     buildFeatures {
         compose true
+        buildConfig true
     }
     buildToolsVersion '36.1.0'
     compileSdkMinor 0
