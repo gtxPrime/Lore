@@ -127,7 +127,7 @@ class MainActivity : FragmentActivity() {
 
         // ── Google Drive backup: cancel legacy daily periodic schedule (backups run exclusively on journal changes) ──
         androidx.work.WorkManager.getInstance(applicationContext)
-            // periodic cancel deferred
+            .cancelUniqueWork(com.gxdevs.lore.utils.DriveBackupWorker.WORK_NAME_PERIODIC)
 
         // Clean up stale decrypted temp files from previous sessions
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
