@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.absoluteValue
 
-// â”€â”€â”€ Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GöÇGöÇGöÇ Design Tokens GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 
 private val mainContainerBackground = Color(0xFFFAF8F5)
 private val appBackground           = Color(0xFFF3EEE6)
@@ -61,7 +61,7 @@ private val textSecondary           = Color(0xFF7A8370)
 private val borderColor             = Color(0xFFE5DFC9)
 private val tabSelectedColor        = Color(0xFF4A5638)
 
-// â”€â”€â”€ Palette & Bitmap Cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GöÇGöÇGöÇ Palette & Bitmap Cache GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 
 data class LoadedPetImage(
     val imageBitmap: ImageBitmap?,
@@ -147,7 +147,7 @@ fun getOrLoadPetPalette(filePath: String?, fallbackMoodId: String): LoadedPetIma
     }
 }
 
-// â”€â”€â”€ Emoji per emotion per stage (fallback / DEMO_MODE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GöÇGöÇGöÇ Emoji per emotion per stage (fallback / DEMO_MODE) GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 private val petEmojis: Map<String, List<String>> = mapOf(
     "bright"  to listOf("\uD83E\uDD5A", "\uD83D\uDC9B", "\uD83D\uDC23", "\uD83D\uDC25", "\u2B50", "\u2600\uFE0F"),
     "calm"    to listOf("\uD83E\uDD5A", "\uD83D\uDC9A", "\uD83D\uDC23", "\uD83C\uDF3F", "\uD83C\uDF43", "\uD83C\uDF33"),
@@ -162,7 +162,7 @@ internal fun emojiFor(emotion: String, stageIndex: Int): String {
     return list.getOrElse(stageIndex.coerceAtLeast(0)) { list.last() }
 }
 
-// â”€â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GöÇGöÇGöÇ Screen GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -274,7 +274,7 @@ fun PetsScreen(
                         .padding(horizontal = 24.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "âš¡ DEMO CONTROLLER",
+                        text = "GÜí DEMO CONTROLLER",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = primaryAccent.copy(alpha = 0.7f),
@@ -539,7 +539,7 @@ fun PetsScreen(
                                 .padding(horizontal = 14.dp, vertical = 5.dp)
                         ) {
                             Text(
-                                text       = if (targetPet.stageIndex < 0) "Locked" else "Stage ${targetPet.stageIndex + 1} â€¢ ${targetPet.stageName}",
+                                text       = if (targetPet.stageIndex < 0) "Locked" else "Stage ${targetPet.stageIndex + 1} GÇó ${targetPet.stageName}",
                                 fontSize   = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color      = targetMoodColor
@@ -611,7 +611,7 @@ fun PetsScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // --- "âœ¦ View Journey" Button ---
+                        // --- "G£ª View Journey" Button ---
                         val journeyShimmer = rememberInfiniteTransition(label = "journey_btn_shimmer")
                         val journeyShimmerX by journeyShimmer.animateFloat(
                             initialValue = -200f,
@@ -668,7 +668,7 @@ fun PetsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text       = "âœ¦",
+                                    text       = "G£ª",
                                     fontSize   = 14.sp,
                                     color      = Color.White,
                                     fontWeight = FontWeight.Bold
@@ -880,7 +880,7 @@ fun PetsScreen(
     }
 }
 
-// --- Pet visual - emoji/shape (fallback) / image (cached with palette) â”€â”€â”€â”€â”€â”€â”€
+// --- Pet visual - emoji/shape (fallback) / image (cached with palette) GöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 
 @OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
 @Composable
@@ -893,14 +893,14 @@ fun PetStageVisual(
 ) {
     val size = if (isCenter) 140.dp else 100.dp
 
-    // Locked pet â€” always show lock icon
+    // Locked pet GÇö always show lock icon
     if (pet.stageIndex < 0) {
         Icon(Icons.Rounded.Lock, contentDescription = "Locked",
             modifier = Modifier.size(48.dp), tint = textSecondary.copy(alpha = 0.3f))
         return
     }
 
-    // â”€â”€ Tier 1: local bitmap already decoded â†’ render instantly â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // GöÇGöÇ Tier 1: local bitmap already decoded GåÆ render instantly GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
     if (!forceEmoji && loadedImage?.imageBitmap != null) {
         Image(
             bitmap = loadedImage.imageBitmap,
@@ -916,7 +916,7 @@ fun PetStageVisual(
     val hasUrl = !forceEmoji && !pet.currentStageImageUrl.isNullOrEmpty()
 
     if (hasUrl) {
-        // â”€â”€ Tier 2: no local cache yet, but URL is known â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // GöÇGöÇ Tier 2: no local cache yet, but URL is known GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
         // Resolve the (possibly encrypted) URL to a direct download link.
         val directUrl = remember(pet.currentStageImageUrl) {
             com.gxdevs.lore.pets.PetImageCache.resolveUrl(pet.currentStageImageUrl)
@@ -925,7 +925,7 @@ fun PetStageVisual(
         val context = androidx.compose.ui.platform.LocalContext.current
 
         // Background: also write to disk so the next launch is a cache-hit.
-        // This runs silently â€” Glide is already showing the image from the network.
+        // This runs silently GÇö Glide is already showing the image from the network.
         LaunchedEffect(pet.petId, pet.stageIndex) {
             try {
                 val cache = com.gxdevs.lore.pets.PetImageCache(context)
@@ -955,7 +955,7 @@ fun PetStageVisual(
         }
     }
 
-    // â”€â”€ Tier 3: no URL at all â†’ emoji visual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // GöÇGöÇ Tier 3: no URL at all GåÆ emoji visual GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
     PetEmojiVisual(pet = pet, moodColor = moodColor, size = size)
 }
 
