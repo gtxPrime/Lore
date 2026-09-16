@@ -31,11 +31,14 @@ class PetCatalogRepository(private val context: Context) {
 
     suspend fun seedFromAssetsIfEmpty() = withContext(Dispatchers.IO) {
         try {
+            val existingDefs = defDao.getAllDefinitionsSuspend()
+            val meta = metaDao.getMeta()
+            Log.d(tag, "[Seed] Current DB defs count: ${existingDefs.size}, catalogVersion: ${meta?.catalogVersion}")
+
             val jsonString = context.assets.open("pets.json").bufferedReader().use { it.readText() }
             val catalog = gson.fromJson(jsonString, PetCatalogJson::class.java)
-            val meta = metaDao.getMeta()
-            if (defDao.getAllDefinitionsSuspend().isNotEmpty() && meta?.catalogVersion == catalog.version) return@withContext
-            Log.i(tag, "Seeding catalog from assets/pets.json (v${catalog.version})...")
+
+            Log.i(tag, "[Seed] Seeding/Updating catalog from assets/pets.json (v${catalog.version}, ${catalog.pets.size} pets)...")
             mergeCatalog(catalog)
             metaDao.upsert(
                 PetCatalogMeta(
@@ -44,51 +47,53 @@ class PetCatalogRepository(private val context: Context) {
                     lastFetchedEpoch = meta?.lastFetchedEpoch ?: 0L
                 )
             )
-            Log.i(tag, "Successfully seeded ${catalog.pets.size} pets from assets!")
+            Log.i(tag, "[Seed] Successfully synced ${catalog.pets.size} pets from assets!")
         } catch (e: Exception) {
-            Log.e(tag, "Failed to seed catalog from assets/pets.json", e)
+            Log.e(tag, "[Seed] Failed to seed catalog from assets/pets.json", e)
         }
     }
 
     suspend fun syncIfDue(): SyncResult = withContext(Dispatchers.IO) {
-        // Ensure database has local seed if empty
         seedFromAssetsIfEmpty()
 
         val meta = metaDao.getMeta() ?: PetCatalogMeta()
         val elapsed = System.currentTimeMillis() - meta.lastFetchedEpoch
 
         if (elapsed < fetchCooldownMs) {
-            Log.d(tag, "Skipping sync — only ${elapsed / 3600000}h since last fetch")
+            Log.d(tag, "[Sync] Skipping sync — only ${elapsed / 3600000}h since last fetch (cooldown: 24h)")
             return@withContext SyncResult.Skipped
         }
 
-        // Resolve URL exclusively from Firebase Remote Config
         val url = resolveUrl()
         if (url == null) {
-            Log.w(tag, "pets_json_url not set in Remote Config — skipping sync")
+            Log.w(tag, "[Sync] pets_json_url not set in Remote Config — skipping sync")
             return@withContext SyncResult.NoConfig
         }
 
+        Log.i(tag, "[Sync] Fetching pet catalog JSON from: $url")
         val json = try {
             fetchJson(url)
         } catch (e: IOException) {
-            Log.w(tag, "No internet or host unreachable: ${e.message}")
+            Log.w(tag, "[Sync] No internet or host unreachable: ${e.message}")
             return@withContext SyncResult.NoInternet
         }
 
         val catalog = try {
             gson.fromJson(json, PetCatalogJson::class.java)
         } catch (e: Exception) {
-            Log.e(tag, "Parse error", e)
+            Log.e(tag, "[Sync] Parse error for catalog JSON", e)
             return@withContext SyncResult.ParseError(e.message ?: "unknown")
         }
 
+        Log.i(tag, "[Sync] Remote catalog parsed: v${catalog.version} with ${catalog.pets.size} pets")
+
         if (catalog.version <= meta.catalogVersion) {
+            Log.d(tag, "[Sync] Remote version v${catalog.version} <= current local v${meta.catalogVersion} — up to date")
             metaDao.upsert(meta.copy(lastFetchedEpoch = System.currentTimeMillis()))
             return@withContext SyncResult.AlreadyCurrent(catalog.version)
         }
 
-        Log.i(tag, "Updating catalog v${meta.catalogVersion} → v${catalog.version}")
+        Log.i(tag, "[Sync] Updating catalog v${meta.catalogVersion} → v${catalog.version}")
         mergeCatalog(catalog)
         metaDao.upsert(
             PetCatalogMeta(
@@ -106,12 +111,14 @@ class PetCatalogRepository(private val context: Context) {
         return try {
             val rc = FirebaseRemoteConfig.getInstance()
             val raw = rc.getString(rcKEY)
+            Log.d(tag, "[RC] pets_json_url raw value from Remote Config: '$raw'")
             if (raw.isBlank()) null else normalizeUrl(raw)
         } catch (e: Exception) {
-            Log.w(tag, "Firebase Remote Config unavailable", e)
+            Log.w(tag, "[RC] Firebase Remote Config unavailable", e)
             null
         }
     }
+
 
     private fun normalizeUrl(url: String): String = when {
         url.contains("dropbox.com") -> url
@@ -123,19 +130,34 @@ class PetCatalogRepository(private val context: Context) {
     }
 
     private fun fetchJson(urlString: String): String {
-        val conn = URL(urlString).openConnection() as HttpURLConnection
-        return try {
-            conn.connectTimeout          = 10_000
-            conn.readTimeout             = 15_000
-            conn.requestMethod           = "GET"
-            conn.instanceFollowRedirects = true
-            conn.setRequestProperty("Accept", "application/json")
-            if (conn.responseCode != HttpURLConnection.HTTP_OK)
-                throw IOException("HTTP ${conn.responseCode}")
-            conn.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            conn.disconnect()
+        var currentUrl = urlString
+        var attempts = 0
+        while (attempts < 5) {
+            val conn = URL(currentUrl).openConnection() as HttpURLConnection
+            try {
+                conn.connectTimeout          = 15_000
+                conn.readTimeout             = 20_000
+                conn.requestMethod           = "GET"
+                conn.instanceFollowRedirects = false   // Handle cross-domain redirects manually
+                conn.setRequestProperty("Accept", "application/json, text/plain, */*")
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Lore/1.0)")
+
+                val code = conn.responseCode
+                if (code == HttpURLConnection.HTTP_OK) {
+                    return conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                } else if (code in 301..308) {
+                    val location = conn.getHeaderField("Location")
+                        ?: throw IOException("Redirect with no Location header from $currentUrl")
+                    currentUrl = location
+                    attempts++
+                } else {
+                    throw IOException("HTTP $code for $currentUrl")
+                }
+            } finally {
+                conn.disconnect()
+            }
         }
+        throw IOException("Too many redirects for $urlString")
     }
 
     private suspend fun mergeCatalog(catalog: PetCatalogJson) {
