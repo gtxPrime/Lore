@@ -7,6 +7,8 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.*
@@ -101,34 +103,42 @@ fun IdentityScreen(
     val gdriveBackupEnabled by settingsRepo.gdriveBackupEnabled.collectAsState(initial = false)
     val gdriveIncludeMedia by settingsRepo.gdriveIncludeMedia.collectAsState(initial = true)
     val gdriveLastSynced by settingsRepo.gdriveLastSynced.collectAsState(initial = "NEVER")
+    val gdriveHasPendingChanges by settingsRepo.gdriveHasPendingChanges.collectAsState(initial = false)
     val subscriptionPlan by settingsRepo.subscriptionPlan.collectAsState(initial = "MYSTIC (PRO)")
+
+    val workInfos by WorkManager.getInstance(context)
+        .getWorkInfosForUniqueWorkLiveData(DriveBackupWorker.WORK_NAME_ONDEMAND)
+        .observeAsState()
+
+    val isSyncing = remember(workInfos) {
+        workInfos?.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED } == true
+    }
 
     // ActivityResultLauncher for Google Drive OAuth Consent Dialog (modern AuthorizationClient).
     // After the user approves, we extract the token from the result intent and kick off backup.
+    var pendingPostConsentMode by remember { mutableStateOf<String?>(null) }
+
     val driveConsentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val token = DriveTokenHelper.getTokenFromAuthorizationResult(context, result.data)
             if (token != null) {
-                Toast.makeText(context, "Drive permission granted! Backing up...", Toast.LENGTH_SHORT).show()
-                val constraints = Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-                val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
-                    .setConstraints(constraints)
-                    .addTag(DriveBackupWorker.WORK_TAG)
-                    .build()
-                WorkManager.getInstance(context).enqueueUniqueWork(
-                    DriveBackupWorker.WORK_NAME_ONDEMAND,
-                    ExistingWorkPolicy.REPLACE,
-                    request
-                )
+                coroutineScope.launch {
+                    settingsRepo.setGdriveBackupEnabled(true)
+                    settingsRepo.setGoogleLoggedIn(true)
+                }
+                Toast.makeText(context, "Drive permission granted!", Toast.LENGTH_SHORT).show()
+                if (pendingPostConsentMode == "BACKUP") {
+                    pendingPostConsentMode = "BACKUP_AUTO_RESUME"
+                } else if (pendingPostConsentMode == "RESTORE") {
+                    pendingPostConsentMode = "RESTORE_AUTO_RESUME"
+                }
             } else {
                 Toast.makeText(context, "Drive permission granted but token unavailable. Please try again.", Toast.LENGTH_LONG).show()
             }
         } else {
-            Toast.makeText(context, "Drive permission is required to back up to Google Drive", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Drive permission is required to enable Google Drive backup", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -138,13 +148,15 @@ fun IdentityScreen(
             withContext(Dispatchers.Main) {
                 when (authState) {
                     is DriveTokenHelper.DriveAuthState.HasToken -> {
-                        // Token already available GÇö kick off backup worker immediately
+                        // Token already available â€” kick off backup worker immediately & show initial notification
+                        com.gxdevs.lore.utils.showDriveBackupNotification(context, "Google Drive Syncing...", "Preparing Sanctuary backup...", 10)
                         val constraints = Constraints.Builder()
                             .setRequiredNetworkType(NetworkType.CONNECTED)
                             .build()
                         val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
                             .setConstraints(constraints)
                             .addTag(DriveBackupWorker.WORK_TAG)
+                            .addTag(DriveBackupWorker.TAG_MANUAL_SYNC)
                             .build()
                         WorkManager.getInstance(context).enqueueUniqueWork(
                             DriveBackupWorker.WORK_NAME_ONDEMAND,
@@ -154,8 +166,9 @@ fun IdentityScreen(
                         Toast.makeText(context, "Syncing to Google Drive...", Toast.LENGTH_SHORT).show()
                     }
                     is DriveTokenHelper.DriveAuthState.NeedsConsent -> {
-                        // Show Drive consent dialog GÇö result handled by driveConsentLauncher
+                        // Show Drive consent dialog â€” result handled by driveConsentLauncher
                         try {
+                            pendingPostConsentMode = "BACKUP"
                             driveConsentLauncher.launch(
                                 androidx.activity.result.IntentSenderRequest.Builder(authState.pendingIntent.intentSender).build()
                             )
@@ -178,25 +191,43 @@ fun IdentityScreen(
     var restorePinError by remember { mutableStateOf(false) }
     var pendingRestoreTempFile by remember { mutableStateOf<java.io.File?>(null) }
 
+    val ensureLoginAndPremium: (() -> Unit) -> Unit = { action ->
+        if (!googleLoggedIn) {
+            Toast.makeText(context, "Please sign in with Google to use Google Drive Backup.", Toast.LENGTH_LONG).show()
+        } else if (!isPremium) {
+            Toast.makeText(context, "Google Drive Backup requires Premium. Please upgrade to unlock.", Toast.LENGTH_LONG).show()
+            onNavigateToPremium()
+        } else {
+            action()
+        }
+    }
+
     val restoreFromDrive: () -> Unit = {
         showRestoreConfirmDialog = false
         isRestoring = true
         coroutineScope.launch(Dispatchers.IO) {
+            android.util.Log.d("LoreRestore", "=== STARTING RESTORE FROM GOOGLE DRIVE ===")
             val authState = DriveTokenHelper.authorizeInForeground(context)
+            android.util.Log.d("LoreRestore", "Auth state result: $authState")
+
             if (authState !is DriveTokenHelper.DriveAuthState.HasToken) {
                 withContext(Dispatchers.Main) {
                     isRestoring = false
                     when (authState) {
                         is DriveTokenHelper.DriveAuthState.NeedsConsent -> {
+                            android.util.Log.d("LoreRestore", "Needs user consent â€” launching consent dialog")
                             try {
+                                pendingPostConsentMode = "RESTORE"
                                 driveConsentLauncher.launch(
                                     androidx.activity.result.IntentSenderRequest.Builder(authState.pendingIntent.intentSender).build()
                                 )
                             } catch (e: Exception) {
+                                android.util.Log.e("LoreRestore", "Consent launcher error: ${e.message}", e)
                                 Toast.makeText(context, "Could not open Drive permission dialog: ${e.message}", Toast.LENGTH_LONG).show()
                             }
                         }
                         is DriveTokenHelper.DriveAuthState.Failed -> {
+                            android.util.Log.e("LoreRestore", "Drive auth failed: ${authState.reason}")
                             Toast.makeText(context, "Drive error: ${authState.reason}", Toast.LENGTH_LONG).show()
                         }
                     }
@@ -204,22 +235,29 @@ fun IdentityScreen(
                 return@launch
             }
             val token = authState.token
+            android.util.Log.d("LoreRestore", "Obtained access token (len=${token.length}, prefix=${token.take(10)}...)")
 
-            val downloadResult = DriveBackupClient.downloadBackup(token)
+            val downloadResult = DriveBackupClient.downloadBackup(token, context)
+            android.util.Log.d("LoreRestore", "Download result isSuccess=${downloadResult.isSuccess}")
+
             if (downloadResult.isFailure) {
+                val downloadException = downloadResult.exceptionOrNull()
+                android.util.Log.e("LoreRestore", "Download failed: ${downloadException?.message}", downloadException)
                 withContext(Dispatchers.Main) {
                     isRestoring = false
-                    Toast.makeText(context, "Restore failed: ${downloadResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Restore failed: ${downloadException?.message}", Toast.LENGTH_LONG).show()
                 }
                 return@launch
             }
 
             val bytes = downloadResult.getOrThrow()
+            android.util.Log.d("LoreRestore", "Downloaded ${bytes.size} bytes from Drive. Writing to temp file...")
             val tempFile = java.io.File(context.cacheDir, "drive_restore_${System.currentTimeMillis()}.lore")
             try {
                 tempFile.writeBytes(bytes)
                 val encryptMedia = settingsRepo.encryptMedia.first()
                 val backupPin = settingsRepo.backupEncryptionKey.first() ?: settingsRepo.appPin.first()
+                android.util.Log.d("LoreRestore", "Importing backup file (encryptMedia=$encryptMedia, size=${tempFile.length()} bytes)...")
 
                 val importResult = com.gxdevs.lore.utils.BackupManager.importData(
                     context = context,
@@ -229,15 +267,18 @@ fun IdentityScreen(
                     currentAppPin = backupPin
                 )
 
+                android.util.Log.d("LoreRestore", "Import result isSuccess=${importResult.isSuccess}")
                 if (importResult.isSuccess) {
                     petViewModel.recalculateAndDownloadResourcesSuspend(context)
                 }
                 withContext(Dispatchers.Main) {
                     isRestoring = false
                     if (importResult.isSuccess) {
+                        android.util.Log.d("LoreRestore", "Restore complete!")
                         Toast.makeText(context, "Sanctuary restored from Google Drive successfully!", Toast.LENGTH_LONG).show()
                     } else {
                         val exception = importResult.exceptionOrNull()
+                        android.util.Log.e("LoreRestore", "Import failed: ${exception?.message}", exception)
                         if (exception is com.gxdevs.lore.utils.BackupEncryptedException) {
                             pendingRestoreTempFile = tempFile
                             showRestorePinPromptDialog = true
@@ -255,6 +296,17 @@ fun IdentityScreen(
         }
     }
 
+    LaunchedEffect(pendingPostConsentMode) {
+        val mode = pendingPostConsentMode ?: return@LaunchedEffect
+        if (mode == "BACKUP_AUTO_RESUME") {
+            pendingPostConsentMode = null
+            requestDriveBackup()
+        } else if (mode == "RESTORE_AUTO_RESUME") {
+            pendingPostConsentMode = null
+            restoreFromDrive()
+        }
+    }
+
     if (showRestoreConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showRestoreConfirmDialog = false },
@@ -268,7 +320,7 @@ fun IdentityScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = { restoreFromDrive() }
+                    onClick = { ensureLoginAndPremium { restoreFromDrive() } }
                 ) {
                     Text("RESTORE NOW", color = primaryAccent, fontWeight = FontWeight.Bold)
                 }
@@ -534,7 +586,7 @@ fun IdentityScreen(
                             if (isSigningIn) return@Button
                             val activity = context.findActivity()
                             if (activity == null) {
-                                android.util.Log.e("CredentialAuth", "Cannot find Activity from context GÇö aborting sign-in")
+                                android.util.Log.e("CredentialAuth", "Cannot find Activity from context â€” aborting sign-in")
                                 Toast.makeText(context, "Sign-in unavailable in this context", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
@@ -592,7 +644,7 @@ fun IdentityScreen(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = if (isSigningIn) "Signing inGÇª" else "Continue with Google",
+                                text = if (isSigningIn) "Signing inâ€¦" else "Continue with Google",
                                 color = Color(0xFF1F1F1F),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -602,7 +654,7 @@ fun IdentityScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // GöÇGöÇGöÇ Lore Sanctuary entry point (Upgrade Banner if Free, Active Badge if Premium) GöÇGöÇGöÇ
+                    // â”€â”€â”€ Lore Sanctuary entry point (Upgrade Banner if Free, Active Badge if Premium) â”€â”€â”€
                     if (!isPremium) {
                         CompactPremiumBanner(onClick = onNavigateToPremium)
                     } else {
@@ -671,7 +723,7 @@ fun IdentityScreen(
                     }
 
                     Text(
-                        text = "Identity & Cloud",
+                        text = "Identity",
                         color = textPrimary,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
@@ -748,9 +800,9 @@ fun IdentityScreen(
 
                     // User name
                     Text(
-                        text = googleName ?: "Explorer",
+                        text = if (!googleName.isNullOrBlank()) googleName!! else "Lore Explorer",
                         color = textPrimary,
-                        fontSize = 32.sp,
+                        fontSize = 30.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Serif
                     )
@@ -868,7 +920,7 @@ fun IdentityScreen(
 
                 // --- Google Drive Backup section ---
                 Text(
-                    text = "GÇó SECURE BACKUP",
+                    text = "â€¢ SECURE BACKUP",
                     color = if (isPremium) textSecondary else textSecondary.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -928,7 +980,7 @@ fun IdentityScreen(
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        text = if (isPremium) "=ƒöÆ End-to-End Encrypted" else "=ƒöÆ Premium feature",
+                                        text = if (isPremium) "ðŸ”’ End-to-End Encrypted" else "ðŸ”’ Premium feature",
                                         color = Color.White.copy(alpha = 0.4f),
                                         fontSize = 11.sp
                                     )
@@ -939,16 +991,36 @@ fun IdentityScreen(
                             Switch(
                                 checked = gdriveBackupEnabled,
                                 onCheckedChange = { enabled ->
-                                    if (!isPremium) return@Switch
-                                    if (enabled && !googleLoggedIn) {
-                                        Toast.makeText(context, "Please sign in with Google first to enable Drive backup", Toast.LENGTH_LONG).show()
-                                        return@Switch
-                                    }
-                                    coroutineScope.launch {
-                                        settingsRepo.setGdriveBackupEnabled(enabled)
-                                        if (enabled) {
-                                            Toast.makeText(context, "Google Drive Auto-Backup enabled!", Toast.LENGTH_SHORT).show()
-                                        } else {
+                                    if (enabled) {
+                                        ensureLoginAndPremium {
+                                            coroutineScope.launch(Dispatchers.IO) {
+                                                val authState = DriveTokenHelper.authorizeInForeground(context)
+                                                withContext(Dispatchers.Main) {
+                                                    when (authState) {
+                                                        is DriveTokenHelper.DriveAuthState.HasToken -> {
+                                                            settingsRepo.setGdriveBackupEnabled(true)
+                                                            settingsRepo.setGoogleLoggedIn(true)
+                                                            Toast.makeText(context, "Google Drive Auto-Backup enabled!", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                        is DriveTokenHelper.DriveAuthState.NeedsConsent -> {
+                                                            try {
+                                                                driveConsentLauncher.launch(
+                                                                    androidx.activity.result.IntentSenderRequest.Builder(authState.pendingIntent.intentSender).build()
+                                                                )
+                                                            } catch (e: Exception) {
+                                                                Toast.makeText(context, "Could not open Drive permission dialog: ${e.message}", Toast.LENGTH_LONG).show()
+                                                            }
+                                                        }
+                                                        is DriveTokenHelper.DriveAuthState.Failed -> {
+                                                            Toast.makeText(context, "Drive authorization error: ${authState.reason}", Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        coroutineScope.launch {
+                                            settingsRepo.setGdriveBackupEnabled(false)
                                             Toast.makeText(context, "Google Drive Auto-Backup disabled", Toast.LENGTH_SHORT).show()
                                         }
                                     }
@@ -1028,7 +1100,9 @@ fun IdentityScreen(
                                 Button(
                                     onClick = {
                                         if (isSyncing) return@Button
-                                        requestDriveBackup()
+                                        ensureLoginAndPremium {
+                                            requestDriveBackup()
+                                        }
                                     },
                                     enabled = !isSyncing,
                                     modifier = Modifier.height(34.dp),
@@ -1169,7 +1243,8 @@ fun IdentityScreen(
                                 Button(
                                     onClick = {
                                         if (isRestoring || isSyncing) return@Button
-                                        showRestoreConfirmDialog = true
+                                        // restore confirmation dialog deferred
+                                        showRestoreConfirmDialog = false
                                     },
                                     enabled = !isRestoring && !isSyncing,
                                     modifier = Modifier.height(34.dp),
@@ -1192,8 +1267,12 @@ fun IdentityScreen(
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Text(
-                                text = "LAST SYNCED: ${(gdriveLastSynced ?: "NEVER").uppercase()}",
-                                color = Color.White.copy(alpha = 0.4f),
+                                text = if (gdriveHasPendingChanges) {
+                                    "LAST SYNCED: ${(gdriveLastSynced ?: "NEVER").uppercase()} â€¢ CHANGES PENDING"
+                                } else {
+                                    "LAST SYNCED: ${(gdriveLastSynced ?: "NEVER").uppercase()} â€¢ UP TO DATE"
+                                },
+                                color = if (gdriveHasPendingChanges) Color(0xFFD9A05B) else Color.White.copy(alpha = 0.4f),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp,
@@ -1255,7 +1334,7 @@ fun IdentityScreen(
 
                 // --- Subscription Section ---
                 Text(
-                    text = "GÇó SUBSCRIPTION",
+                    text = "â€¢ SUBSCRIPTION",
                     color = textSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -1266,7 +1345,7 @@ fun IdentityScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (isPremium) {
-                    // GöÇGöÇ PREMIUM ACTIVE CARD GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+                    // â”€â”€ PREMIUM ACTIVE CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1308,7 +1387,7 @@ fun IdentityScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "GÇó ACTIVE MEMBERSHIP",
+                                    text = "â€¢ ACTIVE MEMBERSHIP",
                                     color = Color(0xFF8FA876),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1323,7 +1402,7 @@ fun IdentityScreen(
                                     .padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
                                 Text(
-                                    text = "PRO G£ô",
+                                    text = "PRO âœ“",
                                     color = Color(0xFFFFE599),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold
@@ -1335,7 +1414,7 @@ fun IdentityScreen(
 
                         // Perks list
                         val perks = listOf(
-                            Icons.Rounded.Pets to "3+ù faster companion growth",
+                            Icons.Rounded.Pets to "3Ã— faster companion growth",
                             Icons.Rounded.Mic to "Unlimited voice journaling",
                             Icons.Rounded.Shield to "End-to-end encrypted backups",
                             Icons.Rounded.Star to "Exclusive relic & spirit unlocks",
@@ -1378,7 +1457,7 @@ fun IdentityScreen(
                                             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                     )
                                 } catch (_: Exception) {
-                                    Toast.makeText(context, "Opening subscription managerGÇª", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Opening subscription managerâ€¦", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier
@@ -1406,7 +1485,7 @@ fun IdentityScreen(
                         }
                     }
                 } else {
-                    // GöÇGöÇ FREE / WANDERER CARD GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+                    // â”€â”€ FREE / WANDERER CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1443,7 +1522,7 @@ fun IdentityScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "GÇó FREE PLAN",
+                                    text = "â€¢ FREE PLAN",
                                     color = Color.White.copy(alpha = 0.4f),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1456,11 +1535,11 @@ fun IdentityScreen(
 
                         // Locked perks (what they're missing)
                         val lockedPerks = listOf(
-                            "3+ù faster companion growth" to false,
+                            "3Ã— faster companion growth" to false,
                             "Unlimited voice journaling" to false,
                             "Encrypted cloud backups" to false,
                             "Exclusive relic & spirit unlocks" to false,
-                            "Basic journaling GÇö always free" to true
+                            "Basic journaling â€” always free" to true
                         )
                         lockedPerks.forEach { (label, included) ->
                             Row(
@@ -1486,7 +1565,7 @@ fun IdentityScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Upgrade button GÇö opens PremiumActivity
+                        // Upgrade button â€” opens PremiumActivity
                         Button(
                             onClick = {
                                 onNavigateToPremium()
@@ -1533,42 +1612,46 @@ fun IdentityScreen(
 
                 Spacer(modifier = Modifier.height(40.dp))
 
-                // --- Logout button: SEAL THE SANCTUARY ---
-                TextButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            com.gxdevs.lore.auth.GoogleAuthManager.signOut(context, settingsRepo)
-                            Toast.makeText(context, "Sanctuary sealed. Signed out of Google & Firebase.", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .height(56.dp)
-                        .border(1.dp, Color(0xFFC88C82).copy(alpha = 0.3f), RoundedCornerShape(28.dp)),
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFC88C82))
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                if (googleLoggedIn) {
+                    // Google logout button
+                    TextButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                com.gxdevs.lore.auth.GoogleAuthManager.signOut(context, settingsRepo)
+                                Toast.makeText(context, "Sanctuary sealed.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .height(56.dp)
+                            .border(1.dp, Color(0xFFC88C82).copy(alpha = 0.3f), RoundedCornerShape(28.dp)),
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFC88C82))
                     ) {
-                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Logout,
-                            contentDescription = "Exit",
-                            tint = Color(0xFFC88C82),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "SEAL THE SANCTUARY",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                             Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Logout,
+                                contentDescription = "Exit",
+                                tint = Color(0xFFC88C82),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "SEAL THE SANCTUARY",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
                     }
                 }
             }
         }
+
+
     }
 }
 
@@ -1691,7 +1774,7 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
                 color = Color.White
             )
             Text(
-                "Active Membership -+ All features unlocked",
+                "Active Membership Â· All features unlocked",
                 fontSize = 11.sp,
                 color = Color.White.copy(alpha = 0.85f)
             )
@@ -1702,7 +1785,7 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.4f))
         ) {
             Text(
-                "PRO G£ô",
+                "PRO âœ“",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color(0xFFFFE599),
@@ -1713,3 +1796,4 @@ fun PremiumActiveBadge(onClick: () -> Unit = {}) {
         Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
     }
 }
+
