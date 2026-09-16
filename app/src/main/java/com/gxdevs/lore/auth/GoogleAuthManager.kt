@@ -134,6 +134,12 @@ object GoogleAuthManager {
             Log.w(TAG, "CredentialManager clear state failed", e)
         }
         try {
+            androidx.work.WorkManager.getInstance(context).cancelUniqueWork(com.gxdevs.lore.utils.DriveBackupWorker.WORK_NAME_ONDEMAND)
+            androidx.work.WorkManager.getInstance(context).cancelUniqueWork(com.gxdevs.lore.utils.DriveBackupWorker.WORK_NAME_PERIODIC)
+        } catch (e: Exception) {
+            Log.w(TAG, "WorkManager cancel Drive tasks failed", e)
+        }
+        try {
             settingsRepo.clearGoogleAuth()
         } catch (e: Exception) {
             Log.w(TAG, "DataStore clear Google auth failed", e)
