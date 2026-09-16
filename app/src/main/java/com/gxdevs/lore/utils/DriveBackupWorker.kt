@@ -135,7 +135,7 @@ class DriveBackupWorker(
         // 2. Export to a temp file (reuse BackupManager, write to temp Uri)
         val tempFile = File(appContext.cacheDir, "drive_backup_${System.currentTimeMillis()}.lore")
         return try {
-            // Export notification deferred
+            showDriveBackupNotification(appContext, "Google Drive Sync", "Exporting Sanctuary database & media...", 35)
 
             val includeMedia = repo.gdriveIncludeMedia.first()
             val encryptMedia = repo.encryptMedia.first()
