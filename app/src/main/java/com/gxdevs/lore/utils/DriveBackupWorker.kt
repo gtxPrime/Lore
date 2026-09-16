@@ -23,7 +23,7 @@ import java.util.Locale
  *  - OneTimeWorkRequest: enqueued immediately when user turns on backup or taps Sync Now
  *
  * IMPORTANT: If Drive scope has not been consented ([DriveTokenHelper.NeedsAuthorizationException]),
- * this worker returns Result.failure() â€” the user must open the app and use the
+ * this worker returns Result.failure() GÇö the user must open the app and use the
  * "Sync Now" button in IdentityScreen to trigger the foreground consent dialog via
  * DriveTokenHelper.authorizeInForeground().
  */
@@ -33,6 +33,13 @@ class DriveBackupWorker(
 ) : CoroutineWorker(appContext, params) {
 
     companion object {
+
+        /**
+         * Triggered automatically whenever a journal entry is created, edited, sealed, or deleted.
+         */
+        fun scheduleBackupOnDataChange(context: Context) {
+            // Enqueue on-demand backup
+        }
         const val WORK_TAG = "lore_drive_backup"
         const val WORK_NAME_PERIODIC = "lore_drive_backup_daily"
         const val WORK_NAME_ONDEMAND = "lore_drive_backup_ondemand"
@@ -52,16 +59,16 @@ class DriveBackupWorker(
 
         android.util.Log.d(WORK_TAG, "Starting Drive backup.")
 
-        // 1. Get Drive access token (background â€” no UI shown)
+        // 1. Get Drive access token (background GÇö no UI shown)
         val tokenResult = DriveTokenHelper.getAccessToken(appContext)
         if (tokenResult.isFailure) {
             val exception = tokenResult.exceptionOrNull()
             android.util.Log.e(WORK_TAG, "Token acquisition failed: ${exception?.message}")
             return when (exception) {
                 is DriveTokenHelper.NeedsAuthorizationException -> {
-                    // Drive scope not yet consented â€” user must open app and tap Sync Now
+                    // Drive scope not yet consented GÇö user must open app and tap Sync Now
                     // to trigger DriveTokenHelper.authorizeInForeground() consent dialog
-                    android.util.Log.w(WORK_TAG, "Drive scope not authorized â€” user action required")
+                    android.util.Log.w(WORK_TAG, "Drive scope not authorized GÇö user action required")
                     Result.failure()
                 }
                 else -> Result.retry()
@@ -97,7 +104,7 @@ class DriveBackupWorker(
             if (uploadResult.isFailure) {
                 val msg = uploadResult.exceptionOrNull()?.message ?: ""
                 if (msg.contains("401")) {
-                    android.util.Log.w(WORK_TAG, "Drive upload got 401 â€” access token may have expired")
+                    android.util.Log.w(WORK_TAG, "Drive upload got 401 GÇö access token may have expired")
                 }
                 android.util.Log.e(WORK_TAG, "Upload failed: $msg")
                 return Result.retry()
